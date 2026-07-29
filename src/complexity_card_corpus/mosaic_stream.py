@@ -341,13 +341,14 @@ def build_mosaic_shards(
     registry = json.loads(registry_path.read_text())
     sources = validate_mosaic_registry(registry)
     output_root.mkdir(parents=True, exist_ok=True)
-    state_root = raw_root / ".state"
+    registry_sha256 = file_sha256(registry_path)
+    state_root = raw_root / ".state" / registry_sha256[:16]
     state_root.mkdir(parents=True, exist_ok=True)
     connection = _open_state(state_root / "mosaic.sqlite")
     _verify_state_identity(
         connection,
         {
-            "registry_sha256": file_sha256(registry_path),
+            "registry_sha256": registry_sha256,
             "atlas_documents_sha256": file_sha256(atlas_documents_path),
             "validation_per_mille": validation_per_mille,
             "format": STREAM_FORMAT,
@@ -402,7 +403,7 @@ def build_mosaic_shards(
     manifest = {
         "format": STREAM_FORMAT,
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "registry_sha256": file_sha256(registry_path),
+        "registry_sha256": registry_sha256,
         "atlas_documents_sha256": file_sha256(atlas_documents_path),
         "counts": {
             "documents": sum(row[1] for row in processed_rows),
