@@ -81,6 +81,42 @@ The pipeline publishes two separate artifacts:
   and derived o200k token shards;
 - `Complexity Atlas Posttrain`: filtered OASST1 instruction and chat cards.
 
+An optional third artifact remains deliberately separate:
+
+- `Complexity Atlas Mosaic Pretrain`: Atlas documents plus pinned, licensed
+  external sources. Every document retains its own source revision, URL and
+  license. The collection is mixed-license and never changes the original-only
+  Atlas package.
+
+## Mosaic build
+
+External sources are declared in `data/mosaic/sources.json`. The build refuses
+unknown licenses, mutable revisions and sources without an explicit
+redistribution flag. Sources are downloaded and filtered concurrently; final
+deduplication and split assignment remain deterministic.
+
+```bash
+uv run card-corpus build-mosaic \
+  --registry data/mosaic/sources.json \
+  --atlas-documents build/corpus/documents.parquet \
+  --raw build/raw/mosaic \
+  --output build/mosaic/corpus \
+  --max-rows-per-source 10000 \
+  --workers 4
+uv run card-corpus tokenize \
+  --documents build/mosaic/corpus/documents.parquet \
+  --tokenizer /Users/boris/Dev/complexity-framework/tokenizer-o200k \
+  --output build/mosaic/tokenized/o200k
+uv run card-corpus package-mosaic-hf \
+  --mosaic build/mosaic/corpus \
+  --tokenized build/mosaic/tokenized/o200k \
+  --output build/hf-mosaic-pretrain
+```
+
+The first registry entry is a pinned Apache-2.0 Cosmopedia Stories shard. Raw
+web scraping is intentionally excluded until site terms, `robots.txt`,
+redistribution rights and provenance retention are verified source by source.
+
 The pretraining upload contains inspectable Parquet and derived token shards:
 
 ```text
@@ -105,10 +141,14 @@ hf repo create Pacific-i64/complexity-atlas-pretrain \
   --repo-type dataset --private
 hf repo create Pacific-i64/complexity-atlas-posttrain \
   --repo-type dataset --private
+hf repo create Pacific-i64/complexity-atlas-mosaic-pretrain \
+  --repo-type dataset --private
 hf upload Pacific-i64/complexity-atlas-pretrain \
   build/hf-pretrain . --repo-type dataset
 hf upload Pacific-i64/complexity-atlas-posttrain \
   build/hf-posttrain . --repo-type dataset
+hf upload Pacific-i64/complexity-atlas-mosaic-pretrain \
+  build/hf-mosaic-pretrain . --repo-type dataset
 ```
 
 `Complexity Atlas Pretrain` is released under CC BY-NC 4.0 for non-commercial

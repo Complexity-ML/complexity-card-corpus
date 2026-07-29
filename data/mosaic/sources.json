@@ -1,0 +1,22 @@
+{
+  "format": "complexity-atlas-source-registry-v1",
+  "sources": [
+    {
+      "dataset_id": "cosmopedia-stories",
+      "kind": "huggingface_parquet",
+      "domain": "synthetic-education",
+      "language": "en",
+      "license": "Apache-2.0",
+      "repo_id": "HuggingFaceTB/cosmopedia",
+      "revision": "0ae6ec63f91742bd2d1eaef4f02232c55d719385",
+      "config": "stories",
+      "files": [
+        "data/stories/train-00000-of-00043.parquet"
+      ],
+      "text_column": "text",
+      "minimum_characters": 200,
+      "maximum_characters": 32000,
+      "redistribution": true
+    }
+  ]
+}

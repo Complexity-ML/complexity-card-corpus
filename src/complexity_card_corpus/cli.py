@@ -7,6 +7,7 @@ from pathlib import Path
 import pyarrow.parquet as pq
 
 from .build import build_corpus
+from .mosaic import build_mosaic, package_mosaic_for_hugging_face
 from .oasst1 import import_oasst1
 from .package import package_alignment_for_hugging_face, package_for_hugging_face
 from .tokenize import tokenize_documents
@@ -39,6 +40,20 @@ def parser() -> argparse.ArgumentParser:
     package_posttrain = commands.add_parser("package-posttrain-hf")
     package_posttrain.add_argument("--alignment", type=Path, required=True)
     package_posttrain.add_argument("--output", type=Path, required=True)
+
+    mosaic = commands.add_parser("build-mosaic")
+    mosaic.add_argument("--registry", type=Path, required=True)
+    mosaic.add_argument("--atlas-documents", type=Path, required=True)
+    mosaic.add_argument("--raw", type=Path, required=True)
+    mosaic.add_argument("--output", type=Path, required=True)
+    mosaic.add_argument("--max-rows-per-source", type=int)
+    mosaic.add_argument("--validation-per-mille", type=int, default=5)
+    mosaic.add_argument("--workers", type=int, default=4)
+
+    package_mosaic = commands.add_parser("package-mosaic-hf")
+    package_mosaic.add_argument("--mosaic", type=Path, required=True)
+    package_mosaic.add_argument("--tokenized", type=Path, required=True)
+    package_mosaic.add_argument("--output", type=Path, required=True)
 
     oasst1 = commands.add_parser("import-oasst1")
     oasst1.add_argument("--raw", type=Path, required=True)
@@ -117,6 +132,33 @@ def main() -> None:
     elif args.command == "package-posttrain-hf":
         result = package_alignment_for_hugging_face(
             args.alignment,
+            args.output,
+        )
+        print(
+            json.dumps(
+                {
+                    "files": len(result["files"]),
+                    "bytes": sum(item["bytes"] for item in result["files"].values()),
+                    "output": str(args.output.resolve()),
+                },
+                indent=2,
+            )
+        )
+    elif args.command == "build-mosaic":
+        result = build_mosaic(
+            args.registry,
+            args.atlas_documents,
+            args.raw,
+            args.output,
+            max_rows_per_source=args.max_rows_per_source,
+            validation_per_mille=args.validation_per_mille,
+            workers=args.workers,
+        )
+        print(json.dumps(result["counts"], indent=2, sort_keys=True))
+    elif args.command == "package-mosaic-hf":
+        result = package_mosaic_for_hugging_face(
+            args.mosaic,
+            args.tokenized,
             args.output,
         )
         print(

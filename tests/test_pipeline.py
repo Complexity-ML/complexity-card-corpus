@@ -5,9 +5,14 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pyarrow as pa
 import pyarrow.parquet as pq
 
 from complexity_card_corpus.build import build_corpus
+from complexity_card_corpus.mosaic import (
+    build_mosaic,
+    validate_mosaic_registry,
+)
 from complexity_card_corpus.oasst1 import build_alignment_cards
 from complexity_card_corpus.package import package_for_hugging_face
 from complexity_card_corpus.source import discover_datasets
@@ -145,3 +150,108 @@ def test_o200k_export_matches_index(tmp_path: Path) -> None:
     assert (tmp_path / "hf/LICENSE.md").exists()
     assert "CC BY-NC 4.0" in (tmp_path / "hf/LICENSE.md").read_text()
     assert "/Users/" not in (tmp_path / "hf/manifest.json").read_text()
+
+
+def test_mosaic_registry_rejects_unknown_license() -> None:
+    registry = {
+        "format": "complexity-atlas-source-registry-v1",
+        "sources": [
+            {
+                "dataset_id": "unknown",
+                "kind": "huggingface_parquet",
+                "domain": "test",
+                "language": "en",
+                "license": "Unknown",
+                "repo_id": "owner/repo",
+                "revision": "abc123",
+                "config": "default",
+                "files": ["data.parquet"],
+                "text_column": "text",
+                "redistribution": True,
+            }
+        ],
+    }
+    try:
+        validate_mosaic_registry(registry)
+    except ValueError as error:
+        assert "unsupported license" in str(error)
+    else:
+        raise AssertionError("Unknown licenses must be rejected")
+
+
+def test_mosaic_filters_and_retains_provenance(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    corpus_root = tmp_path / "atlas"
+    build_corpus(ROOT / "data/source", corpus_root)
+    external = tmp_path / "external.parquet"
+    accepted = (
+        "A carefully structured educational story about a clockmaker who "
+        "tests every mechanism before recording the result. " * 3
+    )
+    pq.write_table(
+        pa.table(
+            {
+                "text": [
+                    accepted,
+                    accepted,
+                    "Contact private@example.com for the complete manuscript. " * 5,
+                    "short",
+                ]
+            }
+        ),
+        external,
+    )
+    registry = {
+        "format": "complexity-atlas-source-registry-v1",
+        "sources": [
+            {
+                "dataset_id": "licensed-test",
+                "kind": "huggingface_parquet",
+                "domain": "education",
+                "language": "en",
+                "license": "Apache-2.0",
+                "repo_id": "owner/repo",
+                "revision": "abc123",
+                "config": "stories",
+                "files": ["data.parquet"],
+                "text_column": "text",
+                "minimum_characters": 100,
+                "maximum_characters": 10_000,
+                "redistribution": True,
+            }
+        ],
+    }
+    registry_path = tmp_path / "sources.json"
+    registry_path.write_text(json.dumps(registry))
+    monkeypatch.setattr(
+        "complexity_card_corpus.mosaic.hf_hub_download",
+        lambda **_: str(external),
+    )
+
+    manifest = build_mosaic(
+        registry_path,
+        corpus_root / "documents.parquet",
+        tmp_path / "raw",
+        tmp_path / "mosaic",
+        workers=2,
+    )
+    assert manifest["counts"]["documents_by_source"]["licensed-test"] == 1
+    assert manifest["counts"]["rejections"] == {
+        "duplicate": 1,
+        "email": 1,
+        "too_short": 1,
+    }
+    rows = pq.read_table(tmp_path / "mosaic/documents.parquet").to_pylist()
+    external_rows = [row for row in rows if row["dataset_id"] == "licensed-test"]
+    assert external_rows[0]["license"] == "Apache-2.0"
+    assert external_rows[0]["version"] == "abc123"
+    assert external_rows[0]["source_urls"][0].startswith(
+        "https://huggingface.co/datasets/owner/repo/blob/abc123/"
+    )
+    catalog = pq.read_table(tmp_path / "mosaic/sources.parquet").to_pylist()
+    assert {row["kind"] for row in catalog} >= {
+        "atlas_original",
+        "huggingface_parquet",
+    }
