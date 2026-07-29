@@ -29,7 +29,7 @@ STREAM_FORMAT = "complexity-atlas-mosaic-stream-v1"
 STREAM_DATASET_CARD = """---
 language:
 - en
-license: other
+license: apache-2.0
 pretty_name: Complexity Atlas Mosaic Pretrain
 task_categories:
 - text-generation
@@ -52,12 +52,13 @@ A provenance-first, multi-source English pretraining corpus built toward a
 four-billion-token o200k training stream. It remains separate from the
 original-only `Complexity Atlas Pretrain`.
 
-## License model
+## License
 
-This is a mixed-license collection. Each document retains its upstream
-`license`, source dataset, immutable revision, file and row key. The source
-catalog under `catalog/sources.parquet` is authoritative. Inclusion does not
-replace or weaken an upstream license.
+All sources selected for this four-billion-token release are distributed under
+Apache-2.0. Each document retains its upstream `license`, source dataset,
+immutable revision, file and row key. The source catalog under
+`catalog/sources.parquet` is authoritative. Inclusion does not replace or
+weaken the upstream license.
 
 ## Reproducible processing
 
