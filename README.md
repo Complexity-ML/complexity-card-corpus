@@ -83,10 +83,9 @@ The pipeline publishes two separate artifacts:
 
 An optional third artifact remains deliberately separate:
 
-- `Complexity Atlas Mosaic Pretrain`: Atlas documents plus pinned, licensed
-  external sources. Every document retains its own source revision, URL and
-  license. The collection is mixed-license and never changes the original-only
-  Atlas package.
+- `Complexity Atlas Mosaic Pretrain`: pinned, licensed external sources only.
+  Every document retains its own source revision, URL and license. It never
+  embeds or changes the original-only Atlas package.
 
 ## Mosaic build
 
@@ -98,7 +97,6 @@ deduplication and split assignment remain deterministic.
 ```bash
 uv run card-corpus build-mosaic \
   --registry data/mosaic/sources.json \
-  --atlas-documents build/corpus/documents.parquet \
   --raw build/raw/mosaic \
   --output build/mosaic/corpus \
   --max-rows-per-source 10000 \
@@ -132,7 +130,6 @@ not fill the 4B budget before the others are represented.
 ```bash
 uv run card-corpus build-mosaic-shards \
   --registry data/mosaic/sources-4b.json \
-  --atlas-documents build/corpus/documents.parquet \
   --raw build/raw/mosaic-4b \
   --output build/hf-mosaic-4b \
   --workers 4

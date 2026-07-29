@@ -8,7 +8,11 @@ import pyarrow.parquet as pq
 
 from .build import build_corpus
 from .mosaic import build_mosaic, package_mosaic_for_hugging_face
-from .mosaic_stream import build_mosaic_shards, tokenize_mosaic_shards
+from .mosaic_stream import (
+    build_mosaic_shards,
+    strip_atlas_from_mosaic,
+    tokenize_mosaic_shards,
+)
 from .oasst1 import import_oasst1
 from .package import package_alignment_for_hugging_face, package_for_hugging_face
 from .tokenize import tokenize_documents
@@ -44,7 +48,6 @@ def parser() -> argparse.ArgumentParser:
 
     mosaic = commands.add_parser("build-mosaic")
     mosaic.add_argument("--registry", type=Path, required=True)
-    mosaic.add_argument("--atlas-documents", type=Path, required=True)
     mosaic.add_argument("--raw", type=Path, required=True)
     mosaic.add_argument("--output", type=Path, required=True)
     mosaic.add_argument("--max-rows-per-source", type=int)
@@ -58,7 +61,6 @@ def parser() -> argparse.ArgumentParser:
 
     mosaic_shards = commands.add_parser("build-mosaic-shards")
     mosaic_shards.add_argument("--registry", type=Path, required=True)
-    mosaic_shards.add_argument("--atlas-documents", type=Path, required=True)
     mosaic_shards.add_argument("--raw", type=Path, required=True)
     mosaic_shards.add_argument("--output", type=Path, required=True)
     mosaic_shards.add_argument("--validation-per-mille", type=int, default=5)
@@ -80,6 +82,9 @@ def parser() -> argparse.ArgumentParser:
     )
     tokenize_mosaic.add_argument("--workers", type=int, default=8)
     tokenize_mosaic.add_argument("--batch-size", type=int, default=256)
+
+    strip_mosaic = commands.add_parser("strip-atlas-mosaic")
+    strip_mosaic.add_argument("--corpus", type=Path, required=True)
 
     oasst1 = commands.add_parser("import-oasst1")
     oasst1.add_argument("--raw", type=Path, required=True)
@@ -173,7 +178,6 @@ def main() -> None:
     elif args.command == "build-mosaic":
         result = build_mosaic(
             args.registry,
-            args.atlas_documents,
             args.raw,
             args.output,
             max_rows_per_source=args.max_rows_per_source,
@@ -200,7 +204,6 @@ def main() -> None:
     elif args.command == "build-mosaic-shards":
         result = build_mosaic_shards(
             args.registry,
-            args.atlas_documents,
             args.raw,
             args.output,
             validation_per_mille=args.validation_per_mille,
@@ -227,6 +230,9 @@ def main() -> None:
                 indent=2,
             )
         )
+    elif args.command == "strip-atlas-mosaic":
+        result = strip_atlas_from_mosaic(args.corpus)
+        print(json.dumps(result, indent=2, sort_keys=True))
     elif args.command == "inspect":
         print(json.dumps(_inspect(args.output), indent=2, ensure_ascii=False))
 

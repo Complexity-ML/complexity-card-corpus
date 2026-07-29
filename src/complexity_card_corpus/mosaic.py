@@ -72,16 +72,16 @@ is intentionally separate from the original-only `Complexity Atlas Pretrain`.
 
 ## License model
 
-This is a collection with mixed licenses. The `license` field on every
+This is a collection with source-specific licenses. The `license` field on every
 document and the `sources` configuration are authoritative. Inclusion in this
 collection does not replace an upstream source license.
 
 ## Current pilot
 
-The pilot combines original Complexity Atlas documents with a pinned,
-filtered sample from Hugging Face Cosmopedia. The build rejects any source
-without a supported license, immutable revision and explicit redistribution
-flag.
+The pilot contains a pinned, filtered sample from Hugging Face Cosmopedia.
+Complexity Atlas Pretrain remains a separate, original-only dataset. The build
+rejects any source without a supported license, immutable revision and
+explicit redistribution flag.
 
 ## Processing
 
@@ -215,33 +215,6 @@ def _source_catalog_row(source: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _atlas_source_catalog_rows(documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for dataset_id in sorted({row["dataset_id"] for row in documents}):
-        subset = [row for row in documents if row["dataset_id"] == dataset_id]
-        licenses = sorted({row["license"] for row in subset})
-        versions = sorted({row["version"] for row in subset})
-        rows.append(
-            {
-                "dataset_id": dataset_id,
-                "kind": "atlas_original",
-                "domain": subset[0]["domain"],
-                "language": subset[0]["language"],
-                "license": " OR ".join(licenses),
-                "repo_id": "Pacific-i64/complexity-atlas-pretrain",
-                "revision": " + ".join(versions),
-                "config": "documents",
-                "files": ["data/train.parquet", "data/validation.parquet"],
-                "source_url": (
-                    "https://huggingface.co/datasets/"
-                    "Pacific-i64/complexity-atlas-pretrain"
-                ),
-                "redistribution": True,
-            }
-        )
-    return rows
-
-
 def _write_table(table: pa.Table, path: Path) -> None:
     pq.write_table(
         table,
@@ -315,7 +288,6 @@ def _read_external_source(
 
 def build_mosaic(
     registry_path: Path,
-    atlas_documents_path: Path,
     raw_root: Path,
     output_root: Path,
     *,
@@ -330,15 +302,10 @@ def build_mosaic(
     if workers < 1:
         raise ValueError("workers must be at least 1")
 
-    atlas_table = pq.read_table(atlas_documents_path, schema=DOCUMENT_SCHEMA)
-    documents = atlas_table.to_pylist()
-    content_hashes = {
-        hashlib.sha256(row["text"].strip().encode()).hexdigest() for row in documents
-    }
+    documents: list[dict[str, Any]] = []
+    content_hashes: set[str] = set()
     rejections: Counter[str] = Counter()
-    accepted_by_source: Counter[str] = Counter(
-        row["dataset_id"] for row in documents
-    )
+    accepted_by_source: Counter[str] = Counter()
 
     worker_count = min(workers, len(sources))
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
@@ -367,9 +334,8 @@ def build_mosaic(
 
     documents.sort(key=lambda row: row["document_id"])
     document_table = pa.Table.from_pylist(documents, schema=DOCUMENT_SCHEMA)
-    atlas_catalog = _atlas_source_catalog_rows(atlas_table.to_pylist())
     source_table = pa.Table.from_pylist(
-        atlas_catalog + [_source_catalog_row(source) for source in sources],
+        [_source_catalog_row(source) for source in sources],
         schema=SOURCE_SCHEMA,
     )
     output_root.mkdir(parents=True, exist_ok=True)
@@ -384,10 +350,6 @@ def build_mosaic(
         "registry": {
             "path": registry_path.name,
             "sha256": file_sha256(registry_path),
-        },
-        "atlas_documents": {
-            "path": atlas_documents_path.name,
-            "sha256": file_sha256(atlas_documents_path),
         },
         "counts": {
             "documents": len(documents),
@@ -457,9 +419,6 @@ def package_mosaic_for_hugging_face(
     _copy_tree(tokenized_root, tokenized_output)
     portable_mosaic = json.loads(json.dumps(mosaic_manifest))
     portable_mosaic["registry"]["path"] = "catalog/sources.parquet"
-    portable_mosaic["atlas_documents"]["path"] = (
-        "Pacific-i64/complexity-atlas-pretrain"
-    )
     _, tokenized_manifest = _portable_pretrain_manifests(
         {"source_root": "catalog/"},
         tokenized_manifest,

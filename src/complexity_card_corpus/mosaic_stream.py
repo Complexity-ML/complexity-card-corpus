@@ -4,6 +4,7 @@ import hashlib
 import json
 import sqlite3
 import sys
+import time
 from collections import Counter, deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -18,7 +19,6 @@ from huggingface_hub import hf_hub_download
 from .build import DOCUMENT_SCHEMA, file_sha256
 from .mosaic import (
     SOURCE_SCHEMA,
-    _atlas_source_catalog_rows,
     _external_document,
     _source_catalog_row,
     validate_mosaic_registry,
@@ -155,61 +155,6 @@ def _insert_if_new(connection: sqlite3.Connection, text: str) -> bool:
     return cursor.rowcount == 1
 
 
-def _write_atlas_once(
-    connection: sqlite3.Connection,
-    atlas_documents_path: Path,
-    output_root: Path,
-) -> None:
-    key = "__complexity_atlas_original__"
-    if connection.execute(
-        "SELECT 1 FROM processed WHERE source_file = ?", (key,)
-    ).fetchone():
-        return
-    rows = pq.read_table(atlas_documents_path, schema=DOCUMENT_SCHEMA).to_pylist()
-    writers: dict[str, pq.ParquetWriter] = {}
-    paths = {
-        "train": output_root / "data/train/complexity-atlas-original.parquet",
-        "validation": (
-            output_root / "data/validation/complexity-atlas-original.parquet"
-        ),
-    }
-    connection.execute("BEGIN")
-    try:
-        for row in rows:
-            _insert_if_new(connection, row["text"].strip())
-            split = row["split"]
-            if split not in writers:
-                paths[split].parent.mkdir(parents=True, exist_ok=True)
-                partial = paths[split].with_suffix(".partial")
-                partial.unlink(missing_ok=True)
-                writers[split] = _new_writer(partial)
-            writers[split].write_table(
-                pa.Table.from_pylist([row], schema=DOCUMENT_SCHEMA)
-            )
-        for writer in writers.values():
-            writer.close()
-        for split in writers:
-            paths[split].with_suffix(".partial").replace(paths[split])
-        connection.execute(
-            "INSERT INTO processed VALUES (?, ?, ?, ?, ?)",
-            (
-                key,
-                len(rows),
-                "{}",
-                str(paths["train"].relative_to(output_root)),
-                str(paths["validation"].relative_to(output_root)),
-            ),
-        )
-        connection.commit()
-    except BaseException:
-        for writer in writers.values():
-            writer.close()
-        connection.rollback()
-        for path in paths.values():
-            path.with_suffix(".partial").unlink(missing_ok=True)
-        raise
-
-
 def _process_source_file(
     connection: sqlite3.Connection,
     source: dict[str, Any],
@@ -338,7 +283,6 @@ def _process_source_file(
 
 def build_mosaic_shards(
     registry_path: Path,
-    atlas_documents_path: Path,
     raw_root: Path,
     output_root: Path,
     *,
@@ -361,12 +305,10 @@ def build_mosaic_shards(
         connection,
         {
             "registry_sha256": registry_sha256,
-            "atlas_documents_sha256": file_sha256(atlas_documents_path),
             "validation_per_mille": validation_per_mille,
             "format": STREAM_FORMAT,
         },
     )
-    _write_atlas_once(connection, atlas_documents_path, output_root)
 
     tasks = [
         (source, source_file)
@@ -404,10 +346,7 @@ def build_mosaic_shards(
                 flush=True,
             )
 
-    atlas_rows = pq.read_table(atlas_documents_path, schema=DOCUMENT_SCHEMA).to_pylist()
-    catalog = _atlas_source_catalog_rows(atlas_rows) + [
-        _source_catalog_row(source) for source in sources
-    ]
+    catalog = [_source_catalog_row(source) for source in sources]
     catalog_root = output_root / "catalog"
     catalog_root.mkdir(exist_ok=True)
     pq.write_table(
@@ -429,10 +368,9 @@ def build_mosaic_shards(
         "format": STREAM_FORMAT,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "registry_sha256": registry_sha256,
-        "atlas_documents_sha256": file_sha256(atlas_documents_path),
         "counts": {
             "documents": sum(row[1] for row in processed_rows),
-            "source_files": len(processed_rows) - 1,
+            "source_files": len(processed_rows),
             "rejections": dict(sorted(rejections.items())),
         },
         "build": {
@@ -448,6 +386,45 @@ def build_mosaic_shards(
     )
     (output_root / "README.md").write_text(STREAM_DATASET_CARD)
     return manifest
+
+
+def strip_atlas_from_mosaic(corpus_root: Path) -> dict[str, Any]:
+    removed_documents = 0
+    for split in ("train", "validation"):
+        path = corpus_root / f"data/{split}/complexity-atlas-original.parquet"
+        if path.exists():
+            removed_documents += pq.ParquetFile(path).metadata.num_rows
+            path.unlink()
+
+    catalog_path = corpus_root / "catalog/sources.parquet"
+    if catalog_path.exists():
+        table = pq.read_table(catalog_path)
+        if "kind" in table.column_names:
+            import pyarrow.compute as pc
+
+            table = table.filter(pc.not_equal(table["kind"], "atlas_original"))
+            temporary = catalog_path.with_suffix(".partial")
+            pq.write_table(
+                table,
+                temporary,
+                compression="zstd",
+                use_dictionary=True,
+                write_statistics=True,
+            )
+            temporary.replace(catalog_path)
+
+    manifest_path = corpus_root / "corpus-manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest.pop("atlas_documents_sha256", None)
+    manifest["counts"]["documents"] -= removed_documents
+    manifest["build"]["includes_atlas_original"] = False
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+    )
+    return {
+        "removed_documents": removed_documents,
+        "remaining_documents": manifest["counts"]["documents"],
+    }
 
 
 def _round_robin_batches(
@@ -488,6 +465,8 @@ def _tokenize_partition(
     token_count = 0
     document_count = 0
     max_token_id = -1
+    started_at = time.monotonic()
+    last_report = 0
     with bin_path.open("wb") as handle:
         for batch in _round_robin_batches(paths, batch_size=batch_size):
             rows = batch.to_pylist()
@@ -503,10 +482,31 @@ def _tokenize_partition(
                 token_count += len(token_ids)
                 document_count += 1
                 max_token_id = max(max_token_id, max(token_ids))
+                if token_count - last_report >= 100_000_000:
+                    elapsed = max(time.monotonic() - started_at, 0.001)
+                    progress = (
+                        f" · {100 * token_count / target_tokens:.1f}%"
+                        if target_tokens
+                        else ""
+                    )
+                    print(
+                        f"{output_root.name}: {token_count:,} tokens{progress} "
+                        f"· {token_count / elapsed:,.0f} tok/s",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    last_report = token_count
                 if target_tokens is not None and token_count >= target_tokens:
                     break
             if target_tokens is not None and token_count >= target_tokens:
                 break
+    elapsed = max(time.monotonic() - started_at, 0.001)
+    print(
+        f"{output_root.name}: complete · {token_count:,} tokens "
+        f"· {document_count:,} documents · {token_count / elapsed:,.0f} tok/s",
+        file=sys.stderr,
+        flush=True,
+    )
     return {
         "bin": bin_path.name,
         "dtype": DTYPE.str,

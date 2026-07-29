@@ -236,7 +236,6 @@ def test_mosaic_filters_and_retains_provenance(
 
     manifest = build_mosaic(
         registry_path,
-        corpus_root / "documents.parquet",
         tmp_path / "raw",
         tmp_path / "mosaic",
         workers=2,
@@ -255,10 +254,7 @@ def test_mosaic_filters_and_retains_provenance(
         "https://huggingface.co/datasets/owner/repo/blob/abc123/"
     )
     catalog = pq.read_table(tmp_path / "mosaic/sources.parquet").to_pylist()
-    assert {row["kind"] for row in catalog} >= {
-        "atlas_original",
-        "huggingface_parquet",
-    }
+    assert {row["kind"] for row in catalog} == {"huggingface_parquet"}
 
 
 def test_streaming_mosaic_resumes_and_tokenizes(
@@ -312,7 +308,6 @@ def test_streaming_mosaic_resumes_and_tokenizes(
     output = tmp_path / "stream"
     first = build_mosaic_shards(
         registry_path,
-        corpus_root / "documents.parquet",
         tmp_path / "raw",
         output,
         validation_per_mille=500,
@@ -321,7 +316,6 @@ def test_streaming_mosaic_resumes_and_tokenizes(
     )
     second = build_mosaic_shards(
         registry_path,
-        corpus_root / "documents.parquet",
         tmp_path / "raw",
         output,
         validation_per_mille=500,
