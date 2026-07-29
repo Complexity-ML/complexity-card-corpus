@@ -136,4 +136,10 @@ def test_o200k_export_matches_index(tmp_path: Path) -> None:
     assert (tmp_path / "hf/tables/cards_train.parquet").exists()
     assert (tmp_path / "hf/tables/cards_validation.parquet").exists()
     assert (tmp_path / "hf/tokenized/o200k/train/tokens.bin").exists()
-    assert package["format"] == "complexity-card-corpus-hf-package-v1"
+    assert package["format"] == "complexity-atlas-pretrain-hf-package-v1"
+    packaged_index = json.loads(
+        (tmp_path / "hf/tokenized/o200k/train/tokens.idx.json").read_text()
+    )
+    assert packaged_index["source_documents"] == "data/train.parquet"
+    assert packaged_index["tokenizer"] == "tiktoken:o200k_base"
+    assert "/Users/" not in (tmp_path / "hf/manifest.json").read_text()

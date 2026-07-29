@@ -1,4 +1,4 @@
-# Complexity Card Corpus
+# Complexity Atlas datasets
 
 A local-first pipeline for authoring an English, multi-domain corpus as linked
 knowledge cards. The card graph is the editable source; Parquet is the
@@ -47,8 +47,10 @@ uv run card-corpus import-oasst1 \
 uv run card-corpus package-hf \
   --corpus build/corpus \
   --tokenized build/tokenized/o200k \
+  --output build/hf-pretrain
+uv run card-corpus package-posttrain-hf \
   --alignment build/alignment/oasst1 \
-  --output build/hf
+  --output build/hf-posttrain
 uv run card-corpus inspect --output build/corpus
 uv run pytest
 ```
@@ -71,16 +73,25 @@ and message IDs, Apache-2.0 license, source revision and a deterministic
 `User:`/`Assistant:` rendering. Alignment remains structured Parquet so a later
 SFT loader can mask user tokens and calculate loss only on assistant responses.
 
-## Hugging Face dataset layout
+## Hugging Face datasets
 
-The upload root can contain both inspectable Parquet and derived token shards:
+The pipeline publishes two separate artifacts:
+
+- `Complexity Atlas Pretrain`: linked-card documents, normalized graph tables
+  and derived o200k token shards;
+- `Complexity Atlas Posttrain`: filtered OASST1 instruction and chat cards.
+
+The pretraining upload contains inspectable Parquet and derived token shards:
 
 ```text
 README.md
 manifest.json
-data/cards.parquet
-data/relations.parquet
-data/documents.parquet
+data/train.parquet
+data/validation.parquet
+tables/cards_train.parquet
+tables/cards_validation.parquet
+tables/relations_train.parquet
+tables/relations_validation.parquet
 tokenized/o200k/train/tokens.bin
 tokenized/o200k/train/tokens.idx.json
 tokenized/o200k/eval/tokens.bin
@@ -90,10 +101,14 @@ tokenized/o200k/eval/tokens.idx.json
 Create the Hugging Face repository as a **private dataset** first:
 
 ```bash
-hf repo create Pacific-i64/complexity-card-corpus \
+hf repo create Pacific-i64/complexity-atlas-pretrain \
   --repo-type dataset --private
-hf upload Pacific-i64/complexity-card-corpus \
-  build/hf . --repo-type dataset
+hf repo create Pacific-i64/complexity-atlas-posttrain \
+  --repo-type dataset --private
+hf upload Pacific-i64/complexity-atlas-pretrain \
+  build/hf-pretrain . --repo-type dataset
+hf upload Pacific-i64/complexity-atlas-posttrain \
+  build/hf-posttrain . --repo-type dataset
 ```
 
 No upload is performed by this project. Dataset licensing must be selected

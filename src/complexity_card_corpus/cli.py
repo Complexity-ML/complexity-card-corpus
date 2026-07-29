@@ -8,7 +8,7 @@ import pyarrow.parquet as pq
 
 from .build import build_corpus
 from .oasst1 import import_oasst1
-from .package import package_for_hugging_face
+from .package import package_alignment_for_hugging_face, package_for_hugging_face
 from .tokenize import tokenize_documents
 
 
@@ -35,6 +35,10 @@ def parser() -> argparse.ArgumentParser:
     package.add_argument("--tokenized", type=Path, required=True)
     package.add_argument("--alignment", type=Path)
     package.add_argument("--output", type=Path, required=True)
+
+    package_posttrain = commands.add_parser("package-posttrain-hf")
+    package_posttrain.add_argument("--alignment", type=Path, required=True)
+    package_posttrain.add_argument("--output", type=Path, required=True)
 
     oasst1 = commands.add_parser("import-oasst1")
     oasst1.add_argument("--raw", type=Path, required=True)
@@ -110,6 +114,21 @@ def main() -> None:
             max_messages=args.max_messages,
         )
         print(json.dumps(result["counts"], indent=2, sort_keys=True))
+    elif args.command == "package-posttrain-hf":
+        result = package_alignment_for_hugging_face(
+            args.alignment,
+            args.output,
+        )
+        print(
+            json.dumps(
+                {
+                    "files": len(result["files"]),
+                    "bytes": sum(item["bytes"] for item in result["files"].values()),
+                    "output": str(args.output.resolve()),
+                },
+                indent=2,
+            )
+        )
     elif args.command == "inspect":
         print(json.dumps(_inspect(args.output), indent=2, ensure_ascii=False))
 
