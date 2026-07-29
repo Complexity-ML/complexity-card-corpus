@@ -36,6 +36,7 @@ configs:
     path: tables/relations_train.parquet
   - split: validation
     path: tables/relations_validation.parquet
+{alignment_configs}
 ---
 
 # Complexity Card Corpus
@@ -45,6 +46,7 @@ An English, multi-domain corpus compiled from linked knowledge cards.
 The `documents` configuration is intended for language-model corpus inspection.
 `cards` and `relations` preserve the normalized source graph. Derived o200k
 token streams are available under `tokenized/o200k/`.
+{alignment_section}
 
 ## Current status
 
@@ -67,6 +69,30 @@ the canonical, tokenizer-independent artifact.
 
 No public redistribution license has been granted for the current source
 content. Keep this dataset private until a data license is selected.
+"""
+
+ALIGNMENT_CONFIGS = """- config_name: instruct
+  data_files:
+  - split: train
+    path: alignment/instruct_train.parquet
+  - split: validation
+    path: alignment/instruct_validation.parquet
+- config_name: chat
+  data_files:
+  - split: train
+    path: alignment/chat_train.parquet
+  - split: validation
+    path: alignment/chat_validation.parquet"""
+
+ALIGNMENT_SECTION = """
+
+## Alignment cards
+
+The optional `instruct` configuration contains one-turn user/assistant pairs.
+The `chat` configuration contains selected multi-turn paths. Both are filtered
+English subsets derived from the human-authored OpenAssistant OASST1 trees and
+retain source IDs, quality scores, the pinned revision and Apache-2.0
+provenance.
 """
 
 
@@ -99,6 +125,8 @@ def package_for_hugging_face(
     corpus_root: Path,
     tokenized_root: Path,
     output_root: Path,
+    *,
+    alignment_root: Path | None = None,
 ) -> dict[str, Any]:
     corpus_manifest = json.loads((corpus_root / "manifest.json").read_text())
     tokenized_manifest = json.loads((tokenized_root / "manifest.json").read_text())
@@ -111,6 +139,7 @@ def package_for_hugging_face(
     table_root = temporary / "tables"
     data_root.mkdir()
     table_root.mkdir()
+    alignment_manifest = None
 
     documents = pq.read_table(corpus_root / "documents.parquet")
     for split, filename in (("train", "train.parquet"), ("validation", "validation.parquet")):
@@ -134,8 +163,23 @@ def package_for_hugging_face(
         table_root,
         stem="relations",
     )
+
+    if alignment_root is not None:
+        alignment_manifest = json.loads((alignment_root / "manifest.json").read_text())
+        alignment_table = pq.read_table(alignment_root / "alignment.parquet")
+        alignment_output = temporary / "alignment"
+        alignment_output.mkdir()
+        for mode in ("instruct", "chat"):
+            mode_table = alignment_table.filter(pc.equal(alignment_table["mode"], mode))
+            _write_splits(mode_table, alignment_output, stem=mode)
+
     _copy_tree(tokenized_root, temporary / "tokenized" / "o200k")
-    (temporary / "README.md").write_text(DATASET_CARD)
+    (temporary / "README.md").write_text(
+        DATASET_CARD.format(
+            alignment_configs=ALIGNMENT_CONFIGS if alignment_root else "",
+            alignment_section=ALIGNMENT_SECTION if alignment_root else "",
+        )
+    )
 
     files = {
         str(path.relative_to(temporary)): {
@@ -149,6 +193,7 @@ def package_for_hugging_face(
         "format": "complexity-card-corpus-hf-package-v1",
         "corpus": corpus_manifest,
         "tokenized": tokenized_manifest,
+        "alignment": alignment_manifest,
         "files": files,
     }
     (temporary / "manifest.json").write_text(

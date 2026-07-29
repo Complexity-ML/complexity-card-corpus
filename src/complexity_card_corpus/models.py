@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_.:-]*$")
 
@@ -94,4 +94,55 @@ class DatasetMetadata(BaseModel):
 class CardDataset(BaseModel):
     metadata: DatasetMetadata
     cards: list[Card]
+
+
+class ChatMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    role: Literal["user", "assistant"]
+    content: str
+    source_message_id: str
+
+    @field_validator("content", "source_message_id")
+    @classmethod
+    def message_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("chat message fields cannot be empty")
+        return value
+
+
+class AlignmentCard(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    example_id: str
+    mode: Literal["instruct", "chat"]
+    split: Literal["train", "validation", "test"]
+    language: str = "en"
+    messages: list[ChatMessage]
+    rendered_text: str
+    quality_score: float
+    source_dataset: str
+    source_revision: str
+    source_tree_id: str
+    license: str
+
+    @model_validator(mode="after")
+    def valid_conversation(self) -> "AlignmentCard":
+        if len(self.messages) < 2:
+            raise ValueError("alignment cards require at least one user/assistant pair")
+        expected = "user"
+        for message in self.messages:
+            if message.role != expected:
+                raise ValueError("chat roles must alternate and begin with user")
+            expected = "assistant" if expected == "user" else "user"
+        if self.messages[-1].role != "assistant":
+            raise ValueError("alignment cards must end with an assistant response")
+        if self.mode == "instruct" and len(self.messages) != 2:
+            raise ValueError("instruct cards contain exactly one user/assistant pair")
+        if self.mode == "chat" and len(self.messages) < 4:
+            raise ValueError("chat cards contain at least two user/assistant turns")
+        if not 0.0 <= self.quality_score <= 1.0:
+            raise ValueError("quality_score must be between zero and one")
+        return self
 

@@ -9,6 +9,7 @@ description = "Build graph-shaped knowledge cards into Parquet and o200k token s
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "huggingface-hub>=0.34",
   "numpy>=2.0",
   "pandas>=2.2",
   "pyarrow>=18",
@@ -27,4 +28,3 @@ packages = ["src/complexity_card_corpus"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-

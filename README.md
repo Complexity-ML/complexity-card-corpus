@@ -41,9 +41,13 @@ uv run card-corpus tokenize \
   --documents build/corpus/documents.parquet \
   --tokenizer /Users/boris/Dev/complexity-framework/tokenizer-o200k \
   --output build/tokenized/o200k
+uv run card-corpus import-oasst1 \
+  --raw build/raw/oasst1 \
+  --output build/alignment/oasst1
 uv run card-corpus package-hf \
   --corpus build/corpus \
   --tokenized build/tokenized/o200k \
+  --alignment build/alignment/oasst1 \
   --output build/hf
 uv run card-corpus inspect --output build/corpus
 uv run pytest
@@ -51,6 +55,21 @@ uv run pytest
 
 `tokens.bin` uses little-endian `uint32`, because o200k token IDs do not fit in
 `uint16`. An EOS token is appended after each rendered document.
+
+## Instruct and chat modes
+
+The OASST1 importer pins the official dataset revision and creates two
+alignment-card views:
+
+- `instruct.parquet`: the highest-ranked valid assistant response to each
+  accepted English root prompt;
+- `chat.parquet`: one quality-selected multi-turn path per accepted tree.
+
+Messages are human-authored, non-synthetic OASST1 rows with successful review,
+language, safety and quality filters. Each output row retains the source tree
+and message IDs, Apache-2.0 license, source revision and a deterministic
+`User:`/`Assistant:` rendering. Alignment remains structured Parquet so a later
+SFT loader can mask user tokens and calculate loss only on assistant responses.
 
 ## Hugging Face dataset layout
 

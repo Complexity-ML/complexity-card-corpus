@@ -7,6 +7,7 @@ from pathlib import Path
 import pyarrow.parquet as pq
 
 from .build import build_corpus
+from .oasst1 import import_oasst1
 from .package import package_for_hugging_face
 from .tokenize import tokenize_documents
 
@@ -32,7 +33,15 @@ def parser() -> argparse.ArgumentParser:
     package = commands.add_parser("package-hf")
     package.add_argument("--corpus", type=Path, required=True)
     package.add_argument("--tokenized", type=Path, required=True)
+    package.add_argument("--alignment", type=Path)
     package.add_argument("--output", type=Path, required=True)
+
+    oasst1 = commands.add_parser("import-oasst1")
+    oasst1.add_argument("--raw", type=Path, required=True)
+    oasst1.add_argument("--output", type=Path, required=True)
+    oasst1.add_argument("--offline", action="store_true")
+    oasst1.add_argument("--max-characters", type=int, default=16_000)
+    oasst1.add_argument("--max-messages", type=int, default=10)
 
     inspect = commands.add_parser("inspect")
     inspect.add_argument("--output", type=Path, required=True)
@@ -80,6 +89,7 @@ def main() -> None:
             args.corpus,
             args.tokenized,
             args.output,
+            alignment_root=args.alignment,
         )
         print(
             json.dumps(
@@ -91,6 +101,15 @@ def main() -> None:
                 indent=2,
             )
         )
+    elif args.command == "import-oasst1":
+        result = import_oasst1(
+            args.raw,
+            args.output,
+            download=not args.offline,
+            max_characters=args.max_characters,
+            max_messages=args.max_messages,
+        )
+        print(json.dumps(result["counts"], indent=2, sort_keys=True))
     elif args.command == "inspect":
         print(json.dumps(_inspect(args.output), indent=2, ensure_ascii=False))
 
