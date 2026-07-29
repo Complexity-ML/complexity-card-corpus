@@ -13,7 +13,6 @@
     "https://git-scm.com/book/en/v2/Git-Internals-Git-Objects",
     "https://www.sqlite.org/fileformat.html"
   ],
-  "license": "proprietary",
+  "license": "CC BY-NC 4.0",
   "description": "Small validation graph about durable data representation and storage concepts."
 }
-

@@ -13,7 +13,7 @@ from .build import file_sha256
 DATASET_CARD = """---
 language:
 - en
-license: other
+license: cc-by-nc-4.0
 pretty_name: Complexity Atlas Pretrain
 task_categories:
 - text-generation
@@ -67,8 +67,28 @@ the canonical, tokenizer-independent artifact.
 
 ## License
 
-No public redistribution license has been granted for the current source
-content. Keep this dataset private until a data license is selected.
+Except where a row states otherwise, the original source cards and their
+derived documents are licensed under Creative Commons
+Attribution-NonCommercial 4.0 International (CC BY-NC 4.0). Reuse requires
+attribution to Complexity and must be non-commercial. See `LICENSE.md`.
+"""
+
+PRETRAIN_DATA_LICENSE = """# Complexity Atlas Pretrain data license
+
+Except where a row states otherwise, the original source cards, normalized
+tables, rendered documents and derived token streams in this dataset are
+licensed under the Creative Commons Attribution-NonCommercial 4.0
+International license (CC BY-NC 4.0).
+
+Attribution: **Complexity — Complexity Atlas Pretrain**.
+
+License deed and legal code:
+<https://creativecommons.org/licenses/by-nc/4.0/>
+
+The technical specifications linked as references in source metadata remain
+the property of their respective authors. Their links identify factual
+references; those third-party documents are not redistributed in this dataset.
+No warranty is provided.
 """
 
 ALIGNMENT_CONFIGS = """- config_name: instruct
@@ -283,6 +303,7 @@ def package_for_hugging_face(
             alignment_section=ALIGNMENT_SECTION if alignment_root else "",
         )
     )
+    (temporary / "LICENSE.md").write_text(PRETRAIN_DATA_LICENSE)
 
     files = _package_files(temporary)
     package_manifest = {

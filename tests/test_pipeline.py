@@ -142,4 +142,6 @@ def test_o200k_export_matches_index(tmp_path: Path) -> None:
     )
     assert packaged_index["source_documents"] == "data/train.parquet"
     assert packaged_index["tokenizer"] == "tiktoken:o200k_base"
+    assert (tmp_path / "hf/LICENSE.md").exists()
+    assert "CC BY-NC 4.0" in (tmp_path / "hf/LICENSE.md").read_text()
     assert "/Users/" not in (tmp_path / "hf/manifest.json").read_text()

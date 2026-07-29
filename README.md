@@ -111,6 +111,6 @@ hf upload Pacific-i64/complexity-atlas-posttrain \
   build/hf-posttrain . --repo-type dataset
 ```
 
-No upload is performed by this project. Dataset licensing must be selected
-before making the repository public; the current source metadata intentionally
-uses `proprietary`.
+`Complexity Atlas Pretrain` is released under CC BY-NC 4.0 for non-commercial
+reuse with attribution. `Complexity Atlas Posttrain` retains the Apache-2.0
+license and source provenance of OpenAssistant OASST1.
