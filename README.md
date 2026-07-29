@@ -117,6 +117,36 @@ The first registry entry is a pinned Apache-2.0 Cosmopedia Stories shard. Raw
 web scraping is intentionally excluded until site terms, `robots.txt`,
 redistribution rights and provenance retention are verified source by source.
 
+### Four-billion-token profile
+
+`data/mosaic/sources-4b.json` expands the licensed Cosmopedia mix across
+stories, mathematics, academic material, textbooks, lessons and educational
+web samples. It currently selects 101 pinned Parquet files, roughly 25 GiB of
+raw source data, to leave headroom after filtering.
+
+The scale build is bounded-memory, resumable at source-file granularity and
+deduplicates through SQLite. Downloads are prefetched concurrently. The
+tokenizer then reads all produced source shards round-robin so one source does
+not fill the 4B budget before the others are represented.
+
+```bash
+uv run card-corpus build-mosaic-shards \
+  --registry data/mosaic/sources-4b.json \
+  --atlas-documents build/corpus/documents.parquet \
+  --raw build/raw/mosaic-4b \
+  --output build/hf-mosaic-4b \
+  --workers 4
+uv run card-corpus tokenize-mosaic-shards \
+  --corpus build/hf-mosaic-4b \
+  --tokenizer /Users/boris/Dev/complexity-framework/tokenizer-o200k \
+  --target-train-tokens 4000000000 \
+  --target-eval-tokens 20000000 \
+  --workers 8
+```
+
+The final complete training document may cross the 4B target by a small
+amount. A trainer can consume exactly the first 4,000,000,000 token IDs.
+
 The pretraining upload contains inspectable Parquet and derived token shards:
 
 ```text

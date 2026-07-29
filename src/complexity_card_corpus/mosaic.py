@@ -104,7 +104,27 @@ def validate_mosaic_registry(registry: dict[str, Any]) -> list[dict[str, Any]]:
         raise ValueError("Mosaic source registry must contain sources")
 
     identifiers: set[str] = set()
-    for source in sources:
+    expanded_sources = []
+    for raw_source in sources:
+        source = dict(raw_source)
+        if "files" not in source:
+            series = source.get("file_series")
+            if not isinstance(series, dict):
+                raise ValueError(
+                    f"Source {source.get('dataset_id', '<unknown>')} needs files "
+                    "or file_series"
+                )
+            required_series = {"template", "start", "stop"}
+            missing_series = sorted(required_series - series.keys())
+            if missing_series:
+                raise ValueError(
+                    f"Source {source.get('dataset_id', '<unknown>')} file_series "
+                    f"missing {missing_series}"
+                )
+            source["files"] = [
+                series["template"].format(index=index)
+                for index in range(series["start"], series["stop"])
+            ]
         required = {
             "dataset_id",
             "kind",
@@ -137,7 +157,8 @@ def validate_mosaic_registry(registry: dict[str, Any]) -> list[dict[str, Any]]:
             raise ValueError(f"Source {dataset_id} must pin an immutable revision")
         if source["kind"] != "huggingface_parquet":
             raise ValueError(f"Unsupported source kind: {source['kind']}")
-    return sources
+        expanded_sources.append(source)
+    return expanded_sources
 
 
 def _split(document_id: str, validation_per_mille: int) -> str:

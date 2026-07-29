@@ -13,6 +13,10 @@ from complexity_card_corpus.mosaic import (
     build_mosaic,
     validate_mosaic_registry,
 )
+from complexity_card_corpus.mosaic_stream import (
+    build_mosaic_shards,
+    tokenize_mosaic_shards,
+)
 from complexity_card_corpus.oasst1 import build_alignment_cards
 from complexity_card_corpus.package import package_for_hugging_face
 from complexity_card_corpus.source import discover_datasets
@@ -255,3 +259,91 @@ def test_mosaic_filters_and_retains_provenance(
         "atlas_original",
         "huggingface_parquet",
     }
+
+
+def test_streaming_mosaic_resumes_and_tokenizes(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    corpus_root = tmp_path / "atlas"
+    build_corpus(ROOT / "data/source", corpus_root)
+    external = tmp_path / "external.parquet"
+    pq.write_table(
+        pa.table(
+            {
+                "text": [
+                    (
+                        f"Lesson {index} explains a distinct mechanism with "
+                        "evidence, examples, checks, and a concise conclusion. "
+                    )
+                    * 8
+                    for index in range(32)
+                ]
+            }
+        ),
+        external,
+    )
+    registry = {
+        "format": "complexity-atlas-source-registry-v1",
+        "sources": [
+            {
+                "dataset_id": "stream-test",
+                "kind": "huggingface_parquet",
+                "domain": "education",
+                "language": "en",
+                "license": "Apache-2.0",
+                "repo_id": "owner/repo",
+                "revision": "abc123",
+                "config": "lessons",
+                "files": ["data.parquet"],
+                "text_column": "text",
+                "minimum_characters": 100,
+                "maximum_characters": 10_000,
+                "redistribution": True,
+            }
+        ],
+    }
+    registry_path = tmp_path / "sources.json"
+    registry_path.write_text(json.dumps(registry))
+    monkeypatch.setattr(
+        "complexity_card_corpus.mosaic_stream.hf_hub_download",
+        lambda **_: str(external),
+    )
+    output = tmp_path / "stream"
+    first = build_mosaic_shards(
+        registry_path,
+        corpus_root / "documents.parquet",
+        tmp_path / "raw",
+        output,
+        validation_per_mille=500,
+        workers=2,
+        batch_size=8,
+    )
+    second = build_mosaic_shards(
+        registry_path,
+        corpus_root / "documents.parquet",
+        tmp_path / "raw",
+        output,
+        validation_per_mille=500,
+        workers=2,
+        batch_size=8,
+    )
+    assert first["counts"] == second["counts"]
+    assert first["counts"]["source_files"] == 1
+    assert len(list((output / "data/train").glob("*.parquet"))) >= 1
+    assert len(list((output / "data/validation").glob("*.parquet"))) >= 1
+
+    tokenizer = Path("/Users/boris/Dev/complexity-framework/tokenizer-o200k")
+    if not tokenizer.exists():
+        return
+    tokenized = tokenize_mosaic_shards(
+        output,
+        tokenizer,
+        target_train_tokens=500,
+        target_eval_tokens=250,
+        workers=2,
+        batch_size=4,
+    )
+    assert tokenized["partitions"]["train"]["num_tokens"] >= 500
+    assert tokenized["partitions"]["eval"]["num_tokens"] >= 250
+    assert (output / "tokenized/o200k/train/tokens.bin").exists()

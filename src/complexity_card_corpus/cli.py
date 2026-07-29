@@ -8,6 +8,7 @@ import pyarrow.parquet as pq
 
 from .build import build_corpus
 from .mosaic import build_mosaic, package_mosaic_for_hugging_face
+from .mosaic_stream import build_mosaic_shards, tokenize_mosaic_shards
 from .oasst1 import import_oasst1
 from .package import package_alignment_for_hugging_face, package_for_hugging_face
 from .tokenize import tokenize_documents
@@ -54,6 +55,31 @@ def parser() -> argparse.ArgumentParser:
     package_mosaic.add_argument("--mosaic", type=Path, required=True)
     package_mosaic.add_argument("--tokenized", type=Path, required=True)
     package_mosaic.add_argument("--output", type=Path, required=True)
+
+    mosaic_shards = commands.add_parser("build-mosaic-shards")
+    mosaic_shards.add_argument("--registry", type=Path, required=True)
+    mosaic_shards.add_argument("--atlas-documents", type=Path, required=True)
+    mosaic_shards.add_argument("--raw", type=Path, required=True)
+    mosaic_shards.add_argument("--output", type=Path, required=True)
+    mosaic_shards.add_argument("--validation-per-mille", type=int, default=5)
+    mosaic_shards.add_argument("--workers", type=int, default=4)
+    mosaic_shards.add_argument("--batch-size", type=int, default=8192)
+
+    tokenize_mosaic = commands.add_parser("tokenize-mosaic-shards")
+    tokenize_mosaic.add_argument("--corpus", type=Path, required=True)
+    tokenize_mosaic.add_argument("--tokenizer", type=Path, required=True)
+    tokenize_mosaic.add_argument(
+        "--target-train-tokens",
+        type=int,
+        default=4_000_000_000,
+    )
+    tokenize_mosaic.add_argument(
+        "--target-eval-tokens",
+        type=int,
+        default=20_000_000,
+    )
+    tokenize_mosaic.add_argument("--workers", type=int, default=8)
+    tokenize_mosaic.add_argument("--batch-size", type=int, default=256)
 
     oasst1 = commands.add_parser("import-oasst1")
     oasst1.add_argument("--raw", type=Path, required=True)
@@ -167,6 +193,36 @@ def main() -> None:
                     "files": len(result["files"]),
                     "bytes": sum(item["bytes"] for item in result["files"].values()),
                     "output": str(args.output.resolve()),
+                },
+                indent=2,
+            )
+        )
+    elif args.command == "build-mosaic-shards":
+        result = build_mosaic_shards(
+            args.registry,
+            args.atlas_documents,
+            args.raw,
+            args.output,
+            validation_per_mille=args.validation_per_mille,
+            workers=args.workers,
+            batch_size=args.batch_size,
+        )
+        print(json.dumps(result["counts"], indent=2, sort_keys=True))
+    elif args.command == "tokenize-mosaic-shards":
+        result = tokenize_mosaic_shards(
+            args.corpus,
+            args.tokenizer,
+            target_train_tokens=args.target_train_tokens,
+            target_eval_tokens=args.target_eval_tokens,
+            workers=args.workers,
+            batch_size=args.batch_size,
+        )
+        print(
+            json.dumps(
+                {
+                    "documents": result["total_documents"],
+                    "tokens": result["total_tokens"],
+                    "partitions": sorted(result["partitions"]),
                 },
                 indent=2,
             )
