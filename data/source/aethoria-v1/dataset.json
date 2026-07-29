@@ -1,0 +1,13 @@
+{
+  "datasetId": "aethoria-v1",
+  "title": "Aethoria Knowledge Graph",
+  "domain": "fantasy",
+  "language": "en",
+  "version": "1.0.0",
+  "split": "train",
+  "source": "Complexity original fantasy seed",
+  "sourceUrls": [],
+  "license": "proprietary",
+  "description": "Original linked fantasy entities covering places, characters, factions, creatures, artifacts, events and quests."
+}
+

@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "complexity-card-corpus"
+version = "0.1.0"
+description = "Build graph-shaped knowledge cards into Parquet and o200k token shards."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=2.0",
+  "pandas>=2.2",
+  "pyarrow>=18",
+  "pydantic>=2.10",
+  "tiktoken>=0.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3"]
+
+[project.scripts]
+card-corpus = "complexity_card_corpus.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/complexity_card_corpus"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+

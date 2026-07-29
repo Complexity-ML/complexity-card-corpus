@@ -1,0 +1,162 @@
+[
+  {
+    "key": "concept:unicode",
+    "kind": "standard",
+    "name": "Unicode",
+    "aliases": ["Unicode Standard"],
+    "summary": "A character-encoding standard that assigns code points to characters and symbols.",
+    "description": "Unicode provides a common coded character set. Encodings such as UTF-8 define how Unicode code points are represented as bytes.",
+    "facts": [
+      "A Unicode code point is written using the U+ notation.",
+      "A code point is an abstract number and is not itself a byte sequence."
+    ],
+    "tags": ["text", "encoding", "standard"],
+    "attributes": {"unit": "code point"},
+    "relations": [
+      {"type": "encoded_by", "targetKey": "concept:utf8"}
+    ]
+  },
+  {
+    "key": "concept:utf8",
+    "kind": "encoding",
+    "name": "UTF-8",
+    "aliases": ["Unicode Transformation Format 8"],
+    "summary": "A variable-width encoding for Unicode code points.",
+    "description": "UTF-8 represents Unicode code points using sequences of one to four bytes and preserves ASCII byte values for the ASCII range.",
+    "facts": [
+      "UTF-8 is self-synchronizing.",
+      "ASCII characters use one byte in UTF-8."
+    ],
+    "tags": ["text", "encoding", "bytes"],
+    "attributes": {"minimumBytes": 1, "maximumBytes": 4},
+    "relations": [
+      {"type": "represents", "targetKey": "concept:unicode"},
+      {"type": "stored_as", "targetKey": "concept:byte_sequence"}
+    ]
+  },
+  {
+    "key": "concept:byte_sequence",
+    "kind": "representation",
+    "name": "Byte Sequence",
+    "aliases": ["Octet sequence"],
+    "summary": "An ordered series of eight-bit values used to represent or transmit data.",
+    "description": "A byte sequence gives software a concrete representation for text, numbers, files and network messages. Its interpretation depends on an agreed format or protocol.",
+    "facts": [
+      "The same bytes can have different meanings under different formats.",
+      "Serialization turns structured values into a byte sequence."
+    ],
+    "tags": ["bytes", "storage", "serialization"],
+    "attributes": {"bitsPerByte": 8},
+    "relations": [
+      {"type": "produced_by", "targetKey": "concept:serialization"},
+      {"type": "persisted_in", "targetKey": "concept:file"}
+    ]
+  },
+  {
+    "key": "concept:serialization",
+    "kind": "process",
+    "name": "Serialization",
+    "aliases": [],
+    "summary": "The process of converting structured data into a representation suitable for storage or transmission.",
+    "description": "Serialization defines how values and structure become bytes or text. Deserialization reconstructs values according to the same format.",
+    "facts": [
+      "A serializer and deserializer must agree on a format.",
+      "JSON is one possible serialization format."
+    ],
+    "tags": ["data", "format", "storage"],
+    "attributes": {"inverse": "deserialization"},
+    "relations": [
+      {"type": "can_use", "targetKey": "format:json"},
+      {"type": "produces", "targetKey": "concept:byte_sequence"}
+    ]
+  },
+  {
+    "key": "format:json",
+    "kind": "format",
+    "name": "JSON",
+    "aliases": ["JavaScript Object Notation"],
+    "summary": "A text format for serializing structured values.",
+    "description": "JSON represents objects, arrays, strings, numbers, booleans and null. Its interoperable grammar is defined by RFC 8259.",
+    "facts": [
+      "A JSON object contains name-value pairs.",
+      "A JSON array is an ordered sequence of values."
+    ],
+    "tags": ["serialization", "text", "format"],
+    "attributes": {"mediaType": "application/json"},
+    "relations": [
+      {"type": "represents", "targetKey": "concept:structured_data"},
+      {"type": "encoded_as", "targetKey": "concept:utf8"}
+    ]
+  },
+  {
+    "key": "concept:structured_data",
+    "kind": "concept",
+    "name": "Structured Data",
+    "aliases": [],
+    "summary": "Data organized according to an explicit model of fields, values or relationships.",
+    "description": "Structured data can be validated, queried and serialized because its organization is known to producers and consumers.",
+    "facts": [
+      "A schema can constrain the allowed structure.",
+      "Relationships can connect records into a graph."
+    ],
+    "tags": ["data", "schema", "graph"],
+    "attributes": {},
+    "relations": [
+      {"type": "serialized_with", "targetKey": "format:json"},
+      {"type": "stored_in", "targetKey": "concept:database"}
+    ]
+  },
+  {
+    "key": "concept:file",
+    "kind": "storage",
+    "name": "File",
+    "aliases": [],
+    "summary": "A named sequence of bytes managed by a file system.",
+    "description": "Applications interpret file bytes according to a format. A database file can contain pages, records, indexes and metadata.",
+    "facts": [
+      "A filename does not by itself determine the content format.",
+      "File formats define how bytes are interpreted."
+    ],
+    "tags": ["storage", "filesystem", "bytes"],
+    "attributes": {},
+    "relations": [
+      {"type": "can_contain", "targetKey": "concept:database"}
+    ]
+  },
+  {
+    "key": "concept:database",
+    "kind": "storage",
+    "name": "Database",
+    "aliases": [],
+    "summary": "An organized collection of data managed for durable access and queries.",
+    "description": "A database system coordinates data representation, retrieval and updates. Some systems use tree indexes to locate records efficiently.",
+    "facts": [
+      "A database may persist data in one or more files.",
+      "Indexes trade additional storage and update work for faster lookup."
+    ],
+    "tags": ["storage", "query", "data"],
+    "attributes": {},
+    "relations": [
+      {"type": "organizes", "targetKey": "concept:structured_data"},
+      {"type": "can_index_with", "targetKey": "structure:btree"}
+    ]
+  },
+  {
+    "key": "structure:btree",
+    "kind": "data_structure",
+    "name": "B-tree",
+    "aliases": ["Balanced search tree"],
+    "summary": "A balanced search-tree family designed to keep ordered keys in blocks.",
+    "description": "B-trees reduce storage accesses by keeping many keys and child references in each node. Database systems commonly use related structures for indexes.",
+    "facts": [
+      "All leaves remain at the same depth in a balanced B-tree.",
+      "Nodes can hold multiple keys."
+    ],
+    "tags": ["index", "tree", "database"],
+    "attributes": {"shape": "balanced"},
+    "relations": [
+      {"type": "indexes", "targetKey": "concept:database"}
+    ]
+  }
+]
+
