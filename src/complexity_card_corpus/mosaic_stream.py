@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import sys
 from collections import Counter, deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -218,12 +219,18 @@ def _process_source_file(
     *,
     validation_per_mille: int,
     batch_size: int,
-) -> None:
+) -> dict[str, Any]:
     key = f"{source['dataset_id']}::{source_file}"
-    if connection.execute(
-        "SELECT 1 FROM processed WHERE source_file = ?", (key,)
-    ).fetchone():
-        return
+    previous = connection.execute(
+        "SELECT accepted, rejections_json FROM processed WHERE source_file = ?",
+        (key,),
+    ).fetchone()
+    if previous:
+        return {
+            "status": "cached",
+            "accepted": previous[0],
+            "rejections": json.loads(previous[1]),
+        }
 
     stem = _safe_stem(source["dataset_id"], source_file)
     paths = {
@@ -315,6 +322,11 @@ def _process_source_file(
             ),
         )
         connection.commit()
+        return {
+            "status": "built",
+            "accepted": accepted,
+            "rejections": dict(rejections),
+        }
     except BaseException:
         for writer in writers.values():
             writer.close()
@@ -366,10 +378,17 @@ def build_mosaic_shards(
             lambda task: _download(task[0], task[1], raw_root),
             tasks,
         )
-        for (source, source_file), local_path in zip(
-            tasks, downloads, strict=True
+        for index, ((source, source_file), local_path) in enumerate(
+            zip(tasks, downloads, strict=True),
+            start=1,
         ):
-            _process_source_file(
+            print(
+                f"[{index}/{len(tasks)}] filter {source['dataset_id']} "
+                f"{Path(source_file).name}",
+                file=sys.stderr,
+                flush=True,
+            )
+            result = _process_source_file(
                 connection,
                 source,
                 source_file,
@@ -377,6 +396,12 @@ def build_mosaic_shards(
                 output_root,
                 validation_per_mille=validation_per_mille,
                 batch_size=batch_size,
+            )
+            print(
+                f"[{index}/{len(tasks)}] {result['status']} "
+                f"{result['accepted']:,} documents",
+                file=sys.stderr,
+                flush=True,
             )
 
     atlas_rows = pq.read_table(atlas_documents_path, schema=DOCUMENT_SCHEMA).to_pylist()
