@@ -24,6 +24,8 @@ from .post_training_language import (
     FAMILY_CONSTRAINT_FRAMES,
     FAMILY_OPENINGS,
     FALLBACK_FRAMES,
+    LEXICAL_ASSISTANT_FRAMES,
+    LEXICAL_USER_FRAMES,
     RESPONSE_ORDERS,
     fallback_actions,
 )
@@ -78,6 +80,13 @@ _INTENT_FIELD = {
     "planning_comparison": "planning_goal",
     "conversation_empathy": "conversational_goal",
     "safety_uncertainty": "safe_goal",
+    "grounded_qa": "question_goal",
+    "summarization_synthesis": "summary_goal",
+    "extraction_classification": "extraction_goal",
+    "reasoning_verification": "reasoning_goal",
+    "critique_revision": "critique_goal",
+    "brainstorming_creativity": "ideation_goal",
+    "context_clarification": "clarification_goal",
 }
 
 _ACKNOWLEDGEMENTS = (
@@ -186,6 +195,41 @@ _INTENT_SUBJECT_TEMPLATES = {
     "offer a safe alternative": "offer a safe alternative for {subject}",
     "preserve privacy and control": "preserve privacy and control around {subject}",
     "set a clear safety boundary": "set a clear safety boundary for {subject}",
+    "answer the direct question": "answer the direct question about {subject}",
+    "locate supporting evidence": "locate supporting evidence for {subject}",
+    "compare two claims": "compare two claims about {subject}",
+    "draw a cautious inference": "draw a cautious inference about {subject}",
+    "identify what remains unknown": "identify what remains unknown about {subject}",
+    "summarize the essentials": "summarize the essentials of {subject}",
+    "synthesize related points": "synthesize the related points in {subject}",
+    "extract decisions and actions": "extract decisions and actions from {subject}",
+    "organize the chronology": "organize the chronology of {subject}",
+    "adapt the summary for its audience": "adapt the summary of {subject} for its audience",
+    "extract the requested fields": "extract the requested fields from {subject}",
+    "normalize the recorded values": "normalize the recorded values in {subject}",
+    "classify the record": "classify the record for {subject}",
+    "identify missing required fields": "identify missing required fields in {subject}",
+    "convert the record into a clear structure": "convert {subject} into a clear structure",
+    "calculate the requested result": "calculate the requested result for {subject}",
+    "compare the available quantities": "compare the available quantities for {subject}",
+    "test whether the constraint is satisfied": "test whether the constraint for {subject} is satisfied",
+    "explain the reasoning step by step": "explain the reasoning for {subject} step by step",
+    "verify the proposed result": "verify the proposed result for {subject}",
+    "identify the most important weakness": "identify the most important weakness in {subject}",
+    "revise the weak section": "revise the weak section of {subject}",
+    "check internal consistency": "check the internal consistency of {subject}",
+    "strengthen the evidence connection": "strengthen the evidence connection in {subject}",
+    "prioritize the necessary fixes": "prioritize the necessary fixes for {subject}",
+    "generate several distinct options": "generate several distinct options for {subject}",
+    "diversify the current ideas": "diversify the current ideas for {subject}",
+    "filter ideas against the criteria": "filter ideas for {subject} against the criteria",
+    "combine compatible concepts": "combine compatible concepts for {subject}",
+    "develop one promising idea": "develop one promising idea for {subject}",
+    "ask one decisive clarifying question": "ask one decisive clarifying question about {subject}",
+    "restate the understood request": "restate the understood request for {subject}",
+    "resolve the ambiguous reference": "resolve the ambiguous reference in {subject}",
+    "separate facts from assumptions": "separate facts from assumptions about {subject}",
+    "propose a bounded interpretation": "propose a bounded interpretation of {subject}",
 }
 
 
@@ -330,6 +374,14 @@ def _render_final(
     selected = " ".join(
         components[component] for component in RESPONSE_ORDERS[surface["order"]]
     )
+    if term := row.get("lexical_focus"):
+        lexical_frame = LEXICAL_ASSISTANT_FRAMES[
+            _stable_index(
+                f"lexical-assistant:{row['scenario_id']}:{variant}:{term}",
+                len(LEXICAL_ASSISTANT_FRAMES),
+            )
+        ]
+        selected = f"{selected} {lexical_frame.format(term=term)}"
     return correct_indefinite_articles(selected)
 
 
@@ -340,6 +392,15 @@ def _render_messages(
     intent = _intent(payload, row["family"])
     subject = payload["subject"]
     trigger = row["trigger"]
+    lexical_note = ""
+    if term := row.get("lexical_focus"):
+        lexical_frame = LEXICAL_USER_FRAMES[
+            _stable_index(
+                f"lexical-user:{row['scenario_id']}:{variant}:{term}",
+                len(LEXICAL_USER_FRAMES),
+            )
+        ]
+        lexical_note = f" {lexical_frame.format(term=term)}"
     if variant % 2 == 0:
         request_frame = _PROMPT_REQUESTS[
             _stable_index(f"prompt:{row['scenario_id']}:{variant}", len(_PROMPT_REQUESTS))
@@ -349,7 +410,7 @@ def _render_messages(
             intent_with_subject=_intent_for_subject(intent, subject),
             subject=subject,
         )
-        prompt = f"{trigger} {request}"
+        prompt = f"{trigger}{lexical_note} {request}"
         return [
             {"role": "user", "content": correct_indefinite_articles(prompt)},
             {
@@ -366,6 +427,7 @@ def _render_messages(
             f"chat-opening:{row['scenario_id']}:{variant}", len(_CHAT_OPENERS)
         )
     ].format(subject=subject, state=row["state"].rstrip("."))
+    chat_opening = f"{chat_opening}{lexical_note}"
     context = payload["domain_context"].rstrip(".")
     follow_up_frame = _FOLLOW_UPS[
         _stable_index(f"follow-up:{row['scenario_id']}:{variant}", len(_FOLLOW_UPS))
@@ -395,9 +457,13 @@ def _render_transcript(messages: list[dict[str, str]]) -> str:
 
 
 def _conversation_rows(
-    scenarios: list[dict[str, Any]], variants_per_scenario: int
+    scenarios: list[dict[str, Any]],
+    variants_per_scenario: int,
+    vocabulary_placements: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
+    if vocabulary_placements:
+        scenarios = _apply_vocabulary_placements(scenarios, vocabulary_placements)
     assignments = _surface_assignments(scenarios, variants_per_scenario)
     for scenario in scenarios:
         for variant in range(variants_per_scenario):
@@ -464,6 +530,10 @@ def _conversation_rows(
                     f"conclusion-{surface['conclusion_frame']:02d}"
                 ),
                 "model_generated_dialogue": False,
+                "lexical_focus": scenario.get("lexical_focus", ""),
+                "lexical_assignment_method": scenario.get(
+                    "lexical_assignment_method", ""
+                ),
             }
             rows.append(
                 {
@@ -491,6 +561,70 @@ def _conversation_rows(
                 }
             )
     return sorted(rows, key=lambda row: row["example_id"])
+
+
+def _load_vocabulary_placements(path: Path) -> list[dict[str, str]]:
+    with path.open(newline="", encoding="utf-8") as stream:
+        rows = list(csv.DictReader(stream))
+    if not rows:
+        raise ValueError("vocabulary placement contains no rows")
+    tokens = [row["token"] for row in rows]
+    if len(tokens) != len(set(tokens)):
+        raise ValueError("vocabulary placement contains duplicate tokens")
+    if any(_WORD.fullmatch(token) is None or token != token.lower() for token in tokens):
+        raise ValueError("vocabulary placement tokens must be normalized words")
+    if any(row["family"] not in _INTENT_FIELD for row in rows):
+        raise ValueError("vocabulary placement contains an unknown family")
+    if any(not row.get("domain") for row in rows):
+        raise ValueError("vocabulary placement must include a target domain")
+    if any(row["surface_policy"] != "grounded_quoted_term" for row in rows):
+        raise ValueError("vocabulary placement must use grounded quoted terms")
+    return rows
+
+
+def _apply_vocabulary_placements(
+    scenarios: list[dict[str, Any]], placements: list[dict[str, str]]
+) -> list[dict[str, Any]]:
+    scenarios_by_cell: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    placements_by_cell: dict[tuple[str, str], list[dict[str, str]]] = defaultdict(list)
+    for scenario in scenarios:
+        scenarios_by_cell[(scenario["family"], scenario["domain"])].append(scenario)
+    for placement in placements:
+        placements_by_cell[(placement["family"], placement["domain"])].append(
+            placement
+        )
+
+    assigned: dict[str, dict[str, str]] = {}
+    for cell, cell_placements in placements_by_cell.items():
+        cell_scenarios = sorted(
+            scenarios_by_cell[cell],
+            key=lambda row: hashlib.sha256(
+                f"vocabulary-scenario:{row['scenario_id']}".encode()
+            ).digest(),
+        )
+        if len(cell_placements) > len(cell_scenarios):
+            raise ValueError(
+                f"vocabulary placement for {cell} exceeds scenario capacity"
+            )
+        ordered_placements = sorted(
+            cell_placements,
+            key=lambda row: hashlib.sha256(
+                f"vocabulary-token:{row['token']}".encode()
+            ).digest(),
+        )
+        for scenario, placement in zip(cell_scenarios, ordered_placements):
+            assigned[scenario["scenario_id"]] = placement
+
+    result: list[dict[str, Any]] = []
+    for scenario in scenarios:
+        enriched = dict(scenario)
+        if placement := assigned.get(scenario["scenario_id"]):
+            enriched["lexical_focus"] = placement["token"]
+            enriched["lexical_assignment_method"] = placement[
+                "assignment_method"
+            ]
+        result.append(enriched)
+    return result
 
 
 def _tokens(value: str) -> list[str]:
@@ -1057,14 +1191,48 @@ def build_post_training_corpus(
     output_root: Path,
     *,
     variants_per_scenario: int = 2,
-    review_scenarios: int = 70,
+    review_scenarios: int = 140,
     seed: int = 42,
+    vocabulary_placement_path: Path | None = None,
 ) -> dict[str, Any]:
     if variants_per_scenario < 1:
         raise ValueError("variants_per_scenario must be positive")
     scenarios = pq.read_table(scenarios_path).to_pylist()
-    rows = _conversation_rows(scenarios, variants_per_scenario)
+    placements = (
+        _load_vocabulary_placements(vocabulary_placement_path)
+        if vocabulary_placement_path is not None
+        else []
+    )
+    rows = _conversation_rows(
+        scenarios,
+        variants_per_scenario,
+        vocabulary_placements=placements,
+    )
     audit = _audit(rows)
+    observed_lexical_focus = {
+        json.loads(row["answer_json"])["lexical_focus"]
+        for row in rows
+        if json.loads(row["answer_json"])["lexical_focus"]
+    }
+    requested_lexical_focus = {row["token"] for row in placements}
+    if observed_lexical_focus != requested_lexical_focus:
+        missing = sorted(requested_lexical_focus - observed_lexical_focus)
+        raise ValueError(f"vocabulary placement coverage is incomplete: {missing[:5]}")
+    lexical_methods = Counter(row["assignment_method"] for row in placements)
+    lexical_families = Counter(row["family"] for row in placements)
+    audit["vocabulary_placement"] = {
+        "requested_tokens": len(requested_lexical_focus),
+        "observed_tokens": len(observed_lexical_focus),
+        "coverage_ratio": 1.0 if placements else None,
+        "conversation_rows": sum(
+            bool(json.loads(row["answer_json"])["lexical_focus"])
+            for row in rows
+        ),
+        "assignment_methods": dict(sorted(lexical_methods.items())),
+        "family_counts": dict(sorted(lexical_families.items())),
+        "surface_policy": "grounded_quoted_term" if placements else None,
+        "automatic_definition_generation": False,
+    }
     review = _review_sample(
         rows, review_scenarios=review_scenarios, seed=seed
     )
@@ -1095,6 +1263,14 @@ def build_post_training_corpus(
         "license": DATASET_LICENSE,
         "source": DATASET_SOURCE,
         "input": {"path": str(scenarios_path), "sha256": file_sha256(scenarios_path)},
+        "vocabulary_placement_input": (
+            {
+                "path": str(vocabulary_placement_path),
+                "sha256": file_sha256(vocabulary_placement_path),
+            }
+            if vocabulary_placement_path is not None
+            else None
+        ),
         "variants_per_scenario": variants_per_scenario,
         "audit": audit,
         "human_review": {

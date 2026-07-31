@@ -27,6 +27,9 @@ from .package import (
 from .post_training import audit_human_review, build_post_training_corpus
 from .scenario_forge import build_scenario_forge
 from .tokenize import tokenize_documents
+from .vocabulary_gap import build_vocabulary_gap
+from .vocabulary_placement import build_vocabulary_placement
+from .vocabulary_wordnet_audit import audit_vocabulary_with_wordnet
 
 
 def parser() -> argparse.ArgumentParser:
@@ -60,13 +63,18 @@ def parser() -> argparse.ArgumentParser:
         "--review-rows",
         dest="review_scenarios",
         type=int,
-        default=70,
+        default=140,
         help=(
             "number of unique source scenarios to review; one instruct and one "
             "chat row are emitted for each scenario"
         ),
     )
     post_training.add_argument("--seed", type=int, default=42)
+    post_training.add_argument(
+        "--vocabulary-placement",
+        type=Path,
+        help="statistical token-to-family placement produced by place-vocabulary",
+    )
 
     post_training_review = commands.add_parser("audit-post-training-review")
     post_training_review.add_argument("--review", type=Path, required=True)
@@ -120,6 +128,30 @@ def parser() -> argparse.ArgumentParser:
     source_overlap.add_argument("--raw", type=Path, required=True)
     source_overlap.add_argument("--scenarios", type=Path, required=True)
     source_overlap.add_argument("--window-tokens", type=int, default=8)
+
+    vocabulary_gap = commands.add_parser("build-vocabulary-gap")
+    vocabulary_gap.add_argument("--lexicon", type=Path, required=True)
+    vocabulary_gap.add_argument("--conversations", type=Path, required=True)
+    vocabulary_gap.add_argument("--output", type=Path, required=True)
+    vocabulary_gap.add_argument("--min-sources", type=int, default=2)
+    vocabulary_gap.add_argument(
+        "--min-occurrences-per-source", type=int, default=20
+    )
+    vocabulary_gap.add_argument("--max-candidates", type=int, default=5_000)
+
+    vocabulary_placement = commands.add_parser("place-vocabulary")
+    vocabulary_placement.add_argument("--review", type=Path, required=True)
+    vocabulary_placement.add_argument("--lexicon", type=Path, required=True)
+    vocabulary_placement.add_argument("--registry", type=Path, required=True)
+    vocabulary_placement.add_argument("--raw", type=Path, required=True)
+    vocabulary_placement.add_argument("--scenarios", type=Path, required=True)
+    vocabulary_placement.add_argument("--output", type=Path, required=True)
+    vocabulary_placement.add_argument("--window-tokens", type=int, default=16)
+
+    vocabulary_wordnet = commands.add_parser("audit-vocabulary-wordnet")
+    vocabulary_wordnet.add_argument("--dictionary", type=Path, required=True)
+    vocabulary_wordnet.add_argument("--output", type=Path, required=True)
+    vocabulary_wordnet.add_argument("--lexicon", default="oewn:2025+")
 
     conversation_blueprints = commands.add_parser("build-conversation-blueprints")
     conversation_blueprints.add_argument("--mine", type=Path, required=True)
@@ -204,6 +236,7 @@ def main() -> None:
             variants_per_scenario=args.variants_per_scenario,
             review_scenarios=args.review_scenarios,
             seed=args.seed,
+            vocabulary_placement_path=args.vocabulary_placement,
         )
         print(
             json.dumps(
@@ -294,6 +327,34 @@ def main() -> None:
             window_tokens=args.window_tokens,
         )
         print(json.dumps(result, indent=2, sort_keys=True))
+    elif args.command == "build-vocabulary-gap":
+        result = build_vocabulary_gap(
+            args.lexicon,
+            args.conversations,
+            args.output,
+            min_sources=args.min_sources,
+            min_occurrences_per_source=args.min_occurrences_per_source,
+            max_candidates=args.max_candidates,
+        )
+        print(json.dumps(result["audit"], indent=2, sort_keys=True))
+    elif args.command == "place-vocabulary":
+        result = build_vocabulary_placement(
+            args.review,
+            args.lexicon,
+            args.registry,
+            args.raw,
+            args.scenarios,
+            args.output,
+            window_tokens=args.window_tokens,
+        )
+        print(json.dumps(result["audit"], indent=2, sort_keys=True))
+    elif args.command == "audit-vocabulary-wordnet":
+        result = audit_vocabulary_with_wordnet(
+            args.dictionary,
+            args.output,
+            lexicon=args.lexicon,
+        )
+        print(json.dumps(result["summary"], indent=2, sort_keys=True))
     elif args.command == "build-conversation-blueprints":
         result = build_conversation_blueprints(
             args.mine,

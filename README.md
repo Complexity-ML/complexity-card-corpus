@@ -9,9 +9,10 @@ is the canonical dataset format, and o200k binary streams are optional derived
 training artifacts. No third-party dataset is included in the public corpus.
 
 > **Current status:** the knowledge-card and grounded-instruction collections
-> are buildable. Scenario Forge is structurally validated. The post-training
-> conversation set is still awaiting its required human review and is therefore
-> not marked training-ready or release-ready.
+> are buildable. Scenario Forge and its 30,000 paired post-training examples
+> pass the automated structural and language gates. The post-training set is
+> still awaiting its required human review and is therefore not marked
+> training-ready or release-ready.
 
 ## Why cards?
 
@@ -91,8 +92,8 @@ Every example retains its source-card keys and evidence.
 
 ### Scenario Forge
 
-Scenario Forge compiles **2,000** semantic scenarios across 45 domains and
-seven assistant families:
+Scenario Forge compiles **15,000** semantic scenarios across 14 assistant
+families:
 
 | Family | Scenarios |
 | --- | ---: |
@@ -103,6 +104,13 @@ seven assistant families:
 | Planning and comparison | 200 |
 | Conversation and empathy | 150 |
 | Safety and uncertainty | 100 |
+| Grounded question answering | 1,800 |
+| Summarization and synthesis | 2,000 |
+| Extraction and classification | 2,000 |
+| Reasoning and verification | 1,800 |
+| Critique and revision | 1,800 |
+| Brainstorming and creativity | 1,800 |
+| Context clarification | 1,800 |
 
 Each scenario combines a compatible family, domain, intent, state, outcome,
 constraint, risk-aware fallback and domain-specific trigger. The registry owns
@@ -111,8 +119,8 @@ combination.
 
 The scenario audit requires:
 
-- 2,000 unique IDs, signatures, titles, objectives and situations;
-- exactly 1,900 train and 100 validation scenarios;
+- 15,000 unique IDs, signatures, titles, objectives and situations;
+- exactly 14,250 train and 750 validation scenarios;
 - zero shared `(family, domain, intent)` groups across splits;
 - complete family allocation and compatible semantic payloads;
 - one creation hash over the semantic signature and one verification hash over
@@ -139,18 +147,21 @@ The current generated set contains:
 
 | Measure | Value |
 | --- | ---: |
-| Examples | 4,000 |
-| Source scenarios | 2,000 |
-| Train / validation | 3,800 / 200 |
-| Instruct / chat | 2,000 / 2,000 |
+| Examples | 30,000 |
+| Source scenarios | 15,000 |
+| Train / validation | 28,500 / 1,500 |
+| Instruct / chat | 15,000 / 15,000 |
 | Exact conversation uniqueness | 100% |
 | Exact final-response uniqueness | 100% |
-| Exact masked-skeleton uniqueness | 100% |
-| Realized narrative combinations | 3,752 |
-| Largest individual surface-form share | 3.75% |
-| Largest masked eight-token coverage | 4.35% |
-| Largest fallback-form share | 3.95% |
-| Largest conclusion-frame share | 4.18% |
+| Exact masked-skeleton uniqueness | 99.97% |
+| Realized narrative combinations | 23,229 |
+| Largest individual surface-form share | 0.017% |
+| Largest masked eight-token coverage | 4.17% |
+| Largest fallback-form share | 4.01% |
+| Largest conclusion-frame share | 4.17% |
+| Observed conversation vocabulary | 5,637 |
+| Lexically augmented conversations | 8,194 |
+| Added statistical vocabulary terms | 4,097 |
 
 These are anti-template diagnostics, not a claim that every answer is correct
 or naturally written. Raw source anchors remain visible in unmasked statistics;
@@ -159,9 +170,9 @@ when measuring response-template repetition.
 
 ## Human review
 
-The post-training build creates `human_review.csv` with 140 pending rows:
+The post-training build creates `human_review.csv` with 280 pending rows:
 
-- 70 unique source scenarios;
+- 140 unique source scenarios;
 - both modes for each selected scenario;
 - 20 rows from each assistant family;
 - stratification across family, risk, split and domain.
@@ -215,10 +226,71 @@ uv run card-corpus build-scenario-forge \
 
 uv run card-corpus build-post-training \
   --scenarios build/scenario-forge/scenarios.parquet \
+  --vocabulary-placement data/vocabulary/vocabulary-placement-v1.csv \
   --output build/post-training \
   --variants-per-scenario 2 \
-  --review-scenarios 70
+  --review-scenarios 140
 ```
+
+## Vocabulary mining
+
+Vocabulary breadth is measured separately from semantic coverage. The local
+lexical mine retains normalized single tokens and aggregate statistics only:
+no source sentence, phrase, identifier or n-gram enters the repository or the
+generated corpus. The private mine is compared with the current conversations
+to produce an authoring queue:
+
+```bash
+uv run card-corpus build-vocabulary-gap \
+  --lexicon /private/mine/lexicon.parquet \
+  --conversations build/post-training/conversations.parquet \
+  --output build/vocabulary-gap \
+  --min-sources 2 \
+  --min-occurrences-per-source 20
+```
+
+The current two-source audit finds 4,097 cross-source words absent from the
+original 1,533-word conversation vocabulary. Statistical placement uses masked
+context windows, semantic-role priors and the real Scenario Forge capacity:
+
+```bash
+uv run card-corpus place-vocabulary \
+  --review build/vocabulary-gap/vocabulary_review.csv \
+  --lexicon /private/mine/lexicon.parquet \
+  --registry /private/mine/sources.json \
+  --raw /private/mine/raw \
+  --scenarios build/scenario-forge/scenarios.parquet \
+  --output build/vocabulary-placement
+```
+
+The versioned dictionary at
+`data/vocabulary/vocabulary-dictionary-v1.json` contains all 4,097 words. A
+word has one selected placement for generation plus up to four alternative
+contexts in `statistical_usages`; a word is never assumed to have only one
+meaning. Every
+entry also carries its full 101-cell score vector and masked-token neighbours.
+
+The current classification audit reports 2,111 statistically supported,
+1,271 statistically plausible and 715 `review_required` entries. These labels
+are confidence tiers, not lexical truth. The vocabulary-augmented build uses
+all 4,097 terms in 8,194 conversations and raises observed vocabulary to 5,637,
+but the corpus remains blocked on the human review gate.
+
+An optional Open English WordNet comparison evaluates agreement without using
+WordNet to author definitions:
+
+```bash
+uv sync --extra wordnet-audit
+uv run wn download 'oewn:2025+'
+uv run card-corpus audit-vocabulary-wordnet \
+  --dictionary data/vocabulary/vocabulary-dictionary-v1.json \
+  --output build/vocabulary-placement/wordnet-alignment.json
+```
+
+On the current dictionary, WordNet resolves 98.41% of entries. Among the
+97.75% with a comparable proxy vector, the selected family appears in the
+WordNet-derived top 1, 3 and 5 for 20.72%, 54.56% and 75.06% respectively.
+This is a semantic-proxy agreement check, not a ground-truth accuracy score.
 
 Run the complete test suite:
 
@@ -253,6 +325,7 @@ only assistant tokens and the terminating EOS token contribute to the loss.
 data/source/                         original linked-card collections
 data/forge/                          editable large-deck blueprints
 data/scenario-forge/                 semantic scenario registry
+data/vocabulary/                     statistical multi-usage dictionary
 src/complexity_card_corpus/          build, language, audit and CLI modules
 tests/                               regression and release-boundary tests
 docs/post-training-reference-audit.md aggregate methodology reference

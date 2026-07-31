@@ -58,16 +58,16 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
         scenario_root / "scenarios.parquet",
         output,
         variants_per_scenario=2,
-        review_scenarios=70,
+        review_scenarios=140,
         seed=17,
     )
 
     rows = pq.read_table(output / "conversations.parquet").to_pylist()
-    assert len(rows) == 4_000
+    assert len(rows) == 30_000
     assert result["audit"]["source_scenario_split_overlap"] == 0
     assert result["audit"]["semantic_group_split_overlap"] == 0
     paired_prompts = result["audit"]["paired_prompt_surface_stats"]
-    assert paired_prompts["paired_scenarios"] == 2_000
+    assert paired_prompts["paired_scenarios"] == 15_000
     assert paired_prompts["exact_first_user_message_matches"] == 0
     assert paired_prompts["chat_opener_is_instruct_prefix"] == 0
     assert result["audit"]["split_holdout_units"] == [
@@ -89,9 +89,9 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
         ),
     }
     role_stats = result["audit"]["role_text_stats"]
-    assert role_stats["user_prompts"]["length"]["items"] == 6_000
-    assert role_stats["assistant_messages"]["length"]["items"] == 6_000
-    assert role_stats["final_responses"]["length"]["items"] == 4_000
+    assert role_stats["user_prompts"]["length"]["items"] == 45_000
+    assert role_stats["assistant_messages"]["length"]["items"] == 45_000
+    assert role_stats["final_responses"]["length"]["items"] == 30_000
     assert role_stats["user_prompts"]["eight_grams"]["distinct_ngrams"] > 0
     assert role_stats["final_responses"]["eight_grams"]["distinct_ngrams"] > 0
     assert result["audit"]["fallback_surface_stats"][
@@ -142,18 +142,25 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
 
     with (output / "human_review.csv").open(newline="") as handle:
         review_rows = list(csv.DictReader(handle))
-    assert len(review_rows) == 140
-    assert len({row["scenario_id"] for row in review_rows}) == 70
+    assert len(review_rows) == 280
+    assert len({row["scenario_id"] for row in review_rows}) == 140
     scenario_modes: dict[str, set[str]] = {}
     for row in review_rows:
         scenario_modes.setdefault(row["scenario_id"], set()).add(row["mode"])
     assert all(modes == {"instruct", "chat"} for modes in scenario_modes.values())
     assert {row["family"] for row in review_rows} == {
         "conversation_empathy",
+        "brainstorming_creativity",
+        "context_clarification",
+        "critique_revision",
         "explanation_learning",
+        "extraction_classification",
+        "grounded_qa",
         "planning_comparison",
         "practical_action",
+        "reasoning_verification",
         "safety_uncertainty",
+        "summarization_synthesis",
         "troubleshooting",
         "writing_transformation",
     }
@@ -161,8 +168,8 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
     assert all(row["reviewer_notes"] == "" for row in review_rows)
     pending = audit_human_review(output / "human_review.csv")
     assert pending["training_ready"] is False
-    assert pending["source_scenarios"] == 70
-    assert pending["coverage"]["mode_rows"] == {"chat": 70, "instruct": 70}
+    assert pending["source_scenarios"] == 140
+    assert pending["coverage"]["mode_rows"] == {"chat": 140, "instruct": 140}
     assert set(pending["coverage"]["family_source_scenarios"].values()) == {10}
     assert set(pending["coverage"]["risk_source_scenarios"]) == {
         "critical",
@@ -190,8 +197,8 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
     assert completed["review_provenance_complete"] is True
     assert completed["zero_failure_bound"] == {
         "confidence": 0.95,
-        "scenario_sample_size": 70,
-        "upper_defect_rate_if_iid_random": 0.041893,
+        "scenario_sample_size": 140,
+        "upper_defect_rate_if_iid_random": 0.021171,
         "caveat": (
             "descriptive sensitivity bound only; this review is stratified "
             "rather than a simple iid random sample"

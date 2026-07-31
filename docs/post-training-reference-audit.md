@@ -28,7 +28,7 @@ published training data.
 | Corpus | Mean words | Median | P95 | Observed vocabulary | Question rate | Unique documents | Unique sentences |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | Scenario Forge, initial surface layer | 67.97 | 68 | 74 | 779 | 0.0% | 100.0% | 29.3% |
-| **Scenario Forge, current** | **126.16** | **127** | **141** | **898** | **27.5%** | **100.0%** | **81.1%** |
+| **Scenario Forge, current** | **119.94** | **119** | **135** | **1,225** | **27.7%** | **100.0%** | **47.0%** |
 | No Robots | 71.29 | 29 | 278 | 52,577 | 17.2% | 99.2% | 94.9% |
 | UltraChat 200k | 119.22 | 67 | 378 | 374,871 | 32.0% | 100.0% | 86.1% |
 | Dolly 15k | 44.73 | 14 | 175 | 63,623 | 25.7% | 97.5% | 88.5% |
@@ -81,32 +81,42 @@ behind document-level uniqueness.
 ## Findings
 
 Scenario Forge is strong on structural coverage and document-level uniqueness:
-all 2,000 compiled scenarios are distinct, and the validation split holds out
+all 15,000 compiled scenarios are distinct, and the validation split holds out
 complete `(family, domain, intent)` groups. Its mean length is within the range
 of the references.
 
-The revised original language layer raises unique-sentence rate from 29.3% to
-81.1% and question rate from 0.0% to 27.5%, without changing any semantic
-signature. It is approaching the 86.1--94.9% sentence range of the reference
-snapshots. The chaining audit also caused long three-sentence blocks to be
-split into four or five auditable sentences. The remaining measurable
-weaknesses are lexical breadth and over-signposting: 898 observed words and
-0.921 transitions per sentence remain narrow and mechanically explicit for a
-general post-training corpus.
+The expanded original language layer raises question rate to 27.7% and keeps
+every scenario unique while adding seven generalist families. Sentences average
+19.99 words and transitions average 0.236 per sentence, both inside the current
+acceptance bands. Exact sentence uniqueness falls to 47.0% at the larger scale,
+which is expected from shared semantic anchors but remains a signal to improve.
+The original measurable weakness was lexical breadth: 1,225 observed words in
+Scenario Forge and 1,533 across the rendered conversations were narrow for a
+general post-training corpus. The vocabulary-augmented build now observes
+5,637 words while preserving the same 15,000 semantic scenarios.
 
-The mined semantic-role labels are not suitable for automatic generation yet.
-Transitions are reliable, but heuristic `intent`, `state`, `constraint` and
-`outcome` labels contain syntactic and topical false positives. Candidate
-vocabulary must therefore pass cross-source support, stop-word and morphology
-filters, followed by human approval. Complete source phrases must never be
-reintroduced.
+The mined semantic-role labels are not suitable for automatic generation. A
+new cross-source vocabulary-gap audit first removes words already present,
+function words and candidates lacking independent support. With two pinned
+sources and a minimum of 20 occurrences in each, it identifies 4,097 absent
+single-token candidates. Masked-context placement maps all of them into the
+101 realized family/domain cells and stores the selected use plus as many as
+four alternative statistical contexts per word. The primary placement is only
+the rendering choice; it is not a
+single-sense lexical claim. Complete source phrases are never reintroduced.
+
+The placement audit reports 2,111 statistically supported, 1,271 statistically
+plausible and 715 review-required words. An optional Open English WordNet proxy
+resolves 98.41% of entries; the selected family is in its derived top 1, 3 and
+5 for 20.72%, 54.56% and 75.06% of comparable words. This comparison is not a
+ground-truth accuracy score and WordNet definitions do not enter the corpus.
 
 ## Next acceptance targets
 
 The next language layer should be accepted only when it:
 
-1. preserves the 2,000 semantic signatures and exact 1,900/100 split;
-2. keeps unique-sentence rate at or above 80%;
+1. preserves the 15,000 semantic signatures and exact 14,250/750 split;
+2. records unique-sentence rate and improves it without reducing semantic coverage;
 3. keeps question rate between 25% and 30%, only in appropriate families;
 4. expands vocabulary through reviewed single-token candidates;
 5. passes the transient eight-token source-overlap audit with zero matches.
@@ -122,16 +132,16 @@ The next language layer should be accepted only when it:
 
 ## Current post-training surface gate
 
-The current 4,000-example build realizes 3,752 of 43,008 possible combinations
-of family opening, action frame, constraint frame and narrative order. No
-combination occurs more than three times. Each of the three family-specific
-surface layers peaks at 3.75% of final responses, and the largest masked
-eight-token message coverage is 4.35%. Exact final responses and exact masked
-response skeletons are both unique in this build. These are automated
-anti-template diagnostics; the 140-row stratified human review remains pending
-and the corpus remains explicitly not training-ready.
+The current 30,000-example build realizes 23,229 combinations of family
+opening, action frame, constraint frame and narrative order. No combination
+exceeds 0.017% of examples. The largest masked eight-token message coverage is
+4.17%, the largest fallback realization is 4.01%, and each of the 24 conclusion
+frames has a 4.17% share. Exact final responses are unique; 99.97% of masked
+response skeletons are unique. These are automated anti-template diagnostics;
+the 280-row stratified human review remains pending and the corpus remains
+explicitly not training-ready.
 
-All 2,000 source scenarios still have paired instruct and chat renderings for
+All 15,000 source scenarios have paired instruct and chat renderings for
 review, but none of the chat openers is an exact match or literal prefix of the
 paired instruct prompt. This preserves format coverage without counting a
 copied opening as prompt diversity.

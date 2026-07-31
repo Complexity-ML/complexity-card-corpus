@@ -10,7 +10,14 @@ from .english_morphology import correct_indefinite_articles
 
 
 SURFACE_WORD = re.compile(r"[A-Za-z]+(?:['’][A-Za-z]+)?")
-QUESTION_FAMILIES = frozenset({"conversation_empathy", "explanation_learning"})
+QUESTION_FAMILIES = frozenset(
+    {
+        "conversation_empathy",
+        "explanation_learning",
+        "grounded_qa",
+        "reasoning_verification",
+    }
+)
 TRANSITIONS = frozenset(
     {
         "after", "although", "before", "finally", "first", "following",

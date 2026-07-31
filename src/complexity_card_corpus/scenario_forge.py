@@ -323,7 +323,16 @@ class ScenarioForgeRegistry(BaseModel):
     seed: int = 42
     validation_percent: int = Field(default=5, alias="validationPercent", ge=1, le=25)
     metadata: ScenarioForgeMetadata
+    includes: list[str] = Field(default_factory=list)
     families: list[ScenarioFamilySpec]
+
+    @field_validator("includes")
+    @classmethod
+    def valid_includes(cls, values: list[str]) -> list[str]:
+        cleaned = [value.strip() for value in values]
+        if any(not value for value in cleaned) or len(cleaned) != len(set(cleaned)):
+            raise ValueError("Scenario Forge includes must be unique non-empty paths")
+        return cleaned
 
     @model_validator(mode="after")
     def valid_registry(self) -> "ScenarioForgeRegistry":
@@ -533,6 +542,41 @@ def _payload(
             "safety_boundary": constraint.label,
             "safe_alternative": fallback.label,
         },
+        "grounded_qa": {
+            "question_goal": intent.label,
+            "evidence_state": state.label,
+            "source_boundary": constraint.label,
+        },
+        "summarization_synthesis": {
+            "summary_goal": intent.label,
+            "source_state": state.label,
+            "retention_check": outcome.label,
+        },
+        "extraction_classification": {
+            "extraction_goal": intent.label,
+            "record_state": state.label,
+            "schema_check": outcome.label,
+        },
+        "reasoning_verification": {
+            "reasoning_goal": intent.label,
+            "problem_state": state.label,
+            "verification_check": outcome.label,
+        },
+        "critique_revision": {
+            "critique_goal": intent.label,
+            "draft_state": state.label,
+            "revision_check": outcome.label,
+        },
+        "brainstorming_creativity": {
+            "ideation_goal": intent.label,
+            "idea_state": state.label,
+            "selection_check": outcome.label,
+        },
+        "context_clarification": {
+            "clarification_goal": intent.label,
+            "ambiguity_state": state.label,
+            "scope_check": outcome.label,
+        },
     }
     if family.family_id not in family_specific:
         raise ValueError(f"no payload contract for family {family.family_id}")
@@ -704,6 +748,33 @@ def audit_scenarios(
             "risk_state",
             "safety_boundary",
             "safe_alternative",
+        },
+        "grounded_qa": {"question_goal", "evidence_state", "source_boundary"},
+        "summarization_synthesis": {
+            "summary_goal",
+            "source_state",
+            "retention_check",
+        },
+        "extraction_classification": {
+            "extraction_goal",
+            "record_state",
+            "schema_check",
+        },
+        "reasoning_verification": {
+            "reasoning_goal",
+            "problem_state",
+            "verification_check",
+        },
+        "critique_revision": {"critique_goal", "draft_state", "revision_check"},
+        "brainstorming_creativity": {
+            "ideation_goal",
+            "idea_state",
+            "selection_check",
+        },
+        "context_clarification": {
+            "clarification_goal",
+            "ambiguity_state",
+            "scope_check",
         },
     }
     common_payload = {
@@ -899,7 +970,19 @@ def audit_scenarios(
 
 
 def load_scenario_registry(path: Path) -> ScenarioForgeRegistry:
-    return ScenarioForgeRegistry.model_validate(json.loads(path.read_text()))
+    payload = json.loads(path.read_text())
+    families = list(payload.get("families", []))
+    for include in payload.get("includes", []):
+        include_path = path.parent / include
+        include_payload = json.loads(include_path.read_text())
+        if include_payload.get("format") != "scenario-family-pack-v1":
+            raise ValueError(f"unsupported Scenario Forge family pack: {include_path}")
+        included_families = include_payload.get("families")
+        if not isinstance(included_families, list) or not included_families:
+            raise ValueError(f"empty Scenario Forge family pack: {include_path}")
+        families.extend(included_families)
+    payload["families"] = families
+    return ScenarioForgeRegistry.model_validate(payload)
 
 
 def build_scenario_forge(
@@ -943,8 +1026,17 @@ def build_scenario_forge(
         "seed": registry.seed,
         "validation_percent": registry.validation_percent,
         "input": {
-            "path": str(registry_path),
-            "sha256": file_sha256(registry_path),
+            "registry": {
+                "path": str(registry_path),
+                "sha256": file_sha256(registry_path),
+            },
+            "family_packs": [
+                {
+                    "path": str(registry_path.parent / include),
+                    "sha256": file_sha256(registry_path.parent / include),
+                }
+                for include in registry.includes
+            ],
         },
         "counts": {
             "scenarios": len(rows),

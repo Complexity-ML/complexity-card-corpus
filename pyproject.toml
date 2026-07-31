@@ -26,6 +26,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.3"]
+wordnet-audit = ["wn>=1.1,<2"]
 
 [project.scripts]
 card-corpus = "complexity_card_corpus.cli:main"

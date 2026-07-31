@@ -22,38 +22,45 @@ ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "data/scenario-forge/scenario-forge-v1.json"
 
 
-def test_scenario_forge_compiles_two_thousand_semantic_cards() -> None:
+def test_scenario_forge_compiles_fifteen_thousand_semantic_cards() -> None:
     registry = load_scenario_registry(REGISTRY)
     rows = compile_scenarios(registry)
     audit = audit_scenarios(rows, registry)
 
-    assert len(rows) == 2_000
-    assert audit["unique_ids"] == 2_000
-    assert audit["unique_semantic_signatures"] == 2_000
-    assert audit["unique_semantic_payloads"] == 2_000
-    assert audit["unique_situations"] == 2_000
-    assert audit["unique_titles"] == 2_000
-    assert audit["unique_goals"] == 2_000
+    assert len(rows) == 15_000
+    assert audit["unique_ids"] == 15_000
+    assert audit["unique_semantic_signatures"] == 15_000
+    assert audit["unique_semantic_payloads"] == 15_000
+    assert audit["unique_situations"] == 15_000
+    assert audit["unique_titles"] == 15_000
+    assert audit["unique_goals"] == 15_000
     assert audit["unique_triggers"] >= 100
-    assert audit["unique_creation_hashes"] == 2_000
-    assert audit["unique_verification_hashes"] == 2_000
+    assert audit["unique_creation_hashes"] == 15_000
+    assert audit["unique_verification_hashes"] == 15_000
     assert audit["family_counts"] == {
+        "brainstorming_creativity": 1_800,
         "conversation_empathy": 150,
+        "context_clarification": 1_800,
+        "critique_revision": 1_800,
         "explanation_learning": 400,
+        "extraction_classification": 2_000,
+        "grounded_qa": 1_800,
         "planning_comparison": 200,
         "practical_action": 600,
+        "reasoning_verification": 1_800,
         "safety_uncertainty": 100,
+        "summarization_synthesis": 2_000,
         "troubleshooting": 300,
         "writing_transformation": 250,
     }
     assert audit["model_generated_dialogue_rows"] == 0
     assert audit["payload_contract_match_ratio"] == 1.0
     assert audit["compatibility_match_ratio"] == 1.0
-    assert audit["split_counts"] == {"train": 1_900, "validation": 100}
+    assert audit["split_counts"] == {"train": 14_250, "validation": 750}
     assert audit["split_holdout_unit"] == "family+domain+intent"
     assert audit["split_group_overlap"] == 0
-    assert sum(audit["validation_family_counts"].values()) == 100
-    assert audit["surface_stats"]["documents"] == 2_000
+    assert sum(audit["validation_family_counts"].values()) == 750
+    assert audit["surface_stats"]["documents"] == 15_000
     assert audit["surface_stats"]["unique_document_rate"] == 1.0
     assert audit["surface_stats"]["unique_sentence_rate"] >= 0.45
     assert 14 <= audit["surface_stats"]["mean_sentence_words"] <= 20
@@ -63,15 +70,15 @@ def test_scenario_forge_compiles_two_thousand_semantic_cards() -> None:
     assert 0 < audit["surface_stats"]["mattr_100"] <= 1
     assert "type_token_ratio" not in audit["surface_stats"]
     assert audit["surface_language_audit"]["issue_count"] == 0
-    assert audit["surface_language_audit"]["checked_rows"] == 2_000
+    assert audit["surface_language_audit"]["checked_rows"] == 15_000
     assert audit["surface_language_audit"]["semantic_anchor_match_rate"] == 1.0
-    assert audit["surface_language_audit"]["frame_family_cells"] == 84
+    assert audit["surface_language_audit"]["frame_family_cells"] == 168
     assert audit["morphology_audit"] == {
-        "intent_phrases": 35,
-        "unique_lemmas": 34,
+        "intent_phrases": 70,
+        "unique_lemmas": 57,
         "forms_per_intent": 5,
-        "forms_generated": 175,
-        "unique_realized_forms": 140,
+        "forms_generated": 350,
+        "unique_realized_forms": 281,
     }
 
     assert all(row["provenance"] == SCENARIO_PROVENANCE for row in rows)
@@ -105,7 +112,7 @@ def test_scenario_forge_output_is_deterministic_and_inspectable(tmp_path: Path) 
         json.loads(line)
         for line in (tmp_path / "first/scenarios.jsonl").read_text().splitlines()
     ]
-    assert len(rows) == len(jsonl_rows) == 2_000
+    assert len(rows) == len(jsonl_rows) == 15_000
     assert rows[0]["scenario_id"] == jsonl_rows[0]["scenario_id"]
     assert json.loads(rows[0]["semantic_payload"])["subject"]
 
@@ -259,7 +266,7 @@ def test_validation_holds_out_complete_domain_intent_groups() -> None:
         if row["split"] == "validation"
     }
     assert not train_groups & validation_groups
-    assert sum(row["split"] == "validation" for row in rows) == 100
+    assert sum(row["split"] == "validation" for row in rows) == 750
 
 
 def test_safety_constraints_are_domain_specific() -> None:

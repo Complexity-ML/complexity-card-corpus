@@ -5,12 +5,13 @@
   "metadata": {
     "datasetId": "complexity-scenario-forge-v1",
     "title": "Complexity Scenario Forge",
-    "version": "1.2.0",
+    "version": "2.0.0",
     "language": "en",
     "license": "CC BY-NC 4.0",
     "source": "Complexity original authored semantic taxonomy",
-    "description": "Two thousand compatibility-checked scenario cards with authored narrative frames, domain-specific triggers, and deterministic integrity hashes."
+    "description": "Fifteen thousand compatibility-checked generalist scenario cards with authored narrative frames, domain-specific triggers, and deterministic integrity hashes."
   },
+  "includes": ["generalist-families-v1.json"],
   "families": [
     {
       "id": "practical_action",
