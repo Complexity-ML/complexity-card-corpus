@@ -158,11 +158,13 @@ def _matches_filters(row: dict[str, Any], filters: dict[str, Any]) -> bool:
     return True
 
 
-def _row_documents(row: dict[str, Any], source: dict[str, Any]) -> Iterator[str]:
+def _row_role_documents(
+    row: dict[str, Any], source: dict[str, Any]
+) -> Iterator[tuple[str, str]]:
     for field in source.get("text_fields", []):
         value = row.get(field)
         if isinstance(value, str) and value.strip():
-            yield value.strip()
+            yield str(source.get("text_field_role", "unspecified")), value.strip()
     messages_field = source.get("messages_field")
     if messages_field:
         for message in row.get(messages_field) or []:
@@ -174,7 +176,12 @@ def _row_documents(row: dict[str, Any], source: dict[str, Any]) -> Iterator[str]
                 continue
             content = message.get(source.get("content_field", "content"))
             if isinstance(content, str) and content.strip():
-                yield content.strip()
+                yield role or "unspecified", content.strip()
+
+
+def _row_documents(row: dict[str, Any], source: dict[str, Any]) -> Iterator[str]:
+    for _, text in _row_role_documents(row, source):
+        yield text
 
 
 def _parquet_documents(path: Path, source: dict[str, Any]) -> Iterator[str]:
@@ -183,6 +190,16 @@ def _parquet_documents(path: Path, source: dict[str, Any]) -> Iterator[str]:
         for row in batch.to_pylist():
             if _matches_filters(row, filters):
                 yield from _row_documents(row, source)
+
+
+def _parquet_role_documents(
+    path: Path, source: dict[str, Any]
+) -> Iterator[tuple[str, str]]:
+    filters = source.get("filters", {})
+    for batch in pq.ParquetFile(path).iter_batches(batch_size=2_048):
+        for row in batch.to_pylist():
+            if _matches_filters(row, filters):
+                yield from _row_role_documents(row, source)
 
 
 def _jsonl_documents(path: Path, source: dict[str, Any]) -> Iterator[str]:
@@ -202,6 +219,25 @@ def _jsonl_documents(path: Path, source: dict[str, Any]) -> Iterator[str]:
                 yield from _row_documents(row, source)
 
 
+def _jsonl_role_documents(
+    path: Path, source: dict[str, Any]
+) -> Iterator[tuple[str, str]]:
+    opener: Any
+    if path.suffix == ".gz":
+        import gzip
+
+        opener = gzip.open
+    else:
+        opener = Path.open
+    with opener(path, "rt", encoding="utf-8") as stream:
+        for line in stream:
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            if _matches_filters(row, source.get("filters", {})):
+                yield from _row_role_documents(row, source)
+
+
 def _source_documents(path: Path, source: dict[str, Any]) -> Iterator[str]:
     kind = source["kind"]
     if kind == "taskmaster_json":
@@ -212,6 +248,21 @@ def _source_documents(path: Path, source: dict[str, Any]) -> Iterator[str]:
         yield from _parquet_documents(path, source)
     elif kind == "jsonl_fields":
         yield from _jsonl_documents(path, source)
+    else:
+        raise ValueError(f"unsupported lexical source kind: {kind}")
+
+
+def _source_role_documents(
+    path: Path, source: dict[str, Any]
+) -> Iterator[tuple[str, str]]:
+    kind = source["kind"]
+    if kind in {"taskmaster_json", "empathetic_tar"}:
+        for text in _source_documents(path, source):
+            yield "unspecified", text
+    elif kind == "parquet_fields":
+        yield from _parquet_role_documents(path, source)
+    elif kind == "jsonl_fields":
+        yield from _jsonl_role_documents(path, source)
     else:
         raise ValueError(f"unsupported lexical source kind: {kind}")
 
@@ -370,6 +421,111 @@ def _source_stats(
     }
 
 
+_REPETITION_LEVELS = (
+    ("unique", 1, 1),
+    ("2-4", 2, 4),
+    ("5-9", 5, 9),
+    ("10-24", 10, 24),
+    ("25+", 25, None),
+)
+
+
+def _unit_digest(value: str) -> bytes:
+    return hashlib.blake2b(value.encode(), digest_size=16).digest()
+
+
+def _repetition_profile(frequencies: Counter[bytes]) -> dict[str, Any]:
+    total_occurrences = sum(frequencies.values())
+    levels: dict[str, dict[str, int | float]] = {}
+    for label, minimum, maximum in _REPETITION_LEVELS:
+        values = [
+            count
+            for count in frequencies.values()
+            if count >= minimum and (maximum is None or count <= maximum)
+        ]
+        occurrences = sum(values)
+        levels[label] = {
+            "units": len(values),
+            "occurrences": occurrences,
+            "occurrence_share": round(occurrences / total_occurrences, 6)
+            if total_occurrences
+            else 0.0,
+        }
+    repeated_occurrences = sum(max(0, count - 1) for count in frequencies.values())
+    return {
+        "counting_unit": "blake2b_128_digest_in_memory",
+        "hashes_retained": False,
+        "units": len(frequencies),
+        "occurrences": total_occurrences,
+        "maximum_occurrences": max(frequencies.values(), default=0),
+        "repeated_occurrences": repeated_occurrences,
+        "repeated_occurrence_share": round(
+            repeated_occurrences / total_occurrences, 6
+        )
+        if total_occurrences
+        else 0.0,
+        "levels": levels,
+    }
+
+
+def _new_stats_accumulator() -> dict[str, Any]:
+    return {
+        "lengths": [],
+        "vocabulary": Counter(),
+        "questions": 0,
+        "document_counter": _ApproxDistinct(),
+        "sentence_counter": _ApproxDistinct(),
+        "sentence_count": 0,
+        "surface_structure": SurfaceStructureAccumulator(window_tokens=8),
+        "document_frequencies": Counter(),
+        "sentence_frequencies": Counter(),
+    }
+
+
+def _accumulate_stats(
+    accumulator: dict[str, Any], text: str, tokens: list[str]
+) -> None:
+    accumulator["surface_structure"].add(text)
+    accumulator["lengths"].append(len(tokens))
+    accumulator["questions"] += int(text.rstrip().endswith("?"))
+    normalized_document = " ".join(tokens)
+    accumulator["document_counter"].add(normalized_document)
+    accumulator["document_frequencies"][_unit_digest(normalized_document)] += 1
+    accumulator["vocabulary"].update(tokens)
+    for sentence in re.split(r"[.!?]+", text):
+        if not sentence.strip():
+            continue
+        sentence_tokens = _normalized_tokens(sentence)
+        if sentence_tokens:
+            accumulator["sentence_count"] += 1
+            normalized_sentence = " ".join(sentence_tokens)
+            accumulator["sentence_counter"].add(normalized_sentence)
+            accumulator["sentence_frequencies"][_unit_digest(normalized_sentence)] += 1
+
+
+def _finalize_stats(
+    accumulator: dict[str, Any], retained: set[str]
+) -> dict[str, Any]:
+    return {
+        **_source_stats(
+            accumulator["lengths"],
+            accumulator["vocabulary"],
+            accumulator["questions"],
+            retained,
+            accumulator["document_counter"].estimate(),
+            accumulator["sentence_count"],
+            accumulator["sentence_counter"].estimate(),
+            accumulator["surface_structure"].summary(),
+        ),
+        "document_repetition": _repetition_profile(
+            accumulator["document_frequencies"]
+        ),
+        "sentence_repetition": _repetition_profile(
+            accumulator["sentence_frequencies"]
+        ),
+    }
+
+
 def build_lexical_mine(
     registry_path: Path,
     raw_root: Path,
@@ -392,14 +548,9 @@ def build_lexical_mine(
     for source in registry["sources"]:
         occurrences: Counter[tuple[str, str]] = Counter()
         document_counts: Counter[tuple[str, str]] = Counter()
-        vocabulary: Counter[str] = Counter()
         capitalized: Counter[str] = Counter()
-        lengths: list[int] = []
-        questions = 0
-        document_counter = _ApproxDistinct()
-        sentence_counter = _ApproxDistinct()
-        sentence_count = 0
-        source_structure = SurfaceStructureAccumulator(window_tokens=8)
+        aggregate_stats = _new_stats_accumulator()
+        role_stats: dict[str, dict[str, Any]] = {}
         artifact_rows: list[dict[str, Any]] = []
         for artifact in source["artifacts"]:
             path = _artifact_path(raw_root, source, artifact)
@@ -417,26 +568,17 @@ def build_lexical_mine(
                     "sha256": actual_sha,
                 }
             )
-            for text in _source_documents(path, source):
-                source_structure.add(text)
+            for conversation_role, text in _source_role_documents(path, source):
                 reference_structure.add(text)
                 word_pairs = _words(text)
                 tokens = [token for token, _ in word_pairs if _valid_word(token)]
                 if not tokens:
                     continue
-                lengths.append(len(tokens))
-                questions += text.rstrip().endswith("?")
-                document_counter.add(" ".join(tokens))
-                sentences = [
-                    _normalized_tokens(sentence)
-                    for sentence in re.split(r"[.!?]+", text)
-                    if sentence.strip()
-                ]
-                for sentence_tokens in sentences:
-                    if sentence_tokens:
-                        sentence_count += 1
-                        sentence_counter.add(" ".join(sentence_tokens))
-                vocabulary.update(tokens)
+                _accumulate_stats(aggregate_stats, text, tokens)
+                if conversation_role not in role_stats:
+                    role_stats[conversation_role] = _new_stats_accumulator()
+                role_accumulator = role_stats[conversation_role]
+                _accumulate_stats(role_accumulator, text, tokens)
                 for token, is_capitalized in word_pairs:
                     if _valid_word(token) and is_capitalized:
                         capitalized[token] += 1
@@ -450,7 +592,7 @@ def build_lexical_mine(
 
         retained = {
             token
-            for token, count in vocabulary.items()
+            for token, count in aggregate_stats["vocabulary"].items()
             if count >= min_count
             and capitalized[token] / count <= max_capitalized_ratio
         }
@@ -472,16 +614,13 @@ def build_lexical_mine(
                     "extraction_version": LEXICAL_MINE_VERSION,
                 }
             )
-        source_stats[source["dataset_id"]] = _source_stats(
-            lengths,
-            vocabulary,
-            questions,
-            retained,
-            document_counter.estimate(),
-            sentence_count,
-            sentence_counter.estimate(),
-            source_structure.summary(),
-        )
+        source_stats[source["dataset_id"]] = {
+            **_finalize_stats(aggregate_stats, retained),
+            "conversation_roles": {
+                role: _finalize_stats(accumulator, retained)
+                for role, accumulator in sorted(role_stats.items())
+            },
+        }
         source_files[source["dataset_id"]] = {
             "artifacts": artifact_rows,
             "revision": source["revision"],

@@ -18,6 +18,11 @@ import pyarrow.parquet as pq
 from .build import file_sha256
 from .english_morphology import correct_indefinite_articles
 from .instruct import INSTRUCTION_SCHEMA
+from .post_training_language import (
+    CONCLUSION_FRAMES,
+    FALLBACK_FRAMES,
+    fallback_actions,
+)
 
 
 DATASET_ID = "complexity-original-post-training-v1"
@@ -34,6 +39,7 @@ _WORD = re.compile(r"[A-Za-z]+(?:['’][A-Za-z]+)?")
 _REVIEW_STATUSES = frozenset({"pending", "approved", "rejected"})
 _REVIEW_GRADE_VALUES = frozenset({"", "pass", "fail"})
 _RESPONSE_STRUCTURE_COUNT = 12
+_MAX_SURFACE_FORMULATION_SHARE = 0.05
 
 _INTENT_FIELD = {
     "practical_action": "requested_action",
@@ -128,36 +134,91 @@ def _surface_selection(row: dict[str, Any], variant: int) -> tuple[int, int]:
     )
 
 
-def _render_final(row: dict[str, Any], variant: int) -> str:
+def _surface_assignments(
+    scenarios: list[dict[str, Any]], variants_per_scenario: int
+) -> dict[tuple[str, int], dict[str, int]]:
+    """Balance surface choices exactly while preserving deterministic output."""
+    items = [
+        (scenario, variant)
+        for scenario in scenarios
+        for variant in range(variants_per_scenario)
+    ]
+    assignments: dict[tuple[str, int], dict[str, int]] = {
+        (row["scenario_id"], variant): {} for row, variant in items
+    }
+    fallback_groups: dict[str, list[tuple[dict[str, Any], int]]] = defaultdict(list)
+    for row, variant in items:
+        fallback_groups[row["fallback"].rstrip(".")].append((row, variant))
+    for fallback, values in fallback_groups.items():
+        action_count = len(fallback_actions(fallback))
+        ordered = sorted(
+            values,
+            key=lambda item: hashlib.sha256(
+                f"fallback-balance:{item[0]['scenario_id']}:{item[1]}".encode()
+            ).digest(),
+        )
+        for position, (row, variant) in enumerate(ordered):
+            target = assignments[(row["scenario_id"], variant)]
+            target["fallback_action"] = position % action_count
+            target["fallback_frame"] = (
+                position // action_count
+            ) % len(FALLBACK_FRAMES)
+
+    conclusion_order = sorted(
+        items,
+        key=lambda item: hashlib.sha256(
+            f"conclusion-balance:{item[0]['scenario_id']}:{item[1]}".encode()
+        ).digest(),
+    )
+    for position, (row, variant) in enumerate(conclusion_order):
+        assignments[(row["scenario_id"], variant)]["conclusion_frame"] = (
+            position % len(CONCLUSION_FRAMES)
+        )
+    return assignments
+
+
+def _fallback_key(value: str) -> str:
+    return hashlib.sha256(value.rstrip(".").encode()).hexdigest()[:10]
+
+
+def _render_final(
+    row: dict[str, Any], variant: int, surface: dict[str, int]
+) -> str:
     payload = json.loads(row["semantic_payload"])
     intent = _intent(payload, row["family"])
     subject = payload["subject"]
     constraint = row["constraint"].rstrip(".")
     outcome = row["desired_outcome"].rstrip(".")
-    fallback = row["fallback"].rstrip(".")
     opening_index, structure_index = _surface_selection(row, variant)
     opening = _OPENINGS[opening_index]
     structures = (
-        f"{opening}. I would {intent} for {subject} while preserving this boundary: {constraint}. The answer is complete when {_lower_first(outcome)}. If the evidence cannot support that result, {_lower_first(fallback)}.",
-        f"{opening}. For {subject}, the immediate objective is to {intent}. One limit remains firm: {constraint}. Success means that {_lower_first(outcome)}. If that cannot be verified, {_lower_first(fallback)}.",
-        f"{opening}. The next response should {intent} for {subject}. It must respect this condition: {constraint}. The acceptance check is that {_lower_first(outcome)}. Without enough support, {_lower_first(fallback)}.",
-        f"{opening}. I would {intent} for {subject} through a reviewable step. The controlling boundary is: {constraint}. A valid result establishes that {_lower_first(outcome)}. If uncertainty remains material, {_lower_first(fallback)}.",
-        f"{opening}. My first step would be to {intent} for {subject}. I would treat this as a hard boundary: {constraint}. Completion should show that {_lower_first(outcome)}. Lacking that evidence, {_lower_first(fallback)}.",
-        f"{opening}. For {subject}, I would use confirmed details to {intent}. The response cannot override this rule: {constraint}. Its final check should establish that {_lower_first(outcome)}. If the check fails, {_lower_first(fallback)}.",
-        f"{opening}. A bounded plan can {intent} for {subject}. It must not violate this condition: {constraint}. The resulting evidence should demonstrate that {_lower_first(outcome)}. If it does not, {_lower_first(fallback)}.",
-        f"{opening}. I would keep ownership visible while trying to {intent} for {subject}. This requirement remains fixed: {constraint}. We can accept the answer when {_lower_first(outcome)}. Until then, {_lower_first(fallback)}.",
-        f"{opening}. The practical route is to {intent} for {subject}. Every option remains governed by this boundary: {constraint}. The selected route must show that {_lower_first(outcome)}. If none does, {_lower_first(fallback)}.",
-        f"{opening}. For this case, efforts to {intent} for {subject} should follow the available evidence. The limiting rule is: {constraint}. Resolution requires proof that {_lower_first(outcome)}. If proof is missing, {_lower_first(fallback)}.",
-        f"{opening}. I would make one reversible move to {intent} for {subject}. The move must preserve this condition: {constraint}. Its result is acceptable if {_lower_first(outcome)}. If that remains unclear, {_lower_first(fallback)}.",
-        f"{opening}. The answer can {intent} for {subject} by naming facts, action, and verification. It must keep this boundary intact: {constraint}. Verification succeeds when {_lower_first(outcome)}. Otherwise, {_lower_first(fallback)}.",
+        f"{opening}. I would {intent} for {subject} while preserving this boundary: {constraint}.",
+        f"{opening}. For {subject}, the immediate objective is to {intent}. One limit remains firm: {constraint}.",
+        f"{opening}. The next response should {intent} for {subject}. It must respect this condition: {constraint}.",
+        f"{opening}. I would {intent} for {subject} through a reviewable step. The controlling boundary is: {constraint}.",
+        f"{opening}. My first step would be to {intent} for {subject}. I would treat this as a hard boundary: {constraint}.",
+        f"{opening}. For {subject}, I would use confirmed details to {intent}. The response cannot override this rule: {constraint}.",
+        f"{opening}. A bounded plan can {intent} for {subject}. It must not violate this condition: {constraint}.",
+        f"{opening}. I would keep ownership visible while trying to {intent} for {subject}. This requirement remains fixed: {constraint}.",
+        f"{opening}. The practical route is to {intent} for {subject}. Every option remains governed by this boundary: {constraint}.",
+        f"{opening}. For this case, efforts to {intent} for {subject} should follow the available evidence. The limiting rule is: {constraint}.",
+        f"{opening}. I would make one reversible move to {intent} for {subject}. The move must preserve this condition: {constraint}.",
+        f"{opening}. The answer can {intent} for {subject} by naming facts, action, and verification. It must keep this boundary intact: {constraint}.",
     )
     if len(structures) != _RESPONSE_STRUCTURE_COUNT:
         raise RuntimeError("response structure registry is inconsistent")
-    selected = structures[structure_index]
+    action = fallback_actions(row["fallback"])[surface["fallback_action"]]
+    conclusion = CONCLUSION_FRAMES[surface["conclusion_frame"]].format(
+        outcome=outcome
+    )
+    fallback = FALLBACK_FRAMES[surface["fallback_frame"]].format(action=action)
+    selected = f"{structures[structure_index]} {conclusion} {fallback}"
     return correct_indefinite_articles(selected)
 
 
-def _render_messages(row: dict[str, Any], variant: int) -> list[dict[str, str]]:
+def _render_messages(
+    row: dict[str, Any], variant: int, surface: dict[str, int]
+) -> list[dict[str, str]]:
     payload = json.loads(row["semantic_payload"])
     intent = _intent(payload, row["family"])
     subject = payload["subject"]
@@ -169,7 +230,10 @@ def _render_messages(row: dict[str, Any], variant: int) -> list[dict[str, str]]:
         prompt = f"{trigger} {request}"
         return [
             {"role": "user", "content": correct_indefinite_articles(prompt)},
-            {"role": "assistant", "content": _render_final(row, variant)},
+            {
+                "role": "assistant",
+                "content": _render_final(row, variant, surface),
+            },
         ]
 
     acknowledgement = _ACKNOWLEDGEMENTS[
@@ -183,7 +247,7 @@ def _render_messages(row: dict[str, Any], variant: int) -> list[dict[str, str]]:
         {"role": "user", "content": trigger},
         {"role": "assistant", "content": acknowledgement},
         {"role": "user", "content": correct_indefinite_articles(follow_up)},
-        {"role": "assistant", "content": _render_final(row, variant)},
+        {"role": "assistant", "content": _render_final(row, variant, surface)},
     ]
 
 
@@ -198,12 +262,19 @@ def _conversation_rows(
     scenarios: list[dict[str, Any]], variants_per_scenario: int
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
+    assignments = _surface_assignments(scenarios, variants_per_scenario)
     for scenario in scenarios:
         for variant in range(variants_per_scenario):
-            messages = _render_messages(scenario, variant)
+            surface = assignments[(scenario["scenario_id"], variant)]
+            messages = _render_messages(scenario, variant, surface)
             rendered = _render_transcript(messages)
             mode = "instruct" if len(messages) == 2 else "chat"
             opening_index, structure_index = _surface_selection(scenario, variant)
+            payload = json.loads(scenario["semantic_payload"])
+            fallback_key = _fallback_key(scenario["fallback"])
+            fallback_action = fallback_actions(scenario["fallback"])[
+                surface["fallback_action"]
+            ]
             suffix = hashlib.sha256(
                 f"{scenario['scenario_id']}:{variant}:{rendered}".encode()
             ).hexdigest()[:20]
@@ -216,6 +287,12 @@ def _conversation_rows(
                 "split": scenario["split"],
                 "state": scenario["state"],
                 "constraint": scenario["constraint"],
+                "desired_outcome": scenario["desired_outcome"],
+                "fallback": scenario["fallback"],
+                "subject": payload["subject"],
+                "surface_intent": _intent(payload, scenario["family"]),
+                "domain_context": payload["domain_context"],
+                "fallback_surface": fallback_action,
                 "response_contract": scenario["response_contract"],
                 "variant": variant,
                 "mode": mode,
@@ -223,6 +300,16 @@ def _conversation_rows(
                 "response_structure_id": f"structure-{structure_index:02d}",
                 "response_surface_pattern_id": (
                     f"opening-{opening_index:02d}:structure-{structure_index:02d}"
+                ),
+                "fallback_action_id": (
+                    f"fallback-{fallback_key}:action-{surface['fallback_action']:02d}"
+                ),
+                "fallback_surface_id": (
+                    f"fallback-{fallback_key}:action-{surface['fallback_action']:02d}:"
+                    f"frame-{surface['fallback_frame']:02d}"
+                ),
+                "conclusion_surface_id": (
+                    f"conclusion-{surface['conclusion_frame']:02d}"
                 ),
                 "model_generated_dialogue": False,
             }
@@ -322,15 +409,127 @@ def _ngram_statistics(messages: list[str], size: int) -> dict[str, Any]:
         "maximum_occurrences": max(counts.values(), default=0),
         "maximum_message_coverage": round(
             max(message_counts.values(), default=0) / len(messages), 6
-        ),
+        )
+        if messages
+        else 0.0,
         "top_repeated_ngrams": [
             {
                 "text": " ".join(gram),
                 "occurrences": occurrences,
                 "message_count": message_counts[gram],
-                "message_rate": round(message_counts[gram] / len(messages), 6),
+                "message_rate": round(message_counts[gram] / len(messages), 6)
+                if messages
+                else 0.0,
             }
             for gram, occurrences in most_common
+        ],
+    }
+
+
+def _text_statistics(values: list[str]) -> dict[str, Any]:
+    tokens = [token for value in values for token in _tokens(value)]
+    return {
+        "items": len(values),
+        "exact_unique_items": len(set(values)),
+        "exact_uniqueness_ratio": round(len(set(values)) / len(values), 6)
+        if values
+        else 0.0,
+        "length": _length_statistics(values),
+        "lexical": {
+            "word_occurrences": len(tokens),
+            "observed_vocabulary": len(set(tokens)),
+            "raw_type_token_ratio": round(len(set(tokens)) / len(tokens), 6)
+            if tokens
+            else 0.0,
+            "mattr_100": round(_mattr(tokens, 100), 6),
+        },
+        "four_grams": _ngram_statistics(values, 4),
+        "eight_grams": _ngram_statistics(values, 8),
+    }
+
+
+def _formulation_statistics(
+    identifiers: list[str], *, semantic_values: list[str] | None = None
+) -> dict[str, Any]:
+    counts = Counter(identifiers)
+    maximum = max(counts.values(), default=0)
+    share = maximum / len(identifiers) if identifiers else 0.0
+    if share >= _MAX_SURFACE_FORMULATION_SHARE:
+        raise ValueError(
+            "surface formulation reaches the five-percent ceiling: "
+            f"{share:.3%}"
+        )
+    result: dict[str, Any] = {
+        "formulations": len(counts),
+        "maximum_examples_per_formulation": maximum,
+        "maximum_formulation_share": round(share, 6),
+        "strict_share_limit": _MAX_SURFACE_FORMULATION_SHARE,
+        "formulation_counts": dict(sorted(counts.items())),
+    }
+    if semantic_values is not None:
+        result["semantic_value_counts"] = dict(
+            sorted(Counter(semantic_values).items())
+        )
+        result["semantic_values_are_not_surface_formulations"] = True
+    return result
+
+
+_MASKED_RESPONSE_FIELDS = (
+    ("subject", "subject"),
+    ("surface_intent", "intent"),
+    ("state", "state"),
+    ("constraint", "constraint"),
+    ("desired_outcome", "desired_outcome"),
+    ("fallback", "fallback"),
+    ("fallback_surface", "fallback_surface"),
+    ("domain_context", "domain_context"),
+)
+
+
+def _masked_response(response: str, answer: dict[str, Any]) -> str:
+    replacements = [
+        (str(answer[source]).strip().rstrip("."), f"<{target}>")
+        for source, target in _MASKED_RESPONSE_FIELDS
+        if str(answer.get(source, "")).strip().rstrip(".")
+    ]
+    masked = response
+    for value, placeholder in sorted(replacements, key=lambda item: -len(item[0])):
+        masked = re.sub(re.escape(value), placeholder, masked, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", masked).strip().lower()
+
+
+def _masked_diversity(
+    responses: list[str], answers: list[dict[str, Any]]
+) -> dict[str, Any]:
+    skeletons = [
+        _masked_response(response, answer)
+        for response, answer in zip(responses, answers, strict=True)
+    ]
+    counts = Counter(skeletons)
+    maximum = max(counts.values(), default=0)
+    maximum_share = maximum / len(skeletons) if skeletons else 0.0
+    if maximum_share >= _MAX_SURFACE_FORMULATION_SHARE:
+        raise ValueError(
+            "masked response skeleton reaches the five-percent ceiling: "
+            f"{maximum_share:.3%}"
+        )
+    return {
+        "masked_fields": [target for _, target in _MASKED_RESPONSE_FIELDS],
+        "skeletons": len(skeletons),
+        "distinct_skeletons": len(counts),
+        "exact_skeleton_uniqueness_ratio": round(
+            len(counts) / len(skeletons), 6
+        )
+        if skeletons
+        else 0.0,
+        "maximum_examples_per_skeleton": maximum,
+        "maximum_skeleton_share": round(maximum_share, 6),
+        "strict_share_limit": _MAX_SURFACE_FORMULATION_SHARE,
+        "four_gram_stats": _ngram_statistics(skeletons, 4),
+        "eight_gram_stats": _ngram_statistics(skeletons, 8),
+        "top_repeated_skeletons": [
+            {"text": text, "examples": count, "share": round(count / len(skeletons), 6)}
+            for text, count in counts.most_common(10)
         ],
     }
 
@@ -339,6 +538,18 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
     rendered = [row["rendered_text"] for row in rows]
     responses = [row["response"] for row in rows]
     messages = [message["content"] for row in rows for message in row["messages"]]
+    user_prompts = [
+        message["content"]
+        for row in rows
+        for message in row["messages"]
+        if message["role"] == "user"
+    ]
+    assistant_messages = [
+        message["content"]
+        for row in rows
+        for message in row["messages"]
+        if message["role"] == "assistant"
+    ]
     train_cards: set[str] = set()
     validation_cards: set[str] = set()
     split_groups: dict[str, set[tuple[str, str, str]]] = defaultdict(set)
@@ -447,6 +658,19 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
             ),
             "opening_counts": dict(sorted(openings.items())),
             "structure_counts": dict(sorted(structures.items())),
+        },
+        "fallback_surface_stats": _formulation_statistics(
+            [answer["fallback_action_id"] for answer in answers],
+            semantic_values=[answer["fallback"] for answer in answers],
+        ),
+        "conclusion_surface_stats": _formulation_statistics(
+            [answer["conclusion_surface_id"] for answer in answers]
+        ),
+        "masked_response_diversity": _masked_diversity(responses, answers),
+        "role_text_stats": {
+            "user_prompts": _text_statistics(user_prompts),
+            "assistant_messages": _text_statistics(assistant_messages),
+            "final_responses": _text_statistics(responses),
         },
         "message_length_stats": _length_statistics(messages),
         "response_length_stats": _length_statistics(responses),

@@ -116,6 +116,13 @@ PREPOSITIONS = frozenset(
     }
 )
 NEGATIONS = frozenset({"can't", "cannot", "never", "no", "not", "won't"})
+_REPETITION_LEVELS = (
+    ("unique", 1, 1),
+    ("2-4", 2, 4),
+    ("5-9", 5, 9),
+    ("10-24", 10, 24),
+    ("25+", 25, None),
+)
 
 
 def _tokens(text: str) -> list[str]:
@@ -154,6 +161,37 @@ def _entropy(counter: Counter[tuple[str, ...]]) -> float:
     return -sum(
         (count / total) * math.log2(count / total) for count in counter.values()
     )
+
+
+def _repetition_levels(
+    counter: Counter[tuple[str, ...]], shape_tokens: int
+) -> dict[str, Any]:
+    occurrences = sum(counter.values())
+    levels: dict[str, dict[str, int | float]] = {}
+    for label, minimum, maximum in _REPETITION_LEVELS:
+        values = [
+            count
+            for count in counter.values()
+            if count >= minimum and (maximum is None or count <= maximum)
+        ]
+        level_occurrences = sum(values)
+        levels[label] = {
+            "shapes": len(values),
+            "occurrences": level_occurrences,
+            "occurrence_share": round(level_occurrences / occurrences, 6)
+            if occurrences
+            else 0.0,
+        }
+    return {
+        "mask": "coarse_token_classes",
+        "shape_tokens": shape_tokens,
+        "shapes": len(counter),
+        "occurrences": occurrences,
+        "maximum_occurrences": max(counter.values(), default=0),
+        "levels": levels,
+        "shape_values_retained": False,
+        "lexical_tokens_retained": False,
+    }
 
 
 def _js_divergence(
@@ -231,6 +269,9 @@ class SurfaceStructureAccumulator:
             "eight_token_windows": windows,
             "unique_abstract_window_shapes": len(self.window_shapes),
             "window_shape_entropy_bits": round(_entropy(self.window_shapes), 6),
+            "masked_window_repetition": _repetition_levels(
+                self.window_shapes, self.window_tokens
+            ),
             "mean_sentence_words": round(
                 statistics.fmean(self.sentence_lengths), 6
             )
@@ -262,6 +303,16 @@ def compare_surface_structures(
         raise ValueError("surface structure windows must use the same size")
     reference_summary = reference.summary()
     candidate_summary = candidate.summary()
+    reference_repetition = reference_summary["masked_window_repetition"]["levels"]
+    candidate_repetition = candidate_summary["masked_window_repetition"]["levels"]
+    repetition_deltas = {
+        label: round(
+            candidate_repetition[label]["occurrence_share"]
+            - reference_repetition[label]["occurrence_share"],
+            6,
+        )
+        for label, _, _ in _REPETITION_LEVELS
+    }
     return {
         "window_tokens": reference.window_tokens,
         "reference": reference_summary,
@@ -281,6 +332,11 @@ def compare_surface_structures(
             ),
             6,
         ),
+        "masked_repetition_level_deltas": repetition_deltas,
+        "masked_repetition_total_variation": round(
+            sum(abs(value) for value in repetition_deltas.values()) / 2,
+            6,
+        ),
         "mean_sentence_words_delta": round(
             candidate_summary["mean_sentence_words"]
             - reference_summary["mean_sentence_words"],
@@ -293,7 +349,8 @@ def compare_surface_structures(
         ),
         "scope": (
             "aggregate coarse-class comparison; lower divergence means a closer "
-            "structural distribution, not proof of grammatical correctness"
+            "structural distribution, not proof of grammatical correctness; "
+            "masked repetition compares frequency levels without source wording"
         ),
         "source_text_retained": False,
         "source_ngrams_retained": False,

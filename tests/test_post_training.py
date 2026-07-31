@@ -60,6 +60,32 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
     assert result["audit"]["exact_final_response_uniqueness_ratio"] >= 0.95
     assert result["audit"]["model_generated_dialogue_rows"] == 0
     assert result["audit"]["single_state_and_constraint_ratio"] == 1.0
+    role_stats = result["audit"]["role_text_stats"]
+    assert role_stats["user_prompts"]["length"]["items"] == 6_000
+    assert role_stats["assistant_messages"]["length"]["items"] == 6_000
+    assert role_stats["final_responses"]["length"]["items"] == 4_000
+    assert role_stats["user_prompts"]["eight_grams"]["distinct_ngrams"] > 0
+    assert role_stats["final_responses"]["eight_grams"]["distinct_ngrams"] > 0
+    assert result["audit"]["fallback_surface_stats"][
+        "maximum_formulation_share"
+    ] < 0.05
+    assert result["audit"]["conclusion_surface_stats"][
+        "maximum_formulation_share"
+    ] < 0.05
+    masked = result["audit"]["masked_response_diversity"]
+    assert masked["masked_fields"] == [
+        "subject",
+        "intent",
+        "state",
+        "constraint",
+        "desired_outcome",
+        "fallback",
+        "fallback_surface",
+        "domain_context",
+    ]
+    assert masked["maximum_skeleton_share"] < 0.05
+    assert 0 < masked["exact_skeleton_uniqueness_ratio"] <= 1
+    assert masked["eight_gram_stats"]["distinct_ngrams"] > 0
     eight_grams = result["audit"]["eight_gram_stats"]
     assert eight_grams["distinct_ngrams"] > 0
     assert 0 < eight_grams["distinct_ngram_ratio"] <= 1

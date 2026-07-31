@@ -38,6 +38,12 @@ The reference statistics count extracted messages or fields rather than whole
 conversation trees. Sentence boundaries use punctuation heuristics, so these
 figures are directional diagnostics rather than benchmark scores.
 
+The current miner now preserves the conversation role only as an aggregate
+partition. Prompt and assistant distributions are reported independently.
+Within each partition, normalized document and sentence repetitions are grouped
+into `unique`, `2-4`, `5-9`, `10-24` and `25+` occurrence levels. Counting uses
+transient BLAKE2b digests; neither the text nor the digests enter the artifact.
+
 The private mine can additionally compare eight-token windows after replacing
 every word with a coarse structural class (for example `DETERMINER`, `PRONOUN`,
 `AUXILIARY`, `TRANSITION`, `PREPOSITION` or `CONTENT`). Jensen--Shannon
@@ -104,3 +110,8 @@ The next language layer should be accepted only when it:
 3. keeps question rate between 25% and 30%, only in appropriate families;
 4. expands vocabulary through reviewed single-token candidates;
 5. passes the transient eight-token source-overlap audit with zero matches.
+6. keeps every fallback formulation and conclusion frame below 5% of final
+   responses;
+7. reports prompt, assistant-message and final-response diversity separately;
+8. keeps the dominant exact response skeleton below 5% after semantic variables
+   are replaced with placeholders.

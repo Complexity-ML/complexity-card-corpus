@@ -196,10 +196,20 @@ claim zero lexical or semantic near-duplicate leakage.
 
 Exact-string conversation and response uniqueness are reported as descriptive
 checks, not as evidence of narrative individualization. The diversity report
-also exposes response opening/structure pairs, MATTR-100, message and response
-lengths, distinct and singleton 4/8-gram ratios, maximum repeated-phrase
-coverage and the most repeated n-grams. `distinct_ngram_ratio` means distinct
-n-gram windows divided by all windows; it is not a singleton rate.
+also exposes response opening/structure pairs, MATTR-100, distinct and
+singleton 4/8-gram ratios, maximum repeated-phrase coverage and the most
+repeated n-grams. These measurements are separated for user prompts, all
+assistant messages and final assistant responses. `distinct_ngram_ratio` means
+distinct n-gram windows divided by all windows; it is not a singleton rate.
+
+Fallback actions are realized through 84 original formulations and conclusions
+through 24 independently balanced frames. The build fails when any one surface
+form reaches 5% of final responses. Semantic fallback categories are reported
+separately because an intentionally frequent safety policy is not the same as a
+repeated sentence. A second audit replaces subject, intent, state, constraint,
+outcome, fallback and domain context with placeholders before measuring exact
+skeleton and 4/8-gram diversity. This prevents variable values from hiding a
+repetitive response structure.
 
 `human_review.csv` samples 70 **unique source scenarios**, ten from each of the
 seven families, while cycling through risk level, split and domain. Both the
@@ -255,12 +265,19 @@ uv run card-corpus audit-source-overlap \
   --window-tokens 8
 ```
 
-The mine reports comparable aggregate statistics per source: document count,
-mean/median/p95 length, question rate, type-token ratio and retained-vocabulary
-coverage. When Scenario Forge is supplied, it also maps each transient
+The mine reports comparable aggregate statistics per source and conversation
+role: document count, mean/median/p95 length, question rate, type-token ratio
+and retained-vocabulary coverage. Exact normalized documents and sentences are
+counted only through transient BLAKE2b digests. The released audit contains
+`unique`, `2-4`, `5-9`, `10-24` and `25+` repetition levels, but no digest or
+source text. When Scenario Forge is supplied, the mine also maps each transient
 eight-token window to coarse classes such as determiner, pronoun, auxiliary,
 transition, preposition and content. It reports distribution divergence for
 window shapes, sentence openings, sentence endings and transition positions.
+Masked windows also receive the same `unique`, `2-4`, `5-9`, `10-24` and `25+`
+repetition profile. This is the reference used to match structural repetition
+without borrowing source wording. The comparison reports per-level deltas and
+total-variation distance between the external reference and generated corpus.
 The abstract comparison does not retain lexical n-grams and is a style
 diagnostic, not proof of grammatical correctness. The overlap audit separately
 hashes source windows only in memory and fails if generated titles, triggers,

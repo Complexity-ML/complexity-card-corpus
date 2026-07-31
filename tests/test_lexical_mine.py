@@ -170,6 +170,14 @@ def test_surface_structure_profile_compares_abstract_eight_token_shapes() -> Non
     assert report["reference"]["eight_token_windows"] > 0
     assert report["candidate"]["eight_token_windows"] > 0
     assert report["eight_token_shape_js_divergence_bits"] < 0.5
+    assert 0 <= report["masked_repetition_total_variation"] <= 1
+    assert set(report["masked_repetition_level_deltas"]) == {
+        "unique",
+        "2-4",
+        "5-9",
+        "10-24",
+        "25+",
+    }
     assert report["source_text_retained"] is False
     assert report["source_ngrams_retained"] is False
 
@@ -280,7 +288,16 @@ def test_v2_parquet_registry_aggregates_messages_and_deletes_raw(
                             "content": "First verify the constraints, then compare them.",
                         },
                     ]
-                }
+                },
+                {
+                    "messages": [
+                        {"role": "user", "content": "Please compare both options."},
+                        {
+                            "role": "assistant",
+                            "content": "Check the evidence before choosing an option.",
+                        },
+                    ]
+                },
             ]
         ),
         parquet,
@@ -324,6 +341,33 @@ def test_v2_parquet_registry_aggregates_messages_and_deletes_raw(
 
     assert manifest["audit"]["source_stats"]["example/quality-chat"][
         "documents"
-    ] == 2
+    ] == 4
+    conversation_roles = manifest["audit"]["source_stats"][
+        "example/quality-chat"
+    ]["conversation_roles"]
+    assert set(conversation_roles) == {"assistant", "user"}
+    assert conversation_roles["user"]["documents"] == 2
+    assert conversation_roles["assistant"]["documents"] == 2
+    assert conversation_roles["user"]["question_rate"] == 0.0
+    assert conversation_roles["assistant"]["question_rate"] == 0.0
+    assert all(
+        stats["surface_structure"]["retained_lexical_ngrams"] is False
+        for stats in conversation_roles.values()
+    )
+    assert all(
+        stats["surface_structure"]["masked_window_repetition"][
+            "lexical_tokens_retained"
+        ]
+        is False
+        for stats in conversation_roles.values()
+    )
+    user_repetition = conversation_roles["user"]["document_repetition"]
+    assistant_repetition = conversation_roles["assistant"]["document_repetition"]
+    assert user_repetition["maximum_occurrences"] == 2
+    assert user_repetition["repeated_occurrence_share"] == 0.5
+    assert user_repetition["levels"]["2-4"]["units"] == 1
+    assert assistant_repetition["maximum_occurrences"] == 1
+    assert assistant_repetition["levels"]["unique"]["units"] == 2
+    assert user_repetition["hashes_retained"] is False
     assert manifest["sources"]["example/quality-chat"]["origin"] == "test_fixture"
     assert not parquet.exists()
