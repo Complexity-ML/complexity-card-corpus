@@ -64,6 +64,37 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
 
     rows = pq.read_table(output / "conversations.parquet").to_pylist()
     assert len(rows) == 30_000
+    family_responses: dict[str, list[str]] = {}
+    for row in rows:
+        transcript = row["rendered_text"]
+        assert "SITUATION CARD" in transcript
+        assert "DATA CARD" in transcript
+        assert "RULE CARD" in transcript
+        assert "GOAL CARD" in transcript
+        answer = json.loads(row["answer_json"])
+        assert answer["card_hand"]["cards"] == [
+            "situation",
+            "data",
+            "rule",
+            "goal",
+        ]
+        assert answer["card_hand"]["completion_contract"]
+        assert "Source label:" not in transcript
+        family_responses.setdefault(answer["family"], []).append(
+            row["messages"][-1]["content"]
+        )
+    for response in family_responses["context_clarification"]:
+        assert response.count("?") == 1
+    for response in family_responses["extraction_classification"]:
+        assert isinstance(json.loads(response), dict)
+    for response in family_responses["reasoning_verification"]:
+        assert all(label in response for label in ("Equation:", "Total:", "Check:"))
+    for response in family_responses["critique_revision"]:
+        assert all(label in response for label in ("Weakness:", "Revision:"))
+    for response in family_responses["brainstorming_creativity"]:
+        assert all(label in response for label in ("1.", "2.", "3.", "Select"))
+    for response in family_responses["safety_uncertainty"]:
+        assert all(label in response for label in ("Immediate action:", "Boundary:", "Escalate"))
     assert result["audit"]["source_scenario_split_overlap"] == 0
     assert result["audit"]["semantic_group_split_overlap"] == 0
     paired_prompts = result["audit"]["paired_prompt_surface_stats"]
@@ -94,12 +125,6 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
     assert role_stats["final_responses"]["length"]["items"] == 30_000
     assert role_stats["user_prompts"]["eight_grams"]["distinct_ngrams"] > 0
     assert role_stats["final_responses"]["eight_grams"]["distinct_ngrams"] > 0
-    assert result["audit"]["fallback_surface_stats"][
-        "maximum_formulation_share"
-    ] < 0.05
-    assert result["audit"]["conclusion_surface_stats"][
-        "maximum_formulation_share"
-    ] < 0.05
     masked = result["audit"]["masked_response_diversity"]
     assert masked["masked_fields"] == [
         "subject",
@@ -122,17 +147,9 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
     assert eight_grams["top_repeated_ngrams"]
     assert "unique_rate" not in eight_grams
     assert 0 < result["audit"]["lexical_stats"]["mattr_100"] <= 1
-    assert result["audit"]["surface_pattern_stats"][
-        "observed_opening_structure_pairs"
-    ] > 144
-    body = result["audit"]["body_surface_stats"]
-    assert body["openings"]["maximum_formulation_share"] < 0.05
-    assert body["actions"]["maximum_formulation_share"] < 0.05
-    assert body["constraints"]["maximum_formulation_share"] < 0.05
-    assert body["orders"]["patterns"] == 12
-    assert body["masked_final_eight_token_phrase_ceiling"][
-        "maximum_message_coverage"
-    ] < 0.05
+    repetition_gate = result["audit"]["response_repetition_gate"]
+    assert repetition_gate["measured_from_rendered_responses"] is True
+    assert repetition_gate["maximum_masked_eight_token_message_coverage"] < 0.05
 
     source_splits: dict[str, set[str]] = {}
     for row in rows:

@@ -18,17 +18,7 @@ import pyarrow.parquet as pq
 from .build import file_sha256
 from .english_morphology import correct_indefinite_articles
 from .instruct import INSTRUCTION_SCHEMA
-from .post_training_language import (
-    CONCLUSION_FRAMES,
-    FAMILY_ACTION_FRAMES,
-    FAMILY_CONSTRAINT_FRAMES,
-    FAMILY_OPENINGS,
-    FALLBACK_FRAMES,
-    LEXICAL_ASSISTANT_FRAMES,
-    LEXICAL_USER_FRAMES,
-    RESPONSE_ORDERS,
-    fallback_actions,
-)
+from .task_cards import TaskHand, deal_task_hand
 
 
 DATASET_ID = "complexity-original-post-training-v1"
@@ -104,64 +94,8 @@ _ACKNOWLEDGEMENTS = (
     "That gives us a clear scope: one objective, one limit, and one check at the end.",
 )
 
-_PROMPT_REQUESTS = (
-    "Please help me {intent} for {subject}.",
-    "How can I {intent} for {subject} without guessing?",
-    "Can you walk me through how to {intent} for {subject}?",
-    "I need a bounded way to {intent} for {subject}. What should I do first?",
-    "Please show me how to {intent} for {subject} using only the confirmed details.",
-    "What is a practical way to {intent} for {subject} in this situation?",
-    "Help me {intent} for {subject} without treating uncertainty as fact.",
-    "How can I {intent} for {subject} while keeping control of the decision?",
-    "I want to {intent} for {subject}. What would a grounded approach look like?",
-    "Please give me a careful way to {intent} for {subject} from the available facts.",
-    "How would you {intent} for {subject} with the information available?",
-    "What is the simplest safe way to {intent} for {subject}?",
-)
-
-_CHAT_OPENERS = (
-    "Here is the current state for {subject}: {state}.",
-    "Before we decide about {subject}, one fact is established: {state}.",
-    "I want to work through {subject}, starting from this update: {state}.",
-    "The point I can confirm about {subject} is this: {state}.",
-    "For {subject}, the immediate situation is now clear: {state}.",
-    "One verified detail frames my question about {subject}: {state}.",
-    "I need help thinking about {subject}; the known state is: {state}.",
-    "This is the latest confirmed position for {subject}: {state}.",
-    "My question about {subject} begins with one concrete fact: {state}.",
-    "The decision around {subject} now rests on this update: {state}.",
-    "Please take this as the starting point for {subject}: {state}.",
-    "There is one reliable anchor for discussing {subject}: {state}.",
-)
-
-_FOLLOW_UPS = (
-    "The relevant context is that {context}. Given that, how would you {intent} for {subject} without overclaiming?",
-    "The surrounding facts are that {context}. How can I {intent} for {subject} responsibly?",
-    "One context point matters here: {context}. What is a grounded way to {intent} for {subject}?",
-    "The decision sits within this setting: {context}. How would you {intent} for {subject}?",
-    "The available background is that {context}. What bounded approach would {intent} for {subject}?",
-    "Keep this context in view: {context}. What practical step would help me {intent} for {subject}?",
-    "The evidence comes from this setting: {context}. How can we {intent} for {subject} without guessing?",
-    "This background limits what we know: {context}. How can I {intent} for {subject} and still check the result?",
-    "The request is grounded in this fact: {context}. What should I do next to {intent} for {subject}?",
-    "Use this context as the boundary: {context}. How would you {intent} for {subject}?",
-    "The known setting is that {context}. What is the simplest safe way to {intent} for {subject}?",
-    "Please keep this context in view: {context}. How can I {intent} for {subject} using only supported facts?",
-)
-
-
 def _stable_index(value: str, size: int) -> int:
     return int.from_bytes(hashlib.sha256(value.encode()).digest()[:8], "big") % size
-
-
-def _lower_first(value: str) -> str:
-    value = value.strip()
-    return value[:1].lower() + value[1:] if value else value
-
-
-def _upper_first(value: str) -> str:
-    value = value.strip()
-    return value[:1].upper() + value[1:] if value else value
 
 
 _INTENT_SUBJECT_TEMPLATES = {
@@ -237,88 +171,6 @@ def _intent(payload: dict[str, str], family: str) -> str:
     return payload[_INTENT_FIELD[family]].rstrip(".")
 
 
-def _surface_assignments(
-    scenarios: list[dict[str, Any]], variants_per_scenario: int
-) -> dict[tuple[str, int], dict[str, int]]:
-    """Balance surface choices exactly while preserving deterministic output."""
-    items = [
-        (scenario, variant)
-        for scenario in scenarios
-        for variant in range(variants_per_scenario)
-    ]
-    assignments: dict[tuple[str, int], dict[str, int]] = {
-        (row["scenario_id"], variant): {} for row, variant in items
-    }
-    expected_families = set(_INTENT_FIELD)
-    registries = (FAMILY_OPENINGS, FAMILY_ACTION_FRAMES, FAMILY_CONSTRAINT_FRAMES)
-    if any(set(registry) != expected_families for registry in registries):
-        raise RuntimeError("post-training family language registries are inconsistent")
-    family_groups: dict[str, list[tuple[dict[str, Any], int]]] = defaultdict(list)
-    for row, variant in items:
-        family_groups[row["family"]].append((row, variant))
-    dimensions = (
-        ("opening", FAMILY_OPENINGS),
-        ("action_frame", FAMILY_ACTION_FRAMES),
-        ("constraint_frame", FAMILY_CONSTRAINT_FRAMES),
-    )
-    for family, values in family_groups.items():
-        for dimension, registry in dimensions:
-            ordered = sorted(
-                values,
-                key=lambda item: hashlib.sha256(
-                    f"{dimension}-balance:{item[0]['scenario_id']}:{item[1]}".encode()
-                ).digest(),
-            )
-            for position, (row, variant) in enumerate(ordered):
-                assignments[(row["scenario_id"], variant)][dimension] = (
-                    position % len(registry[family])
-                )
-        order_values = sorted(
-            values,
-            key=lambda item: hashlib.sha256(
-                f"order-balance:{item[0]['scenario_id']}:{item[1]}".encode()
-            ).digest(),
-        )
-        for position, (row, variant) in enumerate(order_values):
-            assignments[(row["scenario_id"], variant)]["order"] = (
-                position % len(RESPONSE_ORDERS)
-            )
-
-    fallback_groups: dict[str, list[tuple[dict[str, Any], int]]] = defaultdict(list)
-    for row, variant in items:
-        fallback_groups[row["fallback"].rstrip(".")].append((row, variant))
-    for fallback, values in fallback_groups.items():
-        action_count = len(fallback_actions(fallback))
-        ordered = sorted(
-            values,
-            key=lambda item: hashlib.sha256(
-                f"fallback-balance:{item[0]['scenario_id']}:{item[1]}".encode()
-            ).digest(),
-        )
-        for position, (row, variant) in enumerate(ordered):
-            target = assignments[(row["scenario_id"], variant)]
-            target["fallback_action"] = position % action_count
-            target["fallback_frame"] = (
-                position // action_count
-            ) % len(FALLBACK_FRAMES)
-
-    conclusion_order = sorted(
-        items,
-        key=lambda item: hashlib.sha256(
-            f"conclusion-balance:{item[0]['scenario_id']}:{item[1]}".encode()
-        ).digest(),
-    )
-    for position, (row, variant) in enumerate(conclusion_order):
-        assignments[(row["scenario_id"], variant)]["conclusion_frame"] = (
-            position % len(CONCLUSION_FRAMES)
-        )
-    return assignments
-
-
-def _fallback_key(value: str) -> str:
-    return hashlib.sha256(value.rstrip(".").encode()).hexdigest()[:10]
-
-
 def _intent_for_subject(intent: str, subject: str) -> str:
     """Attach a subject without producing ``revise for clarity for X``."""
     if template := _INTENT_SUBJECT_TEMPLATES.get(intent):
@@ -331,112 +183,51 @@ def _intent_for_subject(intent: str, subject: str) -> str:
     return f"{intent} for {subject}"
 
 
-def _render_final(
-    row: dict[str, Any], variant: int, surface: dict[str, int]
+def _render_card_prompt(
+    row: dict[str, Any], hand: TaskHand, *, include_situation: bool
 ) -> str:
-    payload = json.loads(row["semantic_payload"])
-    intent = _intent(payload, row["family"])
-    subject = payload["subject"]
-    subject_cap = subject[:1].upper() + subject[1:]
-    constraint = row["constraint"].rstrip(".")
-    outcome = row["desired_outcome"].rstrip(".")
-    family = row["family"]
-    opening = FAMILY_OPENINGS[family][surface["opening"]]
-    action_frame = FAMILY_ACTION_FRAMES[family][surface["action_frame"]].replace(
-        "{intent} for {subject}", "{intent_with_subject}"
+    cards: list[str] = []
+    if include_situation:
+        cards.append(f"SITUATION CARD\n{row['title']}\n{row['trigger']}")
+    cards.extend(
+        (
+            f"DATA CARD\n{hand.data}",
+            f"RULE CARD\n{row['constraint']}",
+            f"GOAL CARD\n{hand.goal}",
+        )
     )
-    action_sentence = action_frame.format(
-        intent=intent,
-        intent_cap=_upper_first(intent),
-        intent_with_subject=_intent_for_subject(intent, subject),
-        intent_with_subject_cap=_upper_first(
-            _intent_for_subject(intent, subject)
-        ),
-        subject=subject,
-        subject_cap=subject_cap,
-    )
-    constraint_sentence = FAMILY_CONSTRAINT_FRAMES[family][
-        surface["constraint_frame"]
-    ].format(constraint=constraint)
-    action = fallback_actions(row["fallback"])[surface["fallback_action"]]
-    conclusion = CONCLUSION_FRAMES[surface["conclusion_frame"]].format(
-        outcome=outcome,
-        outcome_lower=_lower_first(outcome),
-    )
-    fallback = FALLBACK_FRAMES[surface["fallback_frame"]].format(action=action)
-    components = {
-        "opening": opening,
-        "action": action_sentence,
-        "constraint": constraint_sentence,
-        "conclusion": conclusion,
-        "fallback": fallback,
-    }
-    selected = " ".join(
-        components[component] for component in RESPONSE_ORDERS[surface["order"]]
-    )
-    if term := row.get("lexical_focus"):
-        lexical_frame = LEXICAL_ASSISTANT_FRAMES[
-            _stable_index(
-                f"lexical-assistant:{row['scenario_id']}:{variant}:{term}",
-                len(LEXICAL_ASSISTANT_FRAMES),
-            )
-        ]
-        selected = f"{selected} {lexical_frame.format(term=term)}"
-    return correct_indefinite_articles(selected)
+    return "\n\n".join(cards)
 
 
 def _render_messages(
-    row: dict[str, Any], variant: int, surface: dict[str, int]
+    row: dict[str, Any], variant: int
 ) -> list[dict[str, str]]:
-    payload = json.loads(row["semantic_payload"])
-    intent = _intent(payload, row["family"])
-    subject = payload["subject"]
-    trigger = row["trigger"]
-    lexical_note = ""
-    if term := row.get("lexical_focus"):
-        lexical_frame = LEXICAL_USER_FRAMES[
-            _stable_index(
-                f"lexical-user:{row['scenario_id']}:{variant}:{term}",
-                len(LEXICAL_USER_FRAMES),
-            )
-        ]
-        lexical_note = f" {lexical_frame.format(term=term)}"
+    hand = deal_task_hand(row, variant)
     if variant % 2 == 0:
-        request_frame = _PROMPT_REQUESTS[
-            _stable_index(f"prompt:{row['scenario_id']}:{variant}", len(_PROMPT_REQUESTS))
-        ].replace("{intent} for {subject}", "{intent_with_subject}")
-        request = request_frame.format(
-            intent=intent,
-            intent_with_subject=_intent_for_subject(intent, subject),
-            subject=subject,
-        )
-        prompt = f"{trigger}{lexical_note} {request}"
         return [
-            {"role": "user", "content": correct_indefinite_articles(prompt)},
+            {
+                "role": "user",
+                "content": correct_indefinite_articles(
+                    "Please solve this hand.\n\n"
+                    + _render_card_prompt(row, hand, include_situation=True)
+                ),
+            },
             {
                 "role": "assistant",
-                "content": _render_final(row, variant, surface),
+                "content": hand.answer,
             },
         ]
 
     acknowledgement = _ACKNOWLEDGEMENTS[
         _stable_index(f"ack:{row['scenario_id']}:{variant}", len(_ACKNOWLEDGEMENTS))
     ]
-    chat_opening = _CHAT_OPENERS[
-        _stable_index(
-            f"chat-opening:{row['scenario_id']}:{variant}", len(_CHAT_OPENERS)
-        )
-    ].format(subject=subject, state=row["state"].rstrip("."))
-    chat_opening = f"{chat_opening}{lexical_note}"
-    context = payload["domain_context"].rstrip(".")
-    follow_up_frame = _FOLLOW_UPS[
-        _stable_index(f"follow-up:{row['scenario_id']}:{variant}", len(_FOLLOW_UPS))
-    ].replace("{intent} for {subject}", "{intent_with_subject}")
-    follow_up = follow_up_frame.format(
-        context=_lower_first(context),
-        intent=intent,
-        intent_with_subject=_intent_for_subject(intent, subject),
-        subject=subject,
+    chat_opening = (
+        f"I want to work through this hand.\n\n"
+        f"SITUATION CARD\n{row['title']}\n{row['trigger']}"
+        f"\n\nDATA CARD\n{hand.data}"
+    )
+    follow_up = (
+        f"RULE CARD\n{row['constraint']}\n\nGOAL CARD\n{hand.goal}"
     )
     return [
         {
@@ -445,7 +236,7 @@ def _render_messages(
         },
         {"role": "assistant", "content": acknowledgement},
         {"role": "user", "content": correct_indefinite_articles(follow_up)},
-        {"role": "assistant", "content": _render_final(row, variant, surface)},
+        {"role": "assistant", "content": hand.answer},
     ]
 
 
@@ -464,18 +255,12 @@ def _conversation_rows(
     rows: list[dict[str, Any]] = []
     if vocabulary_placements:
         scenarios = _apply_vocabulary_placements(scenarios, vocabulary_placements)
-    assignments = _surface_assignments(scenarios, variants_per_scenario)
     for scenario in scenarios:
         for variant in range(variants_per_scenario):
-            surface = assignments[(scenario["scenario_id"], variant)]
-            messages = _render_messages(scenario, variant, surface)
+            messages = _render_messages(scenario, variant)
             rendered = _render_transcript(messages)
             mode = "instruct" if len(messages) == 2 else "chat"
             payload = json.loads(scenario["semantic_payload"])
-            fallback_key = _fallback_key(scenario["fallback"])
-            fallback_action = fallback_actions(scenario["fallback"])[
-                surface["fallback_action"]
-            ]
             suffix = hashlib.sha256(
                 f"{scenario['scenario_id']}:{variant}:{rendered}".encode()
             ).hexdigest()[:20]
@@ -493,42 +278,16 @@ def _conversation_rows(
                 "subject": payload["subject"],
                 "surface_intent": _intent(payload, scenario["family"]),
                 "domain_context": payload["domain_context"],
-                "fallback_surface": fallback_action,
+                "fallback_surface": scenario["fallback"],
                 "response_contract": scenario["response_contract"],
                 "variant": variant,
                 "mode": mode,
-                "response_opening_id": (
-                    f"{scenario['family']}:opening-{surface['opening']:02d}"
-                ),
-                "response_action_id": (
-                    f"{scenario['family']}:action-{surface['action_frame']:02d}"
-                ),
-                "response_constraint_id": (
-                    f"{scenario['family']}:constraint-"
-                    f"{surface['constraint_frame']:02d}"
-                ),
-                "response_order_id": f"order-{surface['order']:02d}",
-                "response_structure_id": (
-                    f"{scenario['family']}:action-{surface['action_frame']:02d}:"
-                    f"constraint-{surface['constraint_frame']:02d}:"
-                    f"order-{surface['order']:02d}"
-                ),
-                "response_surface_pattern_id": (
-                    f"{scenario['family']}:opening-{surface['opening']:02d}:"
-                    f"action-{surface['action_frame']:02d}:"
-                    f"constraint-{surface['constraint_frame']:02d}:"
-                    f"order-{surface['order']:02d}"
-                ),
-                "fallback_action_id": (
-                    f"fallback-{fallback_key}:action-{surface['fallback_action']:02d}"
-                ),
-                "fallback_surface_id": (
-                    f"fallback-{fallback_key}:action-{surface['fallback_action']:02d}:"
-                    f"frame-{surface['fallback_frame']:02d}"
-                ),
-                "conclusion_surface_id": (
-                    f"conclusion-{surface['conclusion_frame']:02d}"
-                ),
+                "card_hand": {
+                    "cards": ["situation", "data", "rule", "goal"],
+                    "completion_contract": list(
+                        deal_task_hand(scenario, variant).contract
+                    ),
+                },
                 "model_generated_dialogue": False,
                 "lexical_focus": scenario.get("lexical_focus", ""),
                 "lexical_assignment_method": scenario.get(
@@ -734,32 +493,6 @@ def _text_statistics(values: list[str]) -> dict[str, Any]:
     }
 
 
-def _formulation_statistics(
-    identifiers: list[str], *, semantic_values: list[str] | None = None
-) -> dict[str, Any]:
-    counts = Counter(identifiers)
-    maximum = max(counts.values(), default=0)
-    share = maximum / len(identifiers) if identifiers else 0.0
-    if share >= _MAX_SURFACE_FORMULATION_SHARE:
-        raise ValueError(
-            "surface formulation reaches the five-percent ceiling: "
-            f"{share:.3%}"
-        )
-    result: dict[str, Any] = {
-        "formulations": len(counts),
-        "maximum_examples_per_formulation": maximum,
-        "maximum_formulation_share": round(share, 6),
-        "strict_share_limit": _MAX_SURFACE_FORMULATION_SHARE,
-        "formulation_counts": dict(sorted(counts.items())),
-    }
-    if semantic_values is not None:
-        result["semantic_value_counts"] = dict(
-            sorted(Counter(semantic_values).items())
-        )
-        result["semantic_values_are_not_surface_formulations"] = True
-    return result
-
-
 _MASKED_RESPONSE_FIELDS = (
     ("subject", "subject"),
     ("surface_intent", "intent"),
@@ -920,14 +653,20 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
             f"{unique_final_response_ratio:.3f}"
         )
 
-    surface_patterns = Counter(
-        answer["response_surface_pattern_id"] for answer in answers
-    )
-    structures = Counter(answer["response_structure_id"] for answer in answers)
-    openings = Counter(answer["response_opening_id"] for answer in answers)
-    actions = Counter(answer["response_action_id"] for answer in answers)
-    constraints = Counter(answer["response_constraint_id"] for answer in answers)
-    orders = Counter(answer["response_order_id"] for answer in answers)
+    card_contracts: dict[str, set[tuple[str, ...]]] = defaultdict(set)
+    for answer in answers:
+        card_hand = answer.get("card_hand")
+        if not isinstance(card_hand, dict):
+            raise ValueError("post-training answer is missing its card-hand contract")
+        if card_hand.get("cards") != ["situation", "data", "rule", "goal"]:
+            raise ValueError("post-training card hand has an invalid card sequence")
+        contract = tuple(card_hand.get("completion_contract", ()))
+        if not contract:
+            raise ValueError("post-training card hand has an empty completion contract")
+        card_contracts[answer["family"]].add(contract)
+    if set(card_contracts) != set(_INTENT_FIELD):
+        raise ValueError("post-training card hands do not cover all task families")
+
     final_response_stats = _text_statistics(responses)
     masked_response_diversity = _masked_diversity(responses, answers)
     maximum_final_phrase_share = masked_response_diversity["eight_gram_stats"][
@@ -988,6 +727,15 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "exact_conversation_uniqueness_ratio": len(set(rendered)) / len(rendered),
         "exact_final_response_uniqueness_ratio": unique_final_response_ratio,
         "duplicate_final_response_rows": len(responses) - len(set(responses)),
+        "card_game": {
+            "cards_per_hand": ["situation", "data", "rule", "goal"],
+            "families": len(card_contracts),
+            "family_completion_contracts": {
+                family: [list(contract) for contract in sorted(contracts)]
+                for family, contracts in sorted(card_contracts.items())
+            },
+            "all_hands_have_non_empty_contract": True,
+        },
         "model_generated_dialogue_rows": sum(
             bool(answer["model_generated_dialogue"]) for answer in answers
         ),
@@ -1003,57 +751,11 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 "desired_outcome",
             ],
         },
-        "surface_pattern_stats": {
-            "possible_opening_structure_pairs": (
-                sum(
-                    len(FAMILY_OPENINGS[family])
-                    * len(FAMILY_ACTION_FRAMES[family])
-                    * len(FAMILY_CONSTRAINT_FRAMES[family])
-                    * len(RESPONSE_ORDERS)
-                    for family in sorted(_INTENT_FIELD)
-                )
-            ),
-            "observed_opening_structure_pairs": len(surface_patterns),
-            "maximum_examples_per_pair": max(surface_patterns.values()),
-            "maximum_pair_share": round(
-                max(surface_patterns.values()) / len(rows), 6
-            ),
-            "opening_counts": dict(sorted(openings.items())),
-            "structure_counts": dict(sorted(structures.items())),
-            "action_counts": dict(sorted(actions.items())),
-            "constraint_counts": dict(sorted(constraints.items())),
-            "order_counts": dict(sorted(orders.items())),
+        "response_repetition_gate": {
+            "maximum_masked_eight_token_message_coverage": maximum_final_phrase_share,
+            "strict_share_limit": _MAX_SURFACE_FORMULATION_SHARE,
+            "measured_from_rendered_responses": True,
         },
-        "body_surface_stats": {
-            "openings": _formulation_statistics(
-                [answer["response_opening_id"] for answer in answers]
-            ),
-            "actions": _formulation_statistics(
-                [answer["response_action_id"] for answer in answers]
-            ),
-            "constraints": _formulation_statistics(
-                [answer["response_constraint_id"] for answer in answers]
-            ),
-            "orders": {
-                "patterns": len(orders),
-                "counts": dict(sorted(orders.items())),
-            },
-            "masked_final_eight_token_phrase_ceiling": {
-                "maximum_message_coverage": maximum_final_phrase_share,
-                "strict_share_limit": _MAX_SURFACE_FORMULATION_SHARE,
-                "note": (
-                    "Source subjects, intents, states, constraints, outcomes and "
-                    "fallback semantics are masked before measuring prose templates."
-                ),
-            },
-        },
-        "fallback_surface_stats": _formulation_statistics(
-            [answer["fallback_action_id"] for answer in answers],
-            semantic_values=[answer["fallback"] for answer in answers],
-        ),
-        "conclusion_surface_stats": _formulation_statistics(
-            [answer["conclusion_surface_id"] for answer in answers]
-        ),
         "masked_response_diversity": masked_response_diversity,
         "role_text_stats": {
             "user_prompts": _text_statistics(user_prompts),
@@ -1224,13 +926,14 @@ def build_post_training_corpus(
         "requested_tokens": len(requested_lexical_focus),
         "observed_tokens": len(observed_lexical_focus),
         "coverage_ratio": 1.0 if placements else None,
-        "conversation_rows": sum(
+        "mapped_conversation_rows": sum(
             bool(json.loads(row["answer_json"])["lexical_focus"])
             for row in rows
         ),
+        "surfaced_conversation_rows": 0,
         "assignment_methods": dict(sorted(lexical_methods.items())),
         "family_counts": dict(sorted(lexical_families.items())),
-        "surface_policy": "grounded_quoted_term" if placements else None,
+        "surface_policy": "metadata_only" if placements else None,
         "automatic_definition_generation": False,
     }
     review = _review_sample(

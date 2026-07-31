@@ -138,6 +138,19 @@ Every scenario produces two paired but independently worded examples:
 - one two-message instruction;
 - one four-message chat.
 
+Each example is dealt as a four-card hand:
+
+- **Situation** establishes the concrete case;
+- **Data** supplies the facts that may be used;
+- **Rule** states the operative constraint;
+- **Goal** defines the required result.
+
+All 14 families have their own completion contract. A grounded-QA hand must
+separate supported evidence from unknown information, an extraction hand must
+return the requested JSON fields, and a planning hand must provide criteria,
+choice, sequence and fallback. The build validates these contracts before an
+example can enter the corpus.
+
 The modes share the same `scenario_id`, state, constraint and desired outcome,
 but they do not copy the same user opening. The build rejects an exact first
 message match or a chat opener that is a literal prefix of its paired instruct
@@ -153,15 +166,13 @@ The current generated set contains:
 | Instruct / chat | 15,000 / 15,000 |
 | Exact conversation uniqueness | 100% |
 | Exact final-response uniqueness | 100% |
-| Exact masked-skeleton uniqueness | 99.97% |
-| Realized narrative combinations | 23,229 |
-| Largest individual surface-form share | 0.017% |
-| Largest masked eight-token coverage | 4.17% |
-| Largest fallback-form share | 4.01% |
-| Largest conclusion-frame share | 4.17% |
-| Observed conversation vocabulary | 5,637 |
-| Lexically augmented conversations | 8,194 |
-| Added statistical vocabulary terms | 4,097 |
+| Exact masked-skeleton uniqueness | 100% |
+| Families with validated completion contracts | 14 / 14 |
+| Largest masked eight-token coverage | 4.00% |
+| Observed conversation vocabulary | 2,464 |
+| Conversations mapped to vocabulary metadata | 8,194 |
+| Statistical vocabulary terms mapped | 4,097 |
+| Arbitrary vocabulary labels surfaced in conversations | 0 |
 
 These are anti-template diagnostics, not a claim that every answer is correct
 or naturally written. Raw source anchors remain visible in unmasked statistics;
