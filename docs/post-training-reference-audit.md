@@ -130,3 +130,8 @@ eight-token message coverage is 4.35%. Exact final responses and exact masked
 response skeletons are both unique in this build. These are automated
 anti-template diagnostics; the 140-row stratified human review remains pending
 and the corpus remains explicitly not training-ready.
+
+All 2,000 source scenarios still have paired instruct and chat renderings for
+review, but none of the chat openers is an exact match or literal prefix of the
+paired instruct prompt. This preserves format coverage without counting a
+copied opening as prompt diversity.

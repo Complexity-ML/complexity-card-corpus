@@ -63,6 +63,10 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
     assert len(rows) == 4_000
     assert result["audit"]["source_scenario_split_overlap"] == 0
     assert result["audit"]["semantic_group_split_overlap"] == 0
+    paired_prompts = result["audit"]["paired_prompt_surface_stats"]
+    assert paired_prompts["paired_scenarios"] == 2_000
+    assert paired_prompts["exact_first_user_message_matches"] == 0
+    assert paired_prompts["chat_opener_is_instruct_prefix"] == 0
     assert result["audit"]["split_holdout_units"] == [
         "scenario_id",
         "family+domain+intent",

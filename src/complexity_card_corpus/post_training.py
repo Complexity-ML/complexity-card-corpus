@@ -84,6 +84,21 @@ _PROMPT_REQUESTS = (
     "What concise answer can {intent} for {subject} and retain a safe fallback?",
 )
 
+_CHAT_OPENERS = (
+    "Here is the current state for {subject}: {state}.",
+    "Before we decide about {subject}, one fact is established: {state}.",
+    "I want to work through {subject}, starting from this update: {state}.",
+    "The point I can confirm about {subject} is this: {state}.",
+    "For {subject}, the immediate situation is now clear: {state}.",
+    "One verified detail frames my question about {subject}: {state}.",
+    "I need help thinking about {subject}; the known state is: {state}.",
+    "This is the latest confirmed position for {subject}: {state}.",
+    "My question about {subject} begins with one concrete fact: {state}.",
+    "The decision around {subject} now rests on this update: {state}.",
+    "Please take this as the starting point for {subject}: {state}.",
+    "There is one reliable anchor for discussing {subject}: {state}.",
+)
+
 _FOLLOW_UPS = (
     "The relevant context is that {context}. What response would {intent} for {subject} without overclaiming?",
     "The surrounding facts are that {context}. How can the response {intent} for {subject} responsibly?",
@@ -254,9 +269,14 @@ def _render_messages(
     subject = payload["subject"]
     trigger = row["trigger"]
     if variant % 2 == 0:
-        request = _PROMPT_REQUESTS[
+        request_frame = _PROMPT_REQUESTS[
             _stable_index(f"prompt:{row['scenario_id']}:{variant}", len(_PROMPT_REQUESTS))
-        ].format(intent=intent, subject=subject)
+        ].replace("{intent} for {subject}", "{intent_with_subject}")
+        request = request_frame.format(
+            intent=intent,
+            intent_with_subject=_intent_for_subject(intent, subject),
+            subject=subject,
+        )
         prompt = f"{trigger} {request}"
         return [
             {"role": "user", "content": correct_indefinite_articles(prompt)},
@@ -269,12 +289,26 @@ def _render_messages(
     acknowledgement = _ACKNOWLEDGEMENTS[
         _stable_index(f"ack:{row['scenario_id']}:{variant}", len(_ACKNOWLEDGEMENTS))
     ]
+    chat_opening = _CHAT_OPENERS[
+        _stable_index(
+            f"chat-opening:{row['scenario_id']}:{variant}", len(_CHAT_OPENERS)
+        )
+    ].format(subject=subject, state=row["state"].rstrip("."))
     context = payload["domain_context"].rstrip(".")
-    follow_up = _FOLLOW_UPS[
+    follow_up_frame = _FOLLOW_UPS[
         _stable_index(f"follow-up:{row['scenario_id']}:{variant}", len(_FOLLOW_UPS))
-    ].format(context=_lower_first(context), intent=intent, subject=subject)
+    ].replace("{intent} for {subject}", "{intent_with_subject}")
+    follow_up = follow_up_frame.format(
+        context=_lower_first(context),
+        intent=intent,
+        intent_with_subject=_intent_for_subject(intent, subject),
+        subject=subject,
+    )
     return [
-        {"role": "user", "content": trigger},
+        {
+            "role": "user",
+            "content": correct_indefinite_articles(chat_opening),
+        },
         {"role": "assistant", "content": acknowledgement},
         {"role": "user", "content": correct_indefinite_articles(follow_up)},
         {"role": "assistant", "content": _render_final(row, variant, surface)},
@@ -601,9 +635,15 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
     split_groups: dict[str, set[tuple[str, str, str]]] = defaultdict(set)
     exact_anchor_rows = 0
     answers: list[dict[str, Any]] = []
+    first_user_messages: dict[str, dict[str, str]] = defaultdict(dict)
     for row in rows:
         answer = json.loads(row["answer_json"])
         answers.append(answer)
+        first_user_messages[answer["scenario_id"]][answer["mode"]] = next(
+            message["content"]
+            for message in row["messages"]
+            if message["role"] == "user"
+        )
         target = validation_cards if row["split"] == "validation" else train_cards
         target.add(answer["scenario_id"])
         split_groups[row["split"]].add(
@@ -627,6 +667,23 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
         raise ValueError("post-training license mismatch")
     if exact_anchor_rows != len(rows):
         raise ValueError("state and constraint must each appear exactly once")
+
+    paired_prompt_surfaces = [
+        modes
+        for modes in first_user_messages.values()
+        if "instruct" in modes and "chat" in modes
+    ]
+    exact_first_user_matches = sum(
+        modes["instruct"] == modes["chat"] for modes in paired_prompt_surfaces
+    )
+    chat_opener_prefix_matches = sum(
+        modes["instruct"].startswith(modes["chat"])
+        for modes in paired_prompt_surfaces
+    )
+    if exact_first_user_matches or chat_opener_prefix_matches:
+        raise ValueError(
+            "paired chat and instruct prompts must use independent surface openings"
+        )
 
     unique_final_response_ratio = len(set(responses)) / len(responses)
     if unique_final_response_ratio < 0.95:
@@ -707,6 +764,17 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
             bool(answer["model_generated_dialogue"]) for answer in answers
         ),
         "single_state_and_constraint_ratio": exact_anchor_rows / len(rows),
+        "paired_prompt_surface_stats": {
+            "paired_scenarios": len(paired_prompt_surfaces),
+            "exact_first_user_message_matches": exact_first_user_matches,
+            "chat_opener_is_instruct_prefix": chat_opener_prefix_matches,
+            "shared_semantics": [
+                "scenario_id",
+                "state",
+                "constraint",
+                "desired_outcome",
+            ],
+        },
         "surface_pattern_stats": {
             "possible_opening_structure_pairs": (
                 sum(

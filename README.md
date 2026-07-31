@@ -194,6 +194,12 @@ two explicit holdout contracts: zero shared scenario IDs and zero shared
 `(family, domain, intent)` groups between train and validation. This does not
 claim zero lexical or semantic near-duplicate leakage.
 
+The two modes remain a paired review unit but no longer copy the same opening:
+the instruct prompt uses the scenario trigger, while chat selects an independent
+state-bearing opener. The build rejects an exact first-user-message match or a
+chat opener that is a literal prefix of its paired instruct prompt. State,
+constraint and desired outcome remain shared semantic anchors.
+
 Exact-string conversation and response uniqueness are reported as descriptive
 checks, not as evidence of narrative individualization. The response composer
 uses eight original openings, eight action frames and eight constraint frames
