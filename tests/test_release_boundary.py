@@ -2,9 +2,30 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import tomllib
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_software_and_dataset_licenses_have_explicit_disjoint_scopes() -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
+    assert project["license"] == "Apache-2.0"
+    assert set(project["license-files"]) == {"LICENSE", "NOTICE"}
+
+    reuse = tomllib.loads((ROOT / "REUSE.toml").read_text())
+    scopes = {
+        annotation["SPDX-License-Identifier"]: set(annotation["path"])
+        for annotation in reuse["annotations"]
+    }
+    assert "src/**" in scopes["Apache-2.0"]
+    assert "tests/**" in scopes["Apache-2.0"]
+    assert "data/**" not in scopes["Apache-2.0"]
+    assert scopes["CC-BY-NC-4.0"] == {"data/**"}
+    assert (ROOT / "LICENSE").read_text().startswith(
+        "                                 Apache License"
+    )
+    assert "CC BY-NC 4.0" in (ROOT / "DATASET_LICENSE.md").read_text()
 
 
 def test_every_published_source_is_complexity_original_cc_by_nc() -> None:

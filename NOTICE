@@ -1,0 +1,7 @@
+Complexity Card Corpus
+Copyright 2026 Boris Peyriguere and Complexity-ML
+
+The Python API, command-line interface, build system, audits and tests are
+licensed under the Apache License, Version 2.0.
+
+Dataset content has a separate license described in DATASET_LICENSE.md.
