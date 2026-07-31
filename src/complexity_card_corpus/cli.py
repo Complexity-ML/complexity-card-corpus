@@ -62,7 +62,6 @@ def parser() -> argparse.ArgumentParser:
     package = commands.add_parser("package-hf")
     package.add_argument("--corpus", type=Path, required=True)
     package.add_argument("--tokenized", type=Path, required=True)
-    package.add_argument("--alignment", type=Path)
     package.add_argument("--output", type=Path, required=True)
 
     package_posttrain = commands.add_parser("package-posttrain-hf")
@@ -232,7 +231,6 @@ def main() -> None:
             args.corpus,
             args.tokenized,
             args.output,
-            alignment_root=args.alignment,
         )
         print(
             json.dumps(

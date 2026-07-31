@@ -13,7 +13,7 @@ from .build import file_sha256
 DATASET_CARD = """---
 language:
 - en
-license: other
+license: cc-by-nc-4.0
 pretty_name: Complexity Atlas Pretrain
 task_categories:
 - text-generation
@@ -36,7 +36,6 @@ configs:
     path: tables/relations_train.parquet
   - split: validation
     path: tables/relations_validation.parquet
-{alignment_configs}
 ---
 
 # Complexity Atlas Pretrain
@@ -46,7 +45,6 @@ An English, multi-domain corpus compiled from linked knowledge cards.
 The `documents` configuration is intended for language-model corpus inspection.
 `cards` and `relations` preserve the normalized source graph. Derived o200k
 token streams are available under `tokenized/o200k/`.
-{alignment_section}
 
 ## Included pilot worlds
 
@@ -79,26 +77,12 @@ the canonical, tokenizer-independent artifact.
 
 ## License
 
-This dataset uses layered licensing:
-
-- original Complexity schemas, editorial curation and original rendered prose
-  are offered under CC BY-NC 4.0;
-- imported source fields retain the license stated on each row, including CC0
-  1.0 where applicable;
-- source facts that are already available under CC0 remain reusable under
-  CC0, including commercially.
-
-See `LICENSE.md` for the full notice and use the row-level `license`, `source`
-and `source_urls` fields when reusing individual records.
+The original Complexity cards, schemas, deterministic graph renderings and
+derived artifacts are offered under CC BY-NC 4.0. Third-party datasets are
+excluded from this package.
 """
 
-PRETRAIN_DATA_LICENSE = """# Complexity Atlas Pretrain layered data license
-
-This package combines material with different rights and licenses. No license
-in this notice replaces the license or public-domain status of imported source
-material.
-
-## Complexity contributions
+PRETRAIN_DATA_LICENSE = """# Complexity Atlas Pretrain data license
 
 The original Complexity card schema, editorial selection, curation and
 original rendered prose are offered under the Creative Commons
@@ -109,44 +93,9 @@ Attribution: **Complexity — Complexity Atlas Pretrain**
 
 License: <https://creativecommons.org/licenses/by-nc/4.0/>
 
-## Imported source material
-
-Imported fields retain their row-level source and license. Smithsonian Open
-Access metadata and any other field explicitly marked `CC0 1.0` remain
-available under CC0 1.0, including for commercial reuse. Complexity does not
-apply the non-commercial restriction to those pre-existing source elements.
-
-CC0 1.0: <https://creativecommons.org/publicdomain/zero/1.0/>
-
-The technical specifications linked as references in source metadata remain
-the property of their respective authors. Their links identify factual
-references; those third-party documents are not redistributed in this dataset.
-Other rights such as trademarks, privacy, publicity or moral rights may still
-apply. No warranty is provided.
-"""
-
-ALIGNMENT_CONFIGS = """- config_name: instruct
-  data_files:
-  - split: train
-    path: alignment/instruct_train.parquet
-  - split: validation
-    path: alignment/instruct_validation.parquet
-- config_name: chat
-  data_files:
-  - split: train
-    path: alignment/chat_train.parquet
-  - split: validation
-    path: alignment/chat_validation.parquet"""
-
-ALIGNMENT_SECTION = """
-
-## Alignment cards
-
-The optional `instruct` configuration contains one-turn user/assistant pairs.
-The `chat` configuration contains selected multi-turn paths. Both are filtered
-English subsets derived from the human-authored OpenAssistant OASST1 trees and
-retain source IDs, quality scores, the pinned revision and Apache-2.0
-provenance.
+This package contains only Complexity-authored dataset material and
+deterministic derivatives of that material. Third-party corpora are excluded.
+No warranty is provided.
 """
 
 POSTTRAIN_DATASET_CARD = """---
@@ -343,8 +292,6 @@ def package_for_hugging_face(
     corpus_root: Path,
     tokenized_root: Path,
     output_root: Path,
-    *,
-    alignment_root: Path | None = None,
 ) -> dict[str, Any]:
     corpus_manifest = json.loads((corpus_root / "manifest.json").read_text())
     tokenized_manifest = json.loads((tokenized_root / "manifest.json").read_text())
@@ -357,7 +304,6 @@ def package_for_hugging_face(
     table_root = temporary / "tables"
     data_root.mkdir()
     table_root.mkdir()
-    alignment_manifest = None
 
     documents = pq.read_table(corpus_root / "documents.parquet")
     for split, filename in (("train", "train.parquet"), ("validation", "validation.parquet")):
@@ -382,15 +328,6 @@ def package_for_hugging_face(
         stem="relations",
     )
 
-    if alignment_root is not None:
-        alignment_manifest = json.loads((alignment_root / "manifest.json").read_text())
-        alignment_table = pq.read_table(alignment_root / "alignment.parquet")
-        alignment_output = temporary / "alignment"
-        alignment_output.mkdir()
-        for mode in ("instruct", "chat"):
-            mode_table = alignment_table.filter(pc.equal(alignment_table["mode"], mode))
-            _write_splits(mode_table, alignment_output, stem=mode)
-
     tokenized_output = temporary / "tokenized" / "o200k"
     _copy_tree(tokenized_root, tokenized_output)
     corpus_manifest, tokenized_manifest = _portable_pretrain_manifests(
@@ -398,12 +335,7 @@ def package_for_hugging_face(
         tokenized_manifest,
         tokenized_output,
     )
-    (temporary / "README.md").write_text(
-        DATASET_CARD.format(
-            alignment_configs=ALIGNMENT_CONFIGS if alignment_root else "",
-            alignment_section=ALIGNMENT_SECTION if alignment_root else "",
-        )
-    )
+    (temporary / "README.md").write_text(DATASET_CARD)
     (temporary / "LICENSE.md").write_text(PRETRAIN_DATA_LICENSE)
 
     files = _package_files(temporary)
@@ -411,7 +343,6 @@ def package_for_hugging_face(
         "format": "complexity-atlas-pretrain-hf-package-v1",
         "corpus": corpus_manifest,
         "tokenized": tokenized_manifest,
-        "alignment": alignment_manifest,
         "files": files,
     }
     (temporary / "manifest.json").write_text(

@@ -1,25 +1,46 @@
-# Complexity Atlas datasets
+# Complexity Card Corpus
 
-A local-first pipeline for authoring an English, multi-domain corpus as linked
-knowledge cards. The card graph is the editable source; Parquet is the
-canonical dataset artifact; o200k `uint32` streams are derived training
-artifacts.
+An original, local-first corpus built from Complexity-authored knowledge cards,
+semantic scenarios and deterministic generation rules.
 
-The first source is the original Aethoria catalog from
-`complexity-source-mcp`. A small computing domain demonstrates that the schema
-is not tied to fantasy.
+The editable source is the card or scenario schema. Parquet is the canonical
+dataset artifact. o200k `uint32` token streams are derived training artifacts.
+No third-party dataset is included in the published Complexity corpus.
 
-## Original thematic decks
+## Project principles
 
-The source catalog now includes **Prismwilds**, an original creature-atlas
-world with creatures, unusual habitats, research guilds, field relics and
-creature food. Its collection-and-discovery feeling is original: it does not
-reuse the characters, names, designs or lore of an existing franchise.
+- **Original material only.** Released records originate from the schemas,
+  semantic atoms, facts and worlds authored in this repository.
+- **Inspectable before tokenization.** Every training artifact has a readable
+  Parquet or JSONL representation.
+- **Deterministic generation.** The same registry and seed produce the same
+  cards, relations, scenarios and hashes.
+- **Graph-first grounding.** Instruction examples retain their source-card keys
+  and evidence instead of inventing unsupported answers.
+- **One release license.** Complexity-authored dataset content is released under
+  **CC BY-NC 4.0**.
 
-The curated seed is complemented by the **Prismwilds Grand Codex**: 10,000
-generated creatures connected to 256 habitats, 64 research guilds, 128 field
-relics, 128 foods and 128 natural phenomena. Prismwilds is generated
-deterministically from editable Atlas Forge blueprints:
+## Original collections
+
+| Collection | Domain | Contents | Status |
+| --- | --- | --- | --- |
+| Aethoria | Fantasy | Curated characters, locations, factions, artifacts and lore | Ready |
+| Aethoria Grand Archive | Fantasy | 10,000 generated characters connected to locations, factions, artifacts, rituals and omens | Ready |
+| Prismwilds | Speculative natural history | Curated creatures, habitats, guilds, relics and food | Ready |
+| Prismwilds Grand Codex | Speculative natural history | 10,000 generated creatures and a connected field-world graph | Ready |
+| Meridian Isles | Fantasy | Original island and relationship cards | Ready |
+| Computing Foundations | Computing | Original technical concept cards | Ready |
+| Systems Foundations | Computing | Original systems concept cards | Ready |
+| Scenario Forge | General assistant | 2,000 structured semantic scenarios across seven families | Semantic review in progress |
+
+The checked-in source graph currently contains **21,602 cards** and **143,026
+typed relations** across seven original collections.
+
+## Atlas Forge
+
+Atlas Forge expands editable thematic blueprints into large linked-card decks.
+It traverses declared key slots deterministically, creates stable identifiers
+and validates every relation target.
 
 ```bash
 uv run card-corpus forge \
@@ -31,22 +52,16 @@ uv run card-corpus forge \
   --blueprint data/forge/prismwilds-grand-codex-v1.blueprint.json \
   --output data/source/prismwilds-grand-codex-v1 \
   --force
-```
 
-The fantasy source follows the same model. The **Aethoria Grand Archive**
-contains 10,000 original characters connected to 256 locations, 128 factions,
-128 artifacts, 128 rituals and 128 omens:
-
-```bash
 uv run card-corpus forge \
   --blueprint data/forge/aethoria-grand-archive-v1.blueprint.json \
   --output data/source/aethoria-grand-archive-v1 \
   --force
 ```
 
-For large decks, an archetype can declare `keySlots`. Atlas Forge traverses
-the Cartesian product of those slots with a deterministic coprime stride,
-which provides unique names without random retries:
+An archetype may declare `keySlots`. Their Cartesian capacity must cover the
+requested card count unless the name template also contains the unique
+`{index}` field.
 
 ```json
 {
@@ -60,240 +75,35 @@ which provides unique names without random retries:
 }
 ```
 
-The product of the `keySlots` sizes must cover `count` unless `nameTemplate`
-also contains the unique `{index}` field. With 100 prefixes and 100 suffixes,
-the same pattern covers 10,000 unique names. The test suite exercises a
-10,000-creature deck plus 100 habitats and validates deterministic output,
-unique keys and every relation target.
+## Card data model
 
-## Data model
+Each directory under `data/source/` contains:
 
-Each source directory contains:
+- `dataset.json`: identity, domain, language, version, split and license;
+- `cards.json`: stable keys, types, summaries, facts, attributes and typed
+  relations.
 
-- `dataset.json`: dataset-level provenance, domain, language, version and split;
-- `cards.json`: entities with a stable key, type, summary, description, facts,
-  tags, attributes and typed relations.
+The corpus build produces:
 
-The build produces:
+- `cards.parquet`: normalized cards;
+- `relations.parquet`: directed graph edges;
+- `documents.parquet`: deterministic entity, neighborhood and multi-hop path
+  documents;
+- `manifest.json`: counts, hashes and complete build provenance.
 
-- `cards.parquet`: one normalized row per card;
-- `relations.parquet`: one row per directed edge;
-- `documents.parquet`: deterministic English entity, neighborhood and
-  multi-hop path documents;
-- `manifest.json`: counts, hashes and build provenance.
-
-Connected source collections are assigned to one split in `dataset.json`.
-This avoids leaking the same graph into train and validation through different
-cards.
-
-## Local build
-
-```bash
-cd /Users/boris/Dev/complexity-card-corpus
-uv sync --extra dev
-uv run card-corpus build \
-  --source data/source \
-  --output build/corpus
-uv run card-corpus tokenize \
-  --documents build/corpus/documents.parquet \
-  --tokenizer /Users/boris/Dev/complexity-framework/tokenizer-o200k \
-  --output build/tokenized/o200k
-uv run card-corpus build-instruct \
-  --corpus build/corpus \
-  --output build/atlas-instruct
-uv run card-corpus tokenize-instruct \
-  --instructions build/atlas-instruct \
-  --tokenizer /Users/boris/Dev/complexity-framework/tokenizer-o200k \
-  --output build/atlas-instruct-o200k
-uv run card-corpus package-instruct-hf \
-  --instructions build/atlas-instruct \
-  --tokenized build/atlas-instruct-o200k \
-  --output build/hf-atlas-instruct
-uv run card-corpus import-oasst1 \
-  --raw build/raw/oasst1 \
-  --output build/alignment/oasst1
-uv run card-corpus package-hf \
-  --corpus build/corpus \
-  --tokenized build/tokenized/o200k \
-  --output build/hf-pretrain
-uv run card-corpus package-posttrain-hf \
-  --alignment build/alignment/oasst1 \
-  --output build/hf-posttrain
-uv run card-corpus inspect --output build/corpus
-uv run pytest
-```
-
-`tokens.bin` uses little-endian `uint32`, because o200k token IDs do not fit in
-`uint16`. An EOS token is appended after each rendered document.
-
-## Original instruction tuning
-
-`build-instruct` derives instruction and multi-turn chat examples directly
-from the authored card graph. Prompts, answers and evidence are generated by
-deterministic templates; no language model writes or paraphrases the rows.
-The tasks cover entity summaries, attributes, recorded facts, direct
-relations, record comparison, structured extraction, grounded follow-ups and
-multi-hop paths. Every row retains its source-card keys and evidence.
-
-The current complete build contains 204,471 examples: 182,872 one-turn
-instructions and 21,599 multi-turn chats. Connected source decks stay wholly
-in one split, yielding 204,264 training examples and 207 validation examples
-without graph leakage between them.
-
-`tokenize-instruct` creates a causal-SFT artifact for o200k:
-
-```text
-train/input_ids.bin    little-endian uint32
-train/labels.bin       little-endian int32
-train/examples.jsonl   example offsets and lengths
-train/sft.idx.json     hashes, counts and dtypes
-eval/...
-manifest.json
-```
-
-Labels use `-100` for the user prefix and padding. Only assistant response
-tokens, including the terminating EOS token, contribute to the loss. Inputs
-and labels are causally shifted by the trainer, so the token at position `t`
-predicts the supervised token at position `t + 1`. The current tokenized
-artifact contains 13,466,182 input tokens and 8,824,902 supervised assistant
-tokens.
-
-## Imported OASST1 instruct and chat modes
-
-The OASST1 importer pins the official dataset revision and creates two
-alignment-card views:
-
-- `instruct.parquet`: the highest-ranked valid assistant response to each
-  accepted English root prompt;
-- `chat.parquet`: one quality-selected multi-turn path per accepted tree.
-
-Messages are human-authored, non-synthetic OASST1 rows with successful review,
-language, safety and quality filters. Each output row retains the source tree
-and message IDs, Apache-2.0 license, source revision and a deterministic
-`User:`/`Assistant:` rendering. Alignment remains structured Parquet so a later
-SFT loader can mask user tokens and calculate loss only on assistant responses.
-
-## Hugging Face datasets
-
-The pipeline publishes two separate artifacts:
-
-- `Complexity Atlas Pretrain`: linked-card documents, normalized graph tables
-  and derived o200k token shards;
-- `Complexity Atlas Posttrain`: filtered OASST1 instruction and chat cards.
-
-An optional third artifact remains deliberately separate:
-
-- `Complexity Atlas Mosaic Pretrain`: pinned, licensed external sources only.
-  Every document retains its own source revision, URL and license. It never
-  embeds or changes the original-only Atlas package.
-
-## Mosaic build
-
-External sources are declared in `data/mosaic/sources.json`. The build refuses
-unknown licenses, mutable revisions and sources without an explicit
-redistribution flag. Sources are downloaded and filtered concurrently; final
-deduplication and split assignment remain deterministic.
-
-```bash
-uv run card-corpus build-mosaic \
-  --registry data/mosaic/sources.json \
-  --raw build/raw/mosaic \
-  --output build/mosaic/corpus \
-  --max-rows-per-source 10000 \
-  --workers 4
-uv run card-corpus tokenize \
-  --documents build/mosaic/corpus/documents.parquet \
-  --tokenizer /Users/boris/Dev/complexity-framework/tokenizer-o200k \
-  --output build/mosaic/tokenized/o200k
-uv run card-corpus package-mosaic-hf \
-  --mosaic build/mosaic/corpus \
-  --tokenized build/mosaic/tokenized/o200k \
-  --output build/hf-mosaic-pretrain
-```
-
-The first registry entry is a pinned Apache-2.0 Cosmopedia Stories shard. Raw
-web scraping is intentionally excluded until site terms, `robots.txt`,
-redistribution rights and provenance retention are verified source by source.
-
-### Four-billion-token profile
-
-`data/mosaic/sources-4b.json` expands the licensed Cosmopedia mix across
-stories, mathematics, academic material, textbooks, lessons and educational
-web samples. It currently selects 101 pinned Parquet files, roughly 25 GiB of
-raw source data, to leave headroom after filtering.
-
-The scale build is bounded-memory, resumable at source-file granularity and
-deduplicates through SQLite. Downloads are prefetched concurrently. The
-tokenizer then reads all produced source shards round-robin so one source does
-not fill the 4B budget before the others are represented.
-
-```bash
-uv run card-corpus build-mosaic-shards \
-  --registry data/mosaic/sources-4b.json \
-  --raw build/raw/mosaic-4b \
-  --output build/hf-mosaic-4b \
-  --workers 4
-uv run card-corpus tokenize-mosaic-shards \
-  --corpus build/hf-mosaic-4b \
-  --tokenizer /Users/boris/Dev/complexity-framework/tokenizer-o200k \
-  --target-train-tokens 4000000000 \
-  --target-eval-tokens 20000000 \
-  --workers 8
-```
-
-The final complete training document may cross the 4B target by a small
-amount. A trainer can consume exactly the first 4,000,000,000 token IDs.
-
-The pretraining upload contains inspectable Parquet and derived token shards:
-
-```text
-README.md
-manifest.json
-data/train.parquet
-data/validation.parquet
-tables/cards_train.parquet
-tables/cards_validation.parquet
-tables/relations_train.parquet
-tables/relations_validation.parquet
-tokenized/o200k/train/tokens.bin
-tokenized/o200k/train/tokens.idx.json
-tokenized/o200k/eval/tokens.bin
-tokenized/o200k/eval/tokens.idx.json
-```
-
-Create the Hugging Face repositories as **private datasets**. Keep the Atlas
-Herbarium private while its source inventory, field-level provenance and
-licensing are still being audited:
-
-```bash
-hf repo create Pacific-i64/complexity-atlas-pretrain \
-  --repo-type dataset --private
-hf repo create Pacific-i64/complexity-atlas-posttrain \
-  --repo-type dataset --private
-hf repo create Pacific-i64/complexity-atlas-mosaic-pretrain \
-  --repo-type dataset --private
-hf upload Pacific-i64/complexity-atlas-pretrain \
-  build/hf-pretrain . --repo-type dataset
-hf upload Pacific-i64/complexity-atlas-posttrain \
-  build/hf-posttrain . --repo-type dataset
-hf upload Pacific-i64/complexity-atlas-mosaic-pretrain \
-  build/hf-mosaic-pretrain . --repo-type dataset
-```
+Connected collections are assigned wholly to one split so the same graph does
+not leak into train and validation through different cards.
 
 ## Scenario Forge
 
-Scenario Forge is the semantic planning layer for the general assistant
-dataset. It creates **2,000 distinct scenario cards** before any dialogue text
-is written. A card is unique by its family, domain, intent, constraint, current
-state and desired outcome; it is not a superficial paraphrase of another card.
+Scenario Forge creates structured assistant situations before any conversation
+surface is written. Each card combines:
 
-```bash
-uv run card-corpus build-scenario-forge \
-  --registry data/scenario-forge/scenario-forge-v1.json \
-  --output build/scenario-forge
+```text
+family + domain + intent + constraint + current state + desired outcome
 ```
 
-The fixed family allocation is:
+The current registry compiles exactly 2,000 unique semantic signatures:
 
 - 600 practical actions and services;
 - 400 explanations and learning scenarios;
@@ -303,84 +113,109 @@ The fixed family allocation is:
 - 150 conversational and empathetic scenarios;
 - 100 safety, refusal and uncertainty scenarios.
 
-`scenarios.parquet` is the canonical machine-readable artifact and
-`scenarios.jsonl` is the review surface. Each row contains a universal semantic
-signature plus a family-specific JSON payload. `audit.json` rejects duplicate
-signatures, incomplete family contracts, missing semantic-axis coverage,
-unbalanced domains and any surface-text generation. The registry and all
-semantic atoms are original Complexity-authored material under CC BY-NC 4.0;
-no dialogue utterance is copied into this layer.
-
-## Conversation structure mine
-
-The broad assistant corpus starts with a separate, non-training artifact. It
-mines licensed dialogue sources for abstract structure only: speaker patterns,
-turn counts, question positions, length buckets, task domains, slot types and
-emotion labels. Source utterances, prompts and responses are deliberately not
-written to the normalized Parquet file.
-
-The initial pinned sources are Google Taskmaster-1 (CC BY 4.0) and Meta
-EmpatheticDialogues (CC BY-NC 4.0). Every normalized row retains the source
-dataset, revision, record ID, file hash and license. This provenance does not
-turn the mixed artifact into an independently relicensable dataset.
-
 ```bash
-uv run card-corpus fetch-conversation-mine \
-  --registry data/conversation/sources.json \
-  --raw build/raw/conversation
-uv run card-corpus build-conversation-mine \
-  --registry data/conversation/sources.json \
-  --raw build/raw/conversation \
-  --output build/conversation-mine
-uv run card-corpus build-conversation-blueprints \
-  --mine build/conversation-mine \
-  --output build/conversation-blueprints
-uv run card-corpus build-conversation-surface \
-  --blueprints build/conversation-blueprints \
-  --scenarios data/conversation/original/scenarios.json \
-  --output build/conversation-surface-10k \
-  --examples 10000
+uv run card-corpus build-scenario-forge \
+  --registry data/scenario-forge/scenario-forge-v1.json \
+  --output build/scenario-forge
 ```
 
-`build/conversation-mine/raw_records.parquet` is a design mine, not SFT data.
-The blueprint build then selects equal task-oriented and empathetic pools,
-balances domains and emotions within each pool, and assigns an original target
-turn count, stage sequence, response style and train/validation split. It still
-contains no prompt, response or dialogue prose.
+`scenarios.parquet` is canonical and `scenarios.jsonl` is intended for human
+review. The audit enforces unique IDs, signatures and payloads, exact family
+allocation, domain balance, family-specific payload contracts and absence of
+copied or generated dialogue text.
 
-The surface dataset is a separate original-writing layer. It consumes only the
-text-free blueprints plus editable Complexity scenario cards; its code never
-opens the source dialogue downloads. The current build contains 10,000
-conversations: 5,000 practical and 5,000 empathetic. One hundred base scenarios
-combine with twenty authored context cards per corpus kind to produce 2,000
-context-aware scenario cards. `audit.json` rejects duplicate dialogues,
-duplicate openings, leaked template placeholders, malformed role sequences and
-unpunctuated messages. It also enforces the requested length and question
-contracts, at least 50% unique message surfaces, at least 35% unique final
-responses, bounded phrase repetition and a maximum 25% safe-fallback rate
-within practical dialogues. Exact dialogue and prompt uniqueness are preserved;
-short natural replies may repeat instead of receiving artificial filler.
+Scenario Forge is currently a **semantic beta**. Its structure is valid, but
+intent/outcome and domain/constraint compatibility are being tightened before
+it is used to generate a released conversation dataset.
 
-## Licensing
+## Original instruction tuning
 
-The Atlas packages use layered licensing. A single license must not be
-presented as replacing the license or public-domain status of imported source
-material.
+`build-instruct` derives instruction and multi-turn examples directly from the
+original card graph. Deterministic templates cover summaries, attributes,
+facts, direct relations, comparisons, structured extraction, grounded
+follow-ups and multi-hop paths. No language model writes or paraphrases rows.
 
-- Smithsonian Open Access metadata and other explicitly identified source
-  fields remain available under **CC0 1.0**. Those facts may still be extracted
-  and reused, including commercially, under their original terms.
-- The original Complexity card schema, editorial selection, curation and
-  original rendered prose are offered under **CC BY-NC 4.0**, to the extent
-  that those contributions are copyrightable.
-- Every imported card must retain its source URL, source identifier and source
-  license at field or record level.
-- `Complexity Atlas Posttrain` retains the **Apache-2.0** license and source
-  provenance of OpenAssistant OASST1.
-- Mosaic documents retain their individual upstream licenses and are never
-  relicensed as Complexity original content.
+The current complete build contains **204,471 examples**:
 
-Because the future Herbarium package contains both CC0 source data and
-CC BY-NC 4.0 Complexity contributions, its Hugging Face dataset card should use
-`license: other` and point readers to this layered licensing notice. It must
-remain private until the provenance audit is complete.
+- 182,872 one-turn instructions;
+- 21,599 multi-turn chats;
+- 204,264 training examples;
+- 207 validation examples.
+
+Every example retains source-card keys and evidence. Connected graph decks stay
+in one split.
+
+## Build locally
+
+```bash
+cd /Users/boris/Dev/complexity-card-corpus
+uv sync --extra dev
+
+uv run card-corpus build \
+  --source data/source \
+  --output build/corpus
+
+uv run card-corpus build-instruct \
+  --corpus build/corpus \
+  --output build/atlas-instruct
+
+uv run card-corpus build-scenario-forge \
+  --registry data/scenario-forge/scenario-forge-v1.json \
+  --output build/scenario-forge
+
+uv run pytest -q
+```
+
+## Tokenize with o200k
+
+```bash
+uv run card-corpus tokenize \
+  --documents build/corpus/documents.parquet \
+  --tokenizer /Users/boris/Dev/complexity-framework/tokenizer-o200k \
+  --output build/tokenized/o200k
+
+uv run card-corpus tokenize-instruct \
+  --instructions build/atlas-instruct \
+  --tokenizer /Users/boris/Dev/complexity-framework/tokenizer-o200k \
+  --output build/atlas-instruct-o200k
+```
+
+`tokens.bin` uses little-endian `uint32`, because o200k token IDs do not fit in
+`uint16`. An EOS token is appended after each rendered document.
+
+The causal-SFT artifact contains:
+
+```text
+train/input_ids.bin
+train/labels.bin
+train/examples.jsonl
+train/sft.idx.json
+eval/...
+manifest.json
+```
+
+Labels use `-100` for user prefixes and padding. Only assistant tokens and the
+terminating EOS token contribute to the supervised loss.
+
+## Release boundary
+
+The official Complexity release may contain only:
+
+- records whose source metadata identifies Complexity original authorship;
+- deterministic derivatives of those records;
+- manifests, audits and token shards derived exclusively from those records;
+- CC BY-NC 4.0 dataset content.
+
+Third-party corpora are **not part of the Complexity Card Corpus release**.
+Their inputs and derivatives must never be packaged, published or represented
+as Complexity-owned datasets.
+
+## License
+
+The original dataset schemas, card content, semantic registries, generated
+world content, deterministic rendered prose and derived dataset artifacts are
+offered under **Creative Commons Attribution-NonCommercial 4.0 International
+(CC BY-NC 4.0)**.
+
+This license statement applies only to material authored by Complexity. The
+release boundary above intentionally excludes third-party dataset content.
