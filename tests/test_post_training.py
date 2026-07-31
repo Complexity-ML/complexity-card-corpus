@@ -42,7 +42,10 @@ def test_intent_subject_composition_places_prepositional_complements_last() -> N
     ) == "restructure a set of meeting notes for action"
     assert post_training._intent_for_subject(
         "clarify the immediate need", "a tense conversation"
-    ) == "clarify the immediate need for a tense conversation"
+    ) == "clarify the immediate need in a tense conversation"
+    assert post_training._intent_for_subject(
+        "adapt tone for the audience", "a project update"
+    ) == "adapt the tone of a project update for the audience"
 
 
 def test_post_training_corpus_groups_splits_and_builds_review_queue(
@@ -75,6 +78,16 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
     assert result["audit"]["exact_final_response_uniqueness_ratio"] >= 0.95
     assert result["audit"]["model_generated_dialogue_rows"] == 0
     assert result["audit"]["single_state_and_constraint_ratio"] == 1.0
+    assert result["audit"]["natural_language_gate"] == {
+        "assistant_meta_instruction_hits": 0,
+        "user_meta_request_hits": 0,
+        "forbidden_assistant_phrases": list(
+            post_training._FORBIDDEN_ASSISTANT_META_PHRASES
+        ),
+        "forbidden_user_phrases": list(
+            post_training._FORBIDDEN_USER_META_PHRASES
+        ),
+    }
     role_stats = result["audit"]["role_text_stats"]
     assert role_stats["user_prompts"]["length"]["items"] == 6_000
     assert role_stats["assistant_messages"]["length"]["items"] == 6_000

@@ -43,6 +43,32 @@ _WORD = re.compile(r"[A-Za-z]+(?:['’][A-Za-z]+)?")
 _REVIEW_STATUSES = frozenset({"pending", "approved", "rejected"})
 _REVIEW_GRADE_VALUES = frozenset({"", "pass", "fail"})
 _MAX_SURFACE_FORMULATION_SHARE = 0.05
+_FORBIDDEN_ASSISTANT_META_PHRASES = (
+    "the response should",
+    "the response must",
+    "the response can",
+    "the answer should",
+    "the answer must",
+    "the answer can",
+    "the explanation should",
+    "the explanation must",
+    "the final review should",
+    "a valid answer",
+    "a worked response",
+)
+_FORBIDDEN_USER_META_PHRASES = (
+    "the assistant must",
+    "the assistant should",
+    "the response should",
+    "the response must",
+    "the answer should",
+    "how should an assistant",
+    "what response would",
+    "which response would",
+    "what should the response cover",
+    "how can the response",
+    "the response must reflect",
+)
 
 _INTENT_FIELD = {
     "practical_action": "requested_action",
@@ -55,33 +81,33 @@ _INTENT_FIELD = {
 }
 
 _ACKNOWLEDGEMENTS = (
-    "I understand the decision you are trying to make, and I will keep the answer tied to evidence.",
-    "That gives us a concrete decision point, so I will avoid filling any gap with an assumption.",
-    "I can help with that by separating the immediate task from the final acceptance check.",
-    "The situation is specific enough to plan a bounded response without pretending the uncertainty is resolved.",
-    "I will focus on the requested result, the available evidence, and a safe fallback if support is missing.",
-    "This calls for a practical answer with a visible decision rule rather than a broad recommendation.",
-    "I will keep the response narrow enough to verify and useful enough to support the next decision.",
-    "The key is to move from the known facts to a bounded action without hiding the remaining uncertainty.",
-    "I can work from that update while keeping the final check and fallback explicit.",
-    "That provides a clear starting point, and the response can preserve control throughout the decision.",
-    "I will treat the evidence as the basis for action and leave unsupported details unresolved.",
-    "The answer can stay grounded by naming one objective, one limit, and one acceptance check.",
+    "Thanks, that gives me a concrete starting point. I will keep the next step tied to what we can verify.",
+    "Understood. I will separate what is confirmed from what still needs checking.",
+    "That helps. We can handle the immediate task first and keep the final decision reversible.",
+    "I follow. There is enough context for a bounded next step, but not for unsupported certainty.",
+    "Got it. I will focus on the result you need and keep a fallback available if evidence is missing.",
+    "That is a useful starting point. We can make one practical choice instead of a broad assumption.",
+    "Understood. I will keep the guidance specific enough to verify.",
+    "That makes sense. We can move from the known facts to one cautious action.",
+    "Thanks for the update. I will keep the remaining uncertainty visible.",
+    "I understand. We can preserve your control while narrowing the next decision.",
+    "Got it. I will use the confirmed facts and leave unsupported details open.",
+    "That gives us a clear scope: one objective, one limit, and one check at the end.",
 )
 
 _PROMPT_REQUESTS = (
-    "Please give me a grounded response that helps me {intent} for {subject}.",
-    "What practical response would help me {intent} for {subject} without guessing?",
-    "Can you help me {intent} for {subject} while keeping the answer evidence-based?",
-    "I need a bounded way to {intent} for {subject}; what should the response cover?",
-    "Please outline how to {intent} for {subject} using only supported details.",
-    "What is a reviewable approach to {intent} for {subject} in this situation?",
-    "Help me {intent} for {subject} without turning uncertainty into a claim.",
-    "Which response would {intent} for {subject} and still preserve user control?",
-    "I want to {intent} for {subject}; how can the answer remain practical and grounded?",
-    "Please propose a careful response to {intent} for {subject} from the available facts.",
-    "How should an assistant {intent} for {subject} while making its reasoning inspectable?",
-    "What concise answer can {intent} for {subject} and retain a safe fallback?",
+    "Please help me {intent} for {subject}.",
+    "How can I {intent} for {subject} without guessing?",
+    "Can you walk me through how to {intent} for {subject}?",
+    "I need a bounded way to {intent} for {subject}. What should I do first?",
+    "Please show me how to {intent} for {subject} using only the confirmed details.",
+    "What is a practical way to {intent} for {subject} in this situation?",
+    "Help me {intent} for {subject} without treating uncertainty as fact.",
+    "How can I {intent} for {subject} while keeping control of the decision?",
+    "I want to {intent} for {subject}. What would a grounded approach look like?",
+    "Please give me a careful way to {intent} for {subject} from the available facts.",
+    "How would you {intent} for {subject} with the information available?",
+    "What is the simplest safe way to {intent} for {subject}?",
 )
 
 _CHAT_OPENERS = (
@@ -100,18 +126,18 @@ _CHAT_OPENERS = (
 )
 
 _FOLLOW_UPS = (
-    "The relevant context is that {context}. What response would {intent} for {subject} without overclaiming?",
-    "The surrounding facts are that {context}. How can the response {intent} for {subject} responsibly?",
+    "The relevant context is that {context}. Given that, how would you {intent} for {subject} without overclaiming?",
+    "The surrounding facts are that {context}. How can I {intent} for {subject} responsibly?",
     "One context point matters here: {context}. What is a grounded way to {intent} for {subject}?",
-    "The decision sits within this setting: {context}. How should the assistant {intent} for {subject}?",
-    "The available background is that {context}. Which bounded response would {intent} for {subject}?",
-    "Keep this context in view: {context}. What practical answer can {intent} for {subject}?",
+    "The decision sits within this setting: {context}. How would you {intent} for {subject}?",
+    "The available background is that {context}. What bounded approach would {intent} for {subject}?",
+    "Keep this context in view: {context}. What practical step would help me {intent} for {subject}?",
     "The evidence comes from this setting: {context}. How can we {intent} for {subject} without guessing?",
-    "This background limits the answer: {context}. What response can {intent} for {subject} and remain reviewable?",
-    "The request is grounded in this fact: {context}. Which next response should {intent} for {subject}?",
-    "Use this context as the boundary for reasoning: {context}. How would you {intent} for {subject}?",
-    "The known setting is that {context}. What concise answer would {intent} for {subject} safely?",
-    "The response must reflect this context: {context}. How can it {intent} for {subject} with visible support?",
+    "This background limits what we know: {context}. How can I {intent} for {subject} and still check the result?",
+    "The request is grounded in this fact: {context}. What should I do next to {intent} for {subject}?",
+    "Use this context as the boundary: {context}. How would you {intent} for {subject}?",
+    "The known setting is that {context}. What is the simplest safe way to {intent} for {subject}?",
+    "Please keep this context in view: {context}. How can I {intent} for {subject} using only supported facts?",
 )
 
 
@@ -122,6 +148,45 @@ def _stable_index(value: str, size: int) -> int:
 def _lower_first(value: str) -> str:
     value = value.strip()
     return value[:1].lower() + value[1:] if value else value
+
+
+def _upper_first(value: str) -> str:
+    value = value.strip()
+    return value[:1].upper() + value[1:] if value else value
+
+
+_INTENT_SUBJECT_TEMPLATES = {
+    "apply the principle": "apply the principle to {subject}",
+    "contrast nearby concepts": "contrast the concepts related to {subject}",
+    "diagnose a misconception": "diagnose a misconception about {subject}",
+    "explain the core mechanism": "explain the core mechanism behind {subject}",
+    "walk through a worked example": "walk through a worked example of {subject}",
+    "isolate the failing boundary": "isolate the failing boundary in {subject}",
+    "prevent recurrence": "prevent the problem from recurring in {subject}",
+    "produce a minimal reproduction": "produce a minimal reproduction of {subject}",
+    "recover safely": "recover safely from {subject}",
+    "verify a proposed fix": "verify a proposed fix for {subject}",
+    "adapt tone for the audience": "adapt the tone of {subject} for the audience",
+    "draft from structured facts": "draft {subject} from structured facts",
+    "restructure for action": "restructure {subject} for action",
+    "revise for clarity": "revise {subject} for clarity",
+    "summarize faithfully": "summarize {subject} faithfully",
+    "allocate limited resources": "allocate limited resources for {subject}",
+    "compare against hard criteria": "compare {subject} against hard criteria",
+    "define viable options": "define viable options for {subject}",
+    "design a fallback": "design a fallback for {subject}",
+    "sequence the work": "sequence the work for {subject}",
+    "acknowledge the experience": "acknowledge the experience behind {subject}",
+    "choose a gentle next step": "choose a gentle next step for {subject}",
+    "clarify the immediate need": "clarify the immediate need in {subject}",
+    "prepare a grounded conversation": "prepare a grounded conversation about {subject}",
+    "reflect on meaning and progress": "reflect on the meaning and progress of {subject}",
+    "clarify the safe scope": "clarify the safe scope of {subject}",
+    "identify an escalation threshold": "identify an escalation threshold for {subject}",
+    "offer a safe alternative": "offer a safe alternative for {subject}",
+    "preserve privacy and control": "preserve privacy and control around {subject}",
+    "set a clear safety boundary": "set a clear safety boundary for {subject}",
+}
 
 
 def _intent(payload: dict[str, str], family: str) -> str:
@@ -212,6 +277,8 @@ def _fallback_key(value: str) -> str:
 
 def _intent_for_subject(intent: str, subject: str) -> str:
     """Attach a subject without producing ``revise for clarity for X``."""
+    if template := _INTENT_SUBJECT_TEMPLATES.get(intent):
+        return template.format(subject=subject)
     parts = intent.split(maxsplit=1)
     if len(parts) == 2 and parts[1].startswith(
         ("for ", "into ", "against ", "with ", "without ", "through ")
@@ -236,7 +303,11 @@ def _render_final(
     )
     action_sentence = action_frame.format(
         intent=intent,
+        intent_cap=_upper_first(intent),
         intent_with_subject=_intent_for_subject(intent, subject),
+        intent_with_subject_cap=_upper_first(
+            _intent_for_subject(intent, subject)
+        ),
         subject=subject,
         subject_cap=subject_cap,
     )
@@ -245,7 +316,8 @@ def _render_final(
     ].format(constraint=constraint)
     action = fallback_actions(row["fallback"])[surface["fallback_action"]]
     conclusion = CONCLUSION_FRAMES[surface["conclusion_frame"]].format(
-        outcome=outcome
+        outcome=outcome,
+        outcome_lower=_lower_first(outcome),
     )
     fallback = FALLBACK_FRAMES[surface["fallback_frame"]].format(action=action)
     components = {
@@ -630,6 +702,28 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
         for message in row["messages"]
         if message["role"] == "assistant"
     ]
+    assistant_meta_hits = [
+        {"phrase": phrase, "text": message}
+        for message in assistant_messages
+        for phrase in _FORBIDDEN_ASSISTANT_META_PHRASES
+        if phrase in message.lower()
+    ]
+    user_meta_hits = [
+        {"phrase": phrase, "text": message}
+        for message in user_prompts
+        for phrase in _FORBIDDEN_USER_META_PHRASES
+        if phrase in message.lower()
+    ]
+    if assistant_meta_hits:
+        raise ValueError(
+            "assistant text describes how to answer instead of answering directly: "
+            f"{assistant_meta_hits[0]}"
+        )
+    if user_meta_hits:
+        raise ValueError(
+            "user text asks for meta-response construction instead of the task: "
+            f"{user_meta_hits[0]}"
+        )
     train_cards: set[str] = set()
     validation_cards: set[str] = set()
     split_groups: dict[str, set[tuple[str, str, str]]] = defaultdict(set)
@@ -831,6 +925,14 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "user_prompts": _text_statistics(user_prompts),
             "assistant_messages": _text_statistics(assistant_messages),
             "final_responses": final_response_stats,
+        },
+        "natural_language_gate": {
+            "assistant_meta_instruction_hits": len(assistant_meta_hits),
+            "user_meta_request_hits": len(user_meta_hits),
+            "forbidden_assistant_phrases": list(
+                _FORBIDDEN_ASSISTANT_META_PHRASES
+            ),
+            "forbidden_user_phrases": list(_FORBIDDEN_USER_META_PHRASES),
         },
         "message_length_stats": _length_statistics(messages),
         "response_length_stats": _length_statistics(responses),

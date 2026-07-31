@@ -118,98 +118,110 @@ def _render_frame(
     fallback_text = fallback.label.rstrip(".")
     intent_forms = verb_forms(intent.label)
     intent_base = intent_forms["base"]
-    intent_third = intent_forms["third_person_singular"]
 
     triggers = (
         f"A decision about {subject} now requires attention because {lower_first(state_text)}.",
         f"The request concerning {subject} reaches a clear turning point: {state_text}.",
-        f"One concrete update changes how the assistant should {intent_base}: {state_text}.",
+        f"One concrete update changes the direction of the task: {state_text}.",
         f"The {domain.label.lower()} request can no longer proceed routinely because {lower_first(state_text)}.",
         f"A review of {subject} reveals the condition that matters most: {state_text}.",
-        f"The next choice for {subject} is shaped by one verified fact: {state_text}.",
+        f"The immediate choice for {subject} is shaped by one verified fact: {state_text}.",
         f"Handling {subject} becomes a bounded decision with this verified update: {state_text}.",
         f"The immediate issue in this {domain.label.lower()} case is specific: {state_text}.",
         f"A checkpoint for {subject} exposes the operative condition: {state_text}.",
-        f"The assistant must reconsider how it will {intent_base} because {lower_first(state_text)}.",
+        f"The available state calls for a different approach: {state_text}.",
         f"This request about {subject} becomes actionable from one update: {state_text}.",
         f"The {domain.label.lower()} scenario begins with a decisive change: {state_text}.",
     )
     contexts = (
         f"The surrounding context keeps this {domain.label.lower()} request grounded: {context_text}.",
         f"The setting provides the evidence needed to assess {subject}: {context_text}.",
-        f"A tailored answer depends on this concrete background: {context_text}.",
+        f"This decision depends on concrete background: {context_text}.",
         f"The practical setting remains tied to verifiable facts: {context_text}.",
-        f"The wider context narrows what a responsible answer can claim: {context_text}.",
-        f"The assistant can review {subject} against this background: {context_text}.",
-        f"One background fact protects the answer from guesswork: {context_text}.",
+        f"The wider context narrows what can be concluded responsibly: {context_text}.",
+        f"This background provides a basis for reviewing {subject}: {context_text}.",
+        f"One background fact protects the decision from guesswork: {context_text}.",
         f"The domain context keeps the requested action evidence-bound: {context_text}.",
         f"The available context defines the task without inviting assumptions: {context_text}.",
         f"The request sits within a setting that requires observable support: {context_text}.",
-        f"This background rules out a generic answer about {subject}: {context_text}.",
+        f"This background rules out a generic treatment of {subject}: {context_text}.",
         f"The case retains a practical context for reviewing {subject}: {context_text}.",
     )
     tasks = (
-        f"At this point, the assistant should {intent_base} for {subject} using only supported details.",
-        f"At this point, the response {intent_third} for {subject} through a concrete, reviewable step.",
-        f"At this point, the bounded task is to {intent_base} for {subject} without speculation.",
-        f"At this point, a useful response must {intent_base} for {subject} from known facts.",
-        f"At this point, the requested action is to {intent_base} for {subject} with a clear rationale.",
-        f"At this point, the answer should {intent_base} for {subject} and preserve an evidence trail.",
-        f"At this point, this case requires the assistant to {intent_base} for {subject} carefully.",
-        f"At this point, the practical objective is to {intent_base} for {subject} with reviewable support.",
-        f"At this point, any grounded answer should {intent_base} for {subject} using verified information.",
-        f"At this point, the assistant can {intent_base} for {subject} only from available evidence.",
-        f"At this point, the response must {intent_base} for {subject} and explain its basis.",
-        f"At this point, the intended task is to {intent_base} for {subject} without overclaiming.",
+        f"For {subject}, the objective is to {intent_base} using only supported details.",
+        f"The work now focuses on one concrete, reviewable attempt to {intent_base} for {subject}.",
+        f"The bounded task is to {intent_base} for {subject} without speculation.",
+        f"Known facts provide the basis to {intent_base} for {subject}.",
+        f"The requested action is to {intent_base} for {subject} with a clear rationale.",
+        f"A practical step is to {intent_base} for {subject} and preserve an evidence trail.",
+        f"This case calls for a careful attempt to {intent_base} for {subject}.",
+        f"The practical objective is to {intent_base} for {subject} with reviewable support.",
+        f"Verified information sets the scope for trying to {intent_base} for {subject}.",
+        f"Only the available evidence can support an attempt to {intent_base} for {subject}.",
+        f"The task is to {intent_base} for {subject} and make the basis visible.",
+        f"The intended task is to {intent_base} for {subject} without overclaiming.",
     )
     boundaries = (
         f"One explicit boundary governs that work: {constraint_text}.",
-        f"The response must preserve this non-negotiable boundary: {constraint_text}.",
+        f"One non-negotiable boundary must remain intact: {constraint_text}.",
         f"The task remains subject to one firm rule: {constraint_text}.",
         f"No proposed step may cross this stated boundary: {constraint_text}.",
         f"One condition limits the requested action: {constraint_text}.",
-        f"The answer must keep this requirement intact: {constraint_text}.",
+        f"This requirement must remain intact: {constraint_text}.",
         f"This case also carries one clear limit: {constraint_text}.",
         f"The practical objective remains bounded by this rule: {constraint_text}.",
         f"Every grounded option must comply with this condition: {constraint_text}.",
-        f"The following boundary applies to every option: {constraint_text}.",
+        f"This boundary applies to every option: {constraint_text}.",
         f"One requirement must remain intact throughout: {constraint_text}.",
         f"The intended task cannot override this condition: {constraint_text}.",
     )
     outcomes = (
-        f"A valid result for this {domain.label.lower()} case establishes that {lower_first(outcome_text)}.",
-        f"The review succeeds only if the evidence shows that {lower_first(outcome_text)}.",
-        f"Completion requires the response to establish that {lower_first(outcome_text)}.",
+        f"A successful result for this {domain.label.lower()} case means that {lower_first(outcome_text)}.",
+        f"The evidence is sufficient only if it shows that {lower_first(outcome_text)}.",
+        f"Completion requires evidence that {lower_first(outcome_text)}.",
         f"The final check for {subject} is whether {lower_first(outcome_text)}.",
         f"A valid endpoint for this request makes it true that {lower_first(outcome_text)}.",
-        f"The answer is complete by demonstrating that {lower_first(outcome_text)}.",
+        f"The task is complete once the evidence demonstrates that {lower_first(outcome_text)}.",
         f"The result remains acceptable only if {lower_first(outcome_text)}.",
         f"The completion rule for {subject} is that {lower_first(outcome_text)}.",
         f"Acceptance depends on showing through evidence that {lower_first(outcome_text)}.",
         f"The outcome is valid only when the record shows that {lower_first(outcome_text)}.",
-        f"The response should finish by demonstrating that {lower_first(outcome_text)}.",
-        f"The case closes successfully once the answer shows that {lower_first(outcome_text)}.",
+        f"The closing evidence needs to demonstrate that {lower_first(outcome_text)}.",
+        f"The case closes successfully once the record shows that {lower_first(outcome_text)}.",
     )
-    if family_id in {"conversation_empathy", "explanation_learning"}:
-        endings = tuple(
-            f"Which response can {intent_base} for {subject} and apply this fallback if support remains insufficient: {fallback_text}?"
-            for _ in NARRATIVE_FRAME_IDS
-        )
-    else:
-        endings = (
-            f"If evidence blocks efforts to {intent_base} for {subject}, {lower_first(fallback_text)}.",
-            f"If support for {intent_base} remains incomplete around {subject}, {lower_first(fallback_text)}.",
-            f"If the assistant cannot safely {intent_base} for {subject}, {lower_first(fallback_text)}.",
-            f"If verification prevents the assistant from trying to {intent_base} for {subject}, {lower_first(fallback_text)}.",
-            f"If the available record does not support efforts to {intent_base} for {subject}, {lower_first(fallback_text)}.",
-            f"If reliable support fails during efforts to {intent_base} for {subject}, {lower_first(fallback_text)}.",
-            f"If unresolved evidence prevents work to {intent_base} for {subject}, {lower_first(fallback_text)}.",
-            f"If the completion check blocks attempts to {intent_base} for {subject}, {lower_first(fallback_text)}.",
-            f"If proof remains insufficient to {intent_base} for {subject}, {lower_first(fallback_text)}.",
-            f"If uncertainty still prevents the assistant from trying to {intent_base} for {subject}, {lower_first(fallback_text)}.",
-            f"If the response cannot responsibly {intent_base} for {subject}, {lower_first(fallback_text)}.",
-            f"If the case cannot support an effort to {intent_base} for {subject}, {lower_first(fallback_text)}.",
-        )
+    statement_endings = (
+        f"Blocked progress on {intent_base} for {subject} calls for this fallback: {fallback_text}.",
+        f"Incomplete support for {intent_base} around {subject} calls for this fallback: {fallback_text}.",
+        f"An unconfirmed safe scope for {intent_base} around {subject} calls for this fallback: {fallback_text}.",
+        f"Failed verification of an attempt to {intent_base} for {subject} calls for this fallback: {fallback_text}.",
+        f"An insufficient record for {intent_base} around {subject} calls for this fallback: {fallback_text}.",
+        f"Reliable support for {intent_base} around {subject} is no longer available, so use this fallback: {fallback_text}.",
+        f"Unresolved evidence around {intent_base} for {subject} calls for this fallback: {fallback_text}.",
+        f"A failed completion check for {intent_base} around {subject} calls for this fallback: {fallback_text}.",
+        f"Insufficient proof for {intent_base} around {subject} calls for this fallback: {fallback_text}.",
+        f"Unresolved uncertainty around {intent_base} for {subject} calls for this fallback: {fallback_text}.",
+        f"Weak support for {intent_base} around {subject} calls for this fallback: {fallback_text}.",
+        f"A case that cannot support {intent_base} for {subject} calls for this fallback: {fallback_text}.",
+    )
+    question_endings = (
+        f"Given these limits, how would you {intent_base} for {subject} and keep this fallback available for insufficient evidence: {fallback_text}?",
+        f"How would you {intent_base} for {subject} with this fallback available for incomplete support: {fallback_text}?",
+        f"What grounded approach would {intent_base} for {subject} and retain this fallback: {fallback_text}?",
+        f"How can you {intent_base} for {subject} and preserve this fallback for failed verification: {fallback_text}?",
+        f"What is a careful way to {intent_base} for {subject}, with this fallback ready for an insufficient record: {fallback_text}?",
+        f"How would you {intent_base} for {subject} and retain this fallback for lost support: {fallback_text}?",
+        f"What grounded step could {intent_base} for {subject} and preserve this fallback for unresolved evidence: {fallback_text}?",
+        f"How can you {intent_base} for {subject} with this fallback for a failed completion check: {fallback_text}?",
+        f"What supported approach would {intent_base} for {subject}, with this fallback for insufficient proof: {fallback_text}?",
+        f"How would you {intent_base} for {subject} and keep this fallback for unresolved uncertainty: {fallback_text}?",
+        f"What bounded step would {intent_base} for {subject} and leave this fallback available: {fallback_text}?",
+        f"How can you {intent_base} for {subject} and preserve this fallback for a case that cannot support further work: {fallback_text}?",
+    )
+    endings = (
+        question_endings
+        if family_id in {"conversation_empathy", "explanation_learning"}
+        else statement_endings
+    )
 
     trigger = correct_indefinite_articles(triggers[frame_index])
     situation = " ".join(

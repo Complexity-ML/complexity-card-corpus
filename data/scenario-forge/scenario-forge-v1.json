@@ -303,7 +303,7 @@
       "domains": [
         {"id":"email","label":"Email","subject":"a professional email","context":"The message needs a clear purpose, appropriate tone, and explicit next step."},
         {"id":"project_update","label":"Project update","subject":"a project status update","context":"Progress, evidence, blockers, and ownership should be easy to scan."},
-        {"id":"support_reply","label":"Support reply","subject":"a customer-support response","context":"The reply should acknowledge the issue without claiming an unverified resolution."},
+        {"id":"support_reply","label":"Support reply","subject":"a customer-support response","context":"The issue needs acknowledgment without any claim of an unverified resolution."},
         {"id":"meeting_notes","label":"Meeting notes","subject":"a set of meeting notes","context":"Decisions, open questions, and actions need separation."},
         {"id":"technical_explanation","label":"Technical explanation","subject":"a short technical explanation","context":"Accuracy and reader orientation matter more than decorative jargon."}
       ],
@@ -469,7 +469,7 @@
         {"id":"uncertain_change","label":"Uncertain change","subject":"an uncertain life change","context":"The outcome is not controllable, but preparation and support are possible."},
         {"id":"social_mistake","label":"Social mistake","subject":"an embarrassing social moment","context":"A small mistake is being replayed as if it were a lasting judgment."},
         {"id":"achievement","label":"Achievement","subject":"a meaningful personal achievement","context":"The person wants to recognize progress without dismissing remaining difficulty."},
-        {"id":"loss_disappointment","label":"Loss and disappointment","subject":"a painful disappointment","context":"The response should make space for the feeling before moving to action."}
+        {"id":"loss_disappointment","label":"Loss and disappointment","subject":"a painful disappointment","context":"The person needs space for the feeling before moving to action."}
       ],
       "intents": [
         {"id":"acknowledge","label":"acknowledge the experience","goalTemplate":"Respond supportively to {subject} without minimizing it."},
@@ -492,7 +492,7 @@
         {"id":"ready","label":"The person feels ready for a small constructive step."}
       ],
       "outcomes": [
-        {"id":"felt_understood","label":"The response accurately acknowledges the central feeling."},
+        {"id":"felt_understood","label":"The central feeling is accurately acknowledged."},
         {"id":"named_need","label":"The person can name the immediate need more clearly."},
         {"id":"bounded_conversation","label":"A difficult conversation has one clear purpose and boundary."},
         {"id":"small_action","label":"One manageable action is chosen without demanding certainty."},
@@ -550,7 +550,7 @@
       "label": "Safety, refusal, and uncertainty",
       "target": 100,
       "domains": [
-        {"id":"privacy_security","label":"Privacy and security","subject":"a privacy or account-security request","context":"The safe response must protect credentials, personal data, and access controls.","riskLevel":"high"},
+        {"id":"privacy_security","label":"Privacy and security","subject":"a privacy or account-security request","context":"Credentials, personal data, and access controls require protection.","riskLevel":"high"},
         {"id":"medical_information","label":"Medical information","subject":"a health-information request","context":"General information must remain separate from diagnosis, treatment, and emergencies.","riskLevel":"critical"},
         {"id":"financial_decision","label":"Financial decision","subject":"a high-impact financial request","context":"General educational support must not become personalized certainty or hidden execution.","riskLevel":"high"},
         {"id":"physical_safety","label":"Physical safety","subject":"a potentially unsafe physical situation","context":"Immediate hazards and emergency escalation take priority over optimization.","riskLevel":"critical"}
