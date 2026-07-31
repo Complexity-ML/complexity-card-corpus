@@ -20,13 +20,14 @@ def test_every_published_source_is_complexity_original_cc_by_nc() -> None:
 def test_release_has_no_retired_external_dataset_pipeline() -> None:
     assert not any((ROOT / "data/mosaic").glob("*"))
     assert not (ROOT / "data/conversation/sources.json").exists()
-    for module in ("mosaic.py", "mosaic_stream.py", "oasst1.py"):
+    for module in ("conversation.py", "mosaic.py", "mosaic_stream.py", "oasst1.py"):
         assert not (ROOT / "src/complexity_card_corpus" / module).exists()
 
     cli_source = (ROOT / "src/complexity_card_corpus/cli.py").read_text()
     for command in (
         "build-mosaic",
         "build-mosaic-shards",
+        'add_parser("build-conversation")',
         "tokenize-mosaic-shards",
         "import-oasst1",
         "package-posttrain-hf",

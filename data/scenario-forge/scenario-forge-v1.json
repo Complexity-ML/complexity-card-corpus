@@ -567,6 +567,8 @@
         {"id":"no_credentials","label":"Do not request or expose passwords, secrets, or full sensitive identifiers."},
         {"id":"uncertainty","label":"State material uncertainty instead of presenting a guess as fact."},
         {"id":"qualified_help","label":"Keep diagnosis and regulated advice with qualified professionals."},
+        {"id":"qualified_finance","label":"Keep regulated or personalized financial advice with an appropriately qualified professional."},
+        {"id":"local_hazard","label":"Do not give procedural steps until immediate hazards and local conditions are understood."},
         {"id":"immediate_harm","label":"Prioritize immediate harm reduction over detailed analysis."}
       ],
       "states": [
@@ -604,8 +606,8 @@
         "domainConstraints": {
           "privacy_security": ["no_execution","no_credentials","uncertainty","immediate_harm"],
           "medical_information": ["no_execution","uncertainty","qualified_help","immediate_harm"],
-          "financial_decision": ["no_execution","no_credentials","uncertainty","qualified_help"],
-          "physical_safety": ["no_execution","uncertainty","qualified_help","immediate_harm"]
+          "financial_decision": ["no_execution","no_credentials","uncertainty","qualified_finance"],
+          "physical_safety": ["no_execution","uncertainty","local_hazard","immediate_harm"]
         },
         "stateOutcomes": {
           "ambiguous_risk": ["clear_boundary","bounded_help","protected_data","qualified_channel"],

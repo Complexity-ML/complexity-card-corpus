@@ -12,6 +12,7 @@ import pyarrow.parquet as pq
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .build import file_sha256
+from .english_morphology import audit_verb_phrases
 from .scenario_integrity import (
     creation_hash as _creation_hash,
     deterministic_order as _permuted,
@@ -23,6 +24,7 @@ from .scenario_language import (
     DynamicNarrativeComposer,
     compose_title as _title,
 )
+from .scenario_surface import audit_scenario_surface
 
 
 SCENARIO_FORGE_VERSION = "scenario-forge-v1"
@@ -30,6 +32,9 @@ SCENARIO_PROVENANCE = (
     "Complexity original authored semantic taxonomy and narrative frames; "
     "no third-party source utterances and no model-generated dialogue."
 )
+MIN_UNIQUE_SENTENCE_RATE = 0.80
+MIN_QUESTION_RATE = 0.25
+MAX_QUESTION_RATE = 0.30
 
 SCENARIO_SCHEMA = pa.schema(
     [
@@ -344,31 +349,59 @@ def _domain_quotas(family: ScenarioFamilySpec, seed: int) -> dict[str, int]:
 def _assign_splits(
     rows: list[dict[str, Any]], validation_percent: int, seed: int
 ) -> None:
-    strata: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    families: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         row["split"] = "train"
-        strata[(row["family"], row["domain"])].append(row)
+        families[row["family"]].append(row)
 
     target = round(len(rows) * validation_percent / 100)
-    quotas: dict[tuple[str, str], int] = {}
-    remainders: list[tuple[int, bytes, tuple[str, str]]] = []
-    for key, values in strata.items():
+    quotas: dict[str, int] = {}
+    remainders: list[tuple[int, bytes, str]] = []
+    for family_id, values in families.items():
         numerator = len(values) * validation_percent
-        quotas[key] = numerator // 100
-        remainders.append((numerator % 100, _digest(f"{seed}:split-quota:{key}"), key))
+        quotas[family_id] = numerator // 100
+        remainders.append(
+            (
+                numerator % 100,
+                _digest(f"{seed}:split-quota:{family_id}"),
+                family_id,
+            )
+        )
     remaining = target - sum(quotas.values())
-    for _, _, key in sorted(remainders, key=lambda value: (-value[0], value[1]))[
+    for _, _, family_id in sorted(
+        remainders, key=lambda value: (-value[0], value[1])
+    )[
         :remaining
     ]:
-        quotas[key] += 1
+        quotas[family_id] += 1
 
-    for key, values in strata.items():
-        selected = sorted(
-            values,
-            key=lambda row: _digest(f"{seed}:validation:{row['scenario_id']}"),
-        )[: quotas[key]]
-        for row in selected:
-            row["split"] = "validation"
+    for family_id, values in families.items():
+        groups: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+        for row in values:
+            groups[(row["domain"], row["intent"])].append(row)
+        ordered = sorted(
+            groups.items(),
+            key=lambda item: _digest(
+                f"{seed}:validation-group:{family_id}:{item[0][0]}:{item[0][1]}"
+            ),
+        )
+        family_target = quotas[family_id]
+        subsets: dict[int, tuple[tuple[str, str], ...]] = {0: ()}
+        for key, group_rows in ordered:
+            for subtotal, selected in tuple(sorted(subsets.items(), reverse=True)):
+                candidate = subtotal + len(group_rows)
+                if candidate <= family_target and candidate not in subsets:
+                    subsets[candidate] = (*selected, key)
+        if family_target not in subsets:
+            sizes = [len(group_rows) for _, group_rows in ordered]
+            raise ValueError(
+                f"cannot form exact validation holdout of {family_target} rows for "
+                f"{family_id} from domain-intent group sizes {sizes}"
+            )
+        selected_groups = set(subsets[family_target])
+        for key in selected_groups:
+            for row in groups[key]:
+                row["split"] = "validation"
 
 
 def _semantic_combinations(
@@ -526,11 +559,13 @@ def compile_scenarios(registry: ScenarioForgeRegistry) -> list[dict[str, Any]]:
                 scenario_id = f"scenario:{creation_hash[:24]}"
                 fallback = _select_fallback(family, domain, state)
                 trigger, situation, narrative_frame = language.compose(
+                    family.family_id,
                     domain,
                     intent,
                     constraint,
                     state,
                     outcome,
+                    fallback,
                 )
                 base_goal = intent.goal_template.format(
                     subject=domain.subject,
@@ -762,6 +797,48 @@ def audit_scenarios(
             f"expected exactly {expected_validation} validation rows, found "
             f"{split_counts['validation']}"
         )
+    train_groups = {
+        (row["family"], row["domain"], row["intent"])
+        for row in rows
+        if row["split"] == "train"
+    }
+    validation_groups = {
+        (row["family"], row["domain"], row["intent"])
+        for row in rows
+        if row["split"] == "validation"
+    }
+    leaking_groups = train_groups & validation_groups
+    if leaking_groups:
+        raise ValueError(
+            "validation domain-intent groups leak into training: "
+            + ", ".join(map(str, sorted(leaking_groups)[:10]))
+        )
+
+    surface_audit = audit_scenario_surface(rows)
+    if surface_audit["issues"]:
+        raise ValueError(
+            "Scenario Forge surface composition lint failed: "
+            + ", ".join(
+                f"{issue['scenario_id']}:{issue['kind']}"
+                for issue in surface_audit["issues"][:10]
+            )
+        )
+    surface_stats = surface_audit["stats"]
+    if surface_stats["unique_sentence_rate"] < MIN_UNIQUE_SENTENCE_RATE:
+        raise ValueError(
+            "Scenario Forge surface language is too repetitive: "
+            f"{surface_stats['unique_sentence_rate']:.3f} < "
+            f"{MIN_UNIQUE_SENTENCE_RATE:.3f}"
+        )
+    if not MIN_QUESTION_RATE <= surface_stats["question_rate"] <= MAX_QUESTION_RATE:
+        raise ValueError(
+            "Scenario Forge question rate is outside the intended range: "
+            f"{surface_stats['question_rate']:.3f}"
+        )
+
+    morphology_audit = audit_verb_phrases(
+        [intent.label for family in registry.families for intent in family.intents]
+    )
 
     return {
         "scenarios": len(rows),
@@ -779,7 +856,21 @@ def audit_scenarios(
         "domain_counts": dict(sorted(domain_counts.items())),
         "axis_coverage": dict(sorted(axis_coverage.items())),
         "split_counts": dict(sorted(split_counts.items())),
+        "split_holdout_unit": "family+domain+intent",
+        "split_group_overlap": 0,
+        "validation_family_counts": dict(
+            sorted(
+                Counter(
+                    row["family"] for row in rows if row["split"] == "validation"
+                ).items()
+            )
+        ),
         "risk_counts": dict(sorted(Counter(row["risk_level"] for row in rows).items())),
+        "surface_stats": surface_stats,
+        "surface_language_audit": {
+            key: value for key, value in surface_audit.items() if key != "stats"
+        },
+        "morphology_audit": morphology_audit,
         "payload_contract_match_ratio": 1.0,
         "compatibility_match_ratio": 1.0,
     }

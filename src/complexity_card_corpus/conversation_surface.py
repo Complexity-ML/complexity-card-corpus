@@ -1021,9 +1021,11 @@ def build_conversation_surface(
                 rank,
                 selected_card=card,
             )
-            render_position = lambda position, shift: _task_message_at(
-                surface_blueprint, card, phrase_rank, position, shift
-            )
+            def render_position(position: int, shift: int) -> str:
+                return _task_message_at(
+                    surface_blueprint, card, phrase_rank, position, shift
+                )
+
             task = "practical_dialogue"
         else:
             surface_blueprint = blueprint
@@ -1034,9 +1036,11 @@ def build_conversation_surface(
             messages, card_id = _empathy_messages(
                 blueprint, category_cards, rank
             )
-            render_position = lambda position, shift: _empathy_message_at(
-                blueprint, card, rank, position, shift
-            )
+            def render_position(position: int, shift: int) -> str:
+                return _empathy_message_at(
+                    blueprint, card, rank, position, shift
+                )
+
             task = "empathetic_dialogue"
 
         final_position = len(messages) - 1

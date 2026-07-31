@@ -50,6 +50,24 @@ def test_scenario_forge_compiles_two_thousand_semantic_cards() -> None:
     assert audit["payload_contract_match_ratio"] == 1.0
     assert audit["compatibility_match_ratio"] == 1.0
     assert audit["split_counts"] == {"train": 1_900, "validation": 100}
+    assert audit["split_holdout_unit"] == "family+domain+intent"
+    assert audit["split_group_overlap"] == 0
+    assert sum(audit["validation_family_counts"].values()) == 100
+    assert audit["surface_stats"]["documents"] == 2_000
+    assert audit["surface_stats"]["unique_document_rate"] == 1.0
+    assert audit["surface_stats"]["unique_sentence_rate"] >= 0.80
+    assert 0.25 <= audit["surface_stats"]["question_rate"] <= 0.30
+    assert audit["surface_language_audit"]["issue_count"] == 0
+    assert audit["surface_language_audit"]["checked_rows"] == 2_000
+    assert audit["surface_language_audit"]["semantic_anchor_match_rate"] == 1.0
+    assert audit["surface_language_audit"]["frame_family_cells"] == 84
+    assert audit["morphology_audit"] == {
+        "intent_phrases": 35,
+        "unique_lemmas": 34,
+        "forms_per_intent": 5,
+        "forms_generated": 175,
+        "unique_realized_forms": 140,
+    }
 
     assert all(row["provenance"] == SCENARIO_PROVENANCE for row in rows)
     assert all(not row["model_generated_dialogue"] for row in rows)
@@ -213,6 +231,46 @@ def test_domain_intent_and_state_outcome_rules_are_realized() -> None:
     )
 
 
+def test_validation_holds_out_complete_domain_intent_groups() -> None:
+    registry = load_scenario_registry(REGISTRY)
+    rows = compile_scenarios(registry)
+
+    train_groups = {
+        (row["family"], row["domain"], row["intent"])
+        for row in rows
+        if row["split"] == "train"
+    }
+    validation_groups = {
+        (row["family"], row["domain"], row["intent"])
+        for row in rows
+        if row["split"] == "validation"
+    }
+    assert not train_groups & validation_groups
+    assert sum(row["split"] == "validation" for row in rows) == 100
+
+
+def test_safety_constraints_are_domain_specific() -> None:
+    registry = load_scenario_registry(REGISTRY)
+    rows = compile_scenarios(registry)
+    safety = [row for row in rows if row["family"] == "safety_uncertainty"]
+
+    assert not any(
+        row["domain"] in {"financial_decision", "physical_safety"}
+        and "diagnosis" in row["constraint"].lower()
+        for row in safety
+    )
+    assert any(
+        row["domain"] == "financial_decision"
+        and "financial advice" in row["constraint"].lower()
+        for row in safety
+    )
+    assert any(
+        row["domain"] == "physical_safety"
+        and "immediate hazards" in row["constraint"].lower()
+        for row in safety
+    )
+
+
 def test_fallback_selection_uses_registry_priority() -> None:
     registry = load_scenario_registry(REGISTRY)
     rows = compile_scenarios(registry)
@@ -252,7 +310,15 @@ def test_dynamic_language_is_seeded_and_balances_frame_usage() -> None:
     def sequence(seed: int) -> list[str]:
         composer = DynamicNarrativeComposer(seed)
         return [
-            composer.compose(domain, intent, constraint, state, outcome)[2]
+            composer.compose(
+                family.family_id,
+                domain,
+                intent,
+                constraint,
+                state,
+                outcome,
+                family.fallbacks[0],
+            )[2]
             for _ in range(24)
         ]
 

@@ -119,6 +119,7 @@ The implementation is split into explicit layers:
 ```text
 data/scenario-forge/                 editable dataset registry
 scenario_language.py                dynamic language composition
+english_morphology.py              verb inflection and clause realization
 scenario_integrity.py               identity and verification hashes
 scenario_forge.py                   Python build/audit API
 cli.py                              command-line adapter
@@ -154,9 +155,69 @@ hashes for each output file.
 The audit enforces 2,000 unique situations, titles, objectives, IDs,
 signatures, payloads and hash pairs; exactly 1,900 training and 100 validation
 cards; exact family allocation; domain balance; complete axis coverage;
-family-specific payload contracts; and a 100% compatibility match. It rejects
-unknown matrix references, incompatible combinations and content changed after
-compilation.
+family-specific payload contracts; and a 100% compatibility match. Validation
+holds out complete `(family, domain, intent)` groups, so a semantic group cannot
+appear in both partitions. The audit rejects unknown matrix references,
+incompatible combinations and content changed after compilation. A separate
+surface-composition lint checks all 2,000 rows, every family/frame cell,
+punctuation, question-family contracts, suspicious verb chains and the presence
+of state, constraint and outcome anchors. It is a deterministic template audit,
+not a claim of general grammatical certification.
+
+Intent labels are stored as lemma-first verb phrases rather than enumerated
+sentences. The English morphology layer derives base, third-person singular,
+past, past-participle and present-participle forms, then realizes agreement,
+aspect, negation, modality and question order. Regular forms follow productive
+rules; genuinely irregular lemmas use a compact exception table. The manifest
+records the number of checked intent phrases, lemmas and realized forms.
+
+### Private lexical mining and anti-copy audit
+
+Pinned third-party dialogue sources may be inspected locally to measure their
+structure and extract **single normalized vocabulary tokens only**. The lexical
+mine never writes utterances, source order, record identifiers, phrases or
+n-grams. Its output is a private candidate lexicon, is marked
+`release_ready=false`, retains each source license and revision, and requires
+human approval before a word can inform an original language palette.
+
+```bash
+uv run card-corpus fetch-lexical-mine \
+  --registry /private/path/conversation-sources.json \
+  --raw /private/path/raw
+
+uv run card-corpus build-lexical-mine \
+  --registry /private/path/conversation-sources.json \
+  --raw /private/path/raw \
+  --output build/private-lexical-mine \
+  --scenarios build/scenario-forge
+
+uv run card-corpus audit-source-overlap \
+  --registry /private/path/conversation-sources.json \
+  --raw /private/path/raw \
+  --scenarios build/scenario-forge \
+  --window-tokens 8
+```
+
+The mine reports comparable aggregate statistics per source: document count,
+mean/median/p95 length, question rate, type-token ratio and retained-vocabulary
+coverage. When Scenario Forge is supplied, it also maps each transient
+eight-token window to coarse classes such as determiner, pronoun, auxiliary,
+transition, preposition and content. It reports distribution divergence for
+window shapes, sentence openings, sentence endings and transition positions.
+The abstract comparison does not retain lexical n-grams and is a style
+diagnostic, not proof of grammatical correctness. The overlap audit separately
+hashes source windows only in memory and fails if generated titles, triggers,
+situations or goals reproduce an eight-token source sequence. Neither source
+text nor source-window hashes are retained.
+
+An eight-word length is not treated as an automatic reuse permission. A common
+functional expression may be added only through a separate human-reviewed
+palette after checking that it is conventional, necessary for the domain and
+compatible with the source terms. Automated mining never promotes a lexical
+window into released training text.
+
+The current aggregate comparison and its acceptance criteria are documented in
+[the post-training surface reference audit](docs/post-training-reference-audit.md).
 
 ## Original instruction tuning
 

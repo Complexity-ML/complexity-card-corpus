@@ -7,7 +7,6 @@ from pathlib import Path
 import pyarrow.parquet as pq
 
 from .build import build_corpus
-from .conversation import build_conversation_dataset
 from .conversation_blueprint import build_conversation_blueprints
 from .conversation_mine import build_conversation_mine, fetch_conversation_sources
 from .conversation_surface import (
@@ -16,6 +15,11 @@ from .conversation_surface import (
 )
 from .forge import write_forged_dataset
 from .instruct import build_instruction_dataset, tokenize_instruction_dataset
+from .lexical_mine import (
+    audit_source_overlap,
+    build_lexical_mine,
+    fetch_lexical_sources,
+)
 from .package import (
     package_for_hugging_face,
     package_instructions_for_hugging_face,
@@ -63,12 +67,6 @@ def parser() -> argparse.ArgumentParser:
     build_instruct.add_argument("--max-relations-per-card", type=int, default=2)
     build_instruct.add_argument("--max-paths-per-card", type=int, default=1)
 
-    build_conversation = commands.add_parser("build-conversation")
-    build_conversation.add_argument("--output", type=Path, required=True)
-    build_conversation.add_argument("--examples", type=int, default=2_000)
-    build_conversation.add_argument("--seed", type=int, default=42)
-    build_conversation.add_argument("--validation-percent", type=int, default=5)
-
     fetch_conversation_mine = commands.add_parser("fetch-conversation-mine")
     fetch_conversation_mine.add_argument("--registry", type=Path, required=True)
     fetch_conversation_mine.add_argument("--raw", type=Path, required=True)
@@ -78,6 +76,29 @@ def parser() -> argparse.ArgumentParser:
     conversation_mine.add_argument("--raw", type=Path, required=True)
     conversation_mine.add_argument("--output", type=Path, required=True)
     conversation_mine.add_argument("--max-rows-per-source", type=int)
+
+    lexical_mine = commands.add_parser("build-lexical-mine")
+    lexical_mine.add_argument("--registry", type=Path, required=True)
+    lexical_mine.add_argument("--raw", type=Path, required=True)
+    lexical_mine.add_argument("--output", type=Path, required=True)
+    lexical_mine.add_argument("--min-count", type=int, default=8)
+    lexical_mine.add_argument("--max-capitalized-ratio", type=float, default=0.65)
+    lexical_mine.add_argument("--delete-raw", action="store_true")
+    lexical_mine.add_argument(
+        "--scenarios",
+        type=Path,
+        help="optionally compare mined eight-token structures with Scenario Forge",
+    )
+
+    fetch_lexical = commands.add_parser("fetch-lexical-mine")
+    fetch_lexical.add_argument("--registry", type=Path, required=True)
+    fetch_lexical.add_argument("--raw", type=Path, required=True)
+
+    source_overlap = commands.add_parser("audit-source-overlap")
+    source_overlap.add_argument("--registry", type=Path, required=True)
+    source_overlap.add_argument("--raw", type=Path, required=True)
+    source_overlap.add_argument("--scenarios", type=Path, required=True)
+    source_overlap.add_argument("--window-tokens", type=int, default=8)
 
     conversation_blueprints = commands.add_parser("build-conversation-blueprints")
     conversation_blueprints.add_argument("--mine", type=Path, required=True)
@@ -192,14 +213,6 @@ def main() -> None:
             max_paths_per_card=args.max_paths_per_card,
         )
         print(json.dumps(result["counts"], indent=2, sort_keys=True))
-    elif args.command == "build-conversation":
-        result = build_conversation_dataset(
-            args.output,
-            examples=args.examples,
-            seed=args.seed,
-            validation_percent=args.validation_percent,
-        )
-        print(json.dumps(result["counts"], indent=2, sort_keys=True))
     elif args.command == "fetch-conversation-mine":
         result = fetch_conversation_sources(args.registry, args.raw)
         print(json.dumps(result, indent=2, sort_keys=True))
@@ -217,6 +230,28 @@ def main() -> None:
                 sort_keys=True,
             )
         )
+    elif args.command == "build-lexical-mine":
+        result = build_lexical_mine(
+            args.registry,
+            args.raw,
+            args.output,
+            min_count=args.min_count,
+            max_capitalized_ratio=args.max_capitalized_ratio,
+            delete_raw=args.delete_raw,
+            scenarios_path=args.scenarios,
+        )
+        print(json.dumps(result["audit"], indent=2, sort_keys=True))
+    elif args.command == "fetch-lexical-mine":
+        result = fetch_lexical_sources(args.registry, args.raw)
+        print(json.dumps(result, indent=2, sort_keys=True))
+    elif args.command == "audit-source-overlap":
+        result = audit_source_overlap(
+            args.registry,
+            args.raw,
+            args.scenarios,
+            window_tokens=args.window_tokens,
+        )
+        print(json.dumps(result, indent=2, sort_keys=True))
     elif args.command == "build-conversation-blueprints":
         result = build_conversation_blueprints(
             args.mine,
