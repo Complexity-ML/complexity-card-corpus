@@ -195,8 +195,10 @@ two explicit holdout contracts: zero shared scenario IDs and zero shared
 claim zero lexical or semantic near-duplicate leakage.
 
 Exact-string conversation and response uniqueness are reported as descriptive
-checks, not as evidence of narrative individualization. The diversity report
-also exposes response opening/structure pairs, MATTR-100, distinct and
+checks, not as evidence of narrative individualization. The response composer
+uses eight original openings, eight action frames and eight constraint frames
+for each of seven task families, then balances twelve narrative orders. The
+diversity report exposes the realized combinations, MATTR-100, distinct and
 singleton 4/8-gram ratios, maximum repeated-phrase coverage and the most
 repeated n-grams. These measurements are separated for user prompts, all
 assistant messages and final assistant responses. `distinct_ngram_ratio` means
@@ -209,7 +211,10 @@ separately because an intentionally frequent safety policy is not the same as a
 repeated sentence. A second audit replaces subject, intent, state, constraint,
 outcome, fallback and domain context with placeholders before measuring exact
 skeleton and 4/8-gram diversity. This prevents variable values from hiding a
-repetitive response structure.
+repetitive response structure. The build also rejects masked eight-token prose
+that reaches 5% of final responses. Raw source anchors remain visible in the
+unmasked statistics, so a deliberately repeated constraint cannot be mistaken
+for a repeated response template.
 
 `human_review.csv` samples 70 **unique source scenarios**, ten from each of the
 seven families, while cycling through risk level, split and domain. Both the

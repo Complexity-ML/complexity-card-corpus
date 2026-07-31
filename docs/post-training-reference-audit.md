@@ -114,4 +114,19 @@ The next language layer should be accepted only when it:
    responses;
 7. reports prompt, assistant-message and final-response diversity separately;
 8. keeps the dominant exact response skeleton below 5% after semantic variables
-   are replaced with placeholders.
+   are replaced with placeholders;
+9. keeps each family-specific opening, action frame and constraint frame below
+   5% of final responses;
+10. keeps every masked eight-token prose sequence below 5% while retaining raw
+    source-anchor repetition in a separate unmasked report.
+
+## Current post-training surface gate
+
+The current 4,000-example build realizes 3,752 of 43,008 possible combinations
+of family opening, action frame, constraint frame and narrative order. No
+combination occurs more than three times. Each of the three family-specific
+surface layers peaks at 3.75% of final responses, and the largest masked
+eight-token message coverage is 4.35%. Exact final responses and exact masked
+response skeletons are both unique in this build. These are automated
+anti-template diagnostics; the 140-row stratified human review remains pending
+and the corpus remains explicitly not training-ready.

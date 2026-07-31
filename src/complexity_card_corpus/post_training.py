@@ -20,7 +20,11 @@ from .english_morphology import correct_indefinite_articles
 from .instruct import INSTRUCTION_SCHEMA
 from .post_training_language import (
     CONCLUSION_FRAMES,
+    FAMILY_ACTION_FRAMES,
+    FAMILY_CONSTRAINT_FRAMES,
+    FAMILY_OPENINGS,
     FALLBACK_FRAMES,
+    RESPONSE_ORDERS,
     fallback_actions,
 )
 
@@ -38,7 +42,6 @@ REVIEW_GRADES = (
 _WORD = re.compile(r"[A-Za-z]+(?:['’][A-Za-z]+)?")
 _REVIEW_STATUSES = frozenset({"pending", "approved", "rejected"})
 _REVIEW_GRADE_VALUES = frozenset({"", "pass", "fail"})
-_RESPONSE_STRUCTURE_COUNT = 12
 _MAX_SURFACE_FORMULATION_SHARE = 0.05
 
 _INTENT_FIELD = {
@@ -50,21 +53,6 @@ _INTENT_FIELD = {
     "conversation_empathy": "conversational_goal",
     "safety_uncertainty": "safe_goal",
 }
-
-_OPENINGS = (
-    "I would begin with the verified facts",
-    "The safest useful approach is evidence first",
-    "A grounded response can proceed in three bounded parts",
-    "The clearest next move is to separate facts from assumptions",
-    "I would keep the answer practical and reviewable",
-    "This can be handled without guessing",
-    "The response should start from what is currently supported",
-    "A careful answer can remain concise",
-    "I would preserve control while moving the task forward",
-    "The useful path is narrow but actionable",
-    "A responsible answer should make its basis explicit",
-    "The next step should remain reversible where possible",
-)
 
 _ACKNOWLEDGEMENTS = (
     "I understand the decision you are trying to make, and I will keep the answer tied to evidence.",
@@ -125,15 +113,6 @@ def _intent(payload: dict[str, str], family: str) -> str:
     return payload[_INTENT_FIELD[family]].rstrip(".")
 
 
-def _surface_selection(row: dict[str, Any], variant: int) -> tuple[int, int]:
-    return (
-        _stable_index(f"final:{row['scenario_id']}:{variant}", len(_OPENINGS)),
-        _stable_index(
-            f"structure:{row['scenario_id']}:{variant}", _RESPONSE_STRUCTURE_COUNT
-        ),
-    )
-
-
 def _surface_assignments(
     scenarios: list[dict[str, Any]], variants_per_scenario: int
 ) -> dict[tuple[str, int], dict[str, int]]:
@@ -146,6 +125,41 @@ def _surface_assignments(
     assignments: dict[tuple[str, int], dict[str, int]] = {
         (row["scenario_id"], variant): {} for row, variant in items
     }
+    expected_families = set(_INTENT_FIELD)
+    registries = (FAMILY_OPENINGS, FAMILY_ACTION_FRAMES, FAMILY_CONSTRAINT_FRAMES)
+    if any(set(registry) != expected_families for registry in registries):
+        raise RuntimeError("post-training family language registries are inconsistent")
+    family_groups: dict[str, list[tuple[dict[str, Any], int]]] = defaultdict(list)
+    for row, variant in items:
+        family_groups[row["family"]].append((row, variant))
+    dimensions = (
+        ("opening", FAMILY_OPENINGS),
+        ("action_frame", FAMILY_ACTION_FRAMES),
+        ("constraint_frame", FAMILY_CONSTRAINT_FRAMES),
+    )
+    for family, values in family_groups.items():
+        for dimension, registry in dimensions:
+            ordered = sorted(
+                values,
+                key=lambda item: hashlib.sha256(
+                    f"{dimension}-balance:{item[0]['scenario_id']}:{item[1]}".encode()
+                ).digest(),
+            )
+            for position, (row, variant) in enumerate(ordered):
+                assignments[(row["scenario_id"], variant)][dimension] = (
+                    position % len(registry[family])
+                )
+        order_values = sorted(
+            values,
+            key=lambda item: hashlib.sha256(
+                f"order-balance:{item[0]['scenario_id']}:{item[1]}".encode()
+            ).digest(),
+        )
+        for position, (row, variant) in enumerate(order_values):
+            assignments[(row["scenario_id"], variant)]["order"] = (
+                position % len(RESPONSE_ORDERS)
+            )
+
     fallback_groups: dict[str, list[tuple[dict[str, Any], int]]] = defaultdict(list)
     for row, variant in items:
         fallback_groups[row["fallback"].rstrip(".")].append((row, variant))
@@ -181,38 +195,54 @@ def _fallback_key(value: str) -> str:
     return hashlib.sha256(value.rstrip(".").encode()).hexdigest()[:10]
 
 
+def _intent_for_subject(intent: str, subject: str) -> str:
+    """Attach a subject without producing ``revise for clarity for X``."""
+    parts = intent.split(maxsplit=1)
+    if len(parts) == 2 and parts[1].startswith(
+        ("for ", "into ", "against ", "with ", "without ", "through ")
+    ):
+        return f"{parts[0]} {subject} {parts[1]}"
+    return f"{intent} for {subject}"
+
+
 def _render_final(
     row: dict[str, Any], variant: int, surface: dict[str, int]
 ) -> str:
     payload = json.loads(row["semantic_payload"])
     intent = _intent(payload, row["family"])
     subject = payload["subject"]
+    subject_cap = subject[:1].upper() + subject[1:]
     constraint = row["constraint"].rstrip(".")
     outcome = row["desired_outcome"].rstrip(".")
-    opening_index, structure_index = _surface_selection(row, variant)
-    opening = _OPENINGS[opening_index]
-    structures = (
-        f"{opening}. I would {intent} for {subject} while preserving this boundary: {constraint}.",
-        f"{opening}. For {subject}, the immediate objective is to {intent}. One limit remains firm: {constraint}.",
-        f"{opening}. The next response should {intent} for {subject}. It must respect this condition: {constraint}.",
-        f"{opening}. I would {intent} for {subject} through a reviewable step. The controlling boundary is: {constraint}.",
-        f"{opening}. My first step would be to {intent} for {subject}. I would treat this as a hard boundary: {constraint}.",
-        f"{opening}. For {subject}, I would use confirmed details to {intent}. The response cannot override this rule: {constraint}.",
-        f"{opening}. A bounded plan can {intent} for {subject}. It must not violate this condition: {constraint}.",
-        f"{opening}. I would keep ownership visible while trying to {intent} for {subject}. This requirement remains fixed: {constraint}.",
-        f"{opening}. The practical route is to {intent} for {subject}. Every option remains governed by this boundary: {constraint}.",
-        f"{opening}. For this case, efforts to {intent} for {subject} should follow the available evidence. The limiting rule is: {constraint}.",
-        f"{opening}. I would make one reversible move to {intent} for {subject}. The move must preserve this condition: {constraint}.",
-        f"{opening}. The answer can {intent} for {subject} by naming facts, action, and verification. It must keep this boundary intact: {constraint}.",
+    family = row["family"]
+    opening = FAMILY_OPENINGS[family][surface["opening"]]
+    action_frame = FAMILY_ACTION_FRAMES[family][surface["action_frame"]].replace(
+        "{intent} for {subject}", "{intent_with_subject}"
     )
-    if len(structures) != _RESPONSE_STRUCTURE_COUNT:
-        raise RuntimeError("response structure registry is inconsistent")
+    action_sentence = action_frame.format(
+        intent=intent,
+        intent_with_subject=_intent_for_subject(intent, subject),
+        subject=subject,
+        subject_cap=subject_cap,
+    )
+    constraint_sentence = FAMILY_CONSTRAINT_FRAMES[family][
+        surface["constraint_frame"]
+    ].format(constraint=constraint)
     action = fallback_actions(row["fallback"])[surface["fallback_action"]]
     conclusion = CONCLUSION_FRAMES[surface["conclusion_frame"]].format(
         outcome=outcome
     )
     fallback = FALLBACK_FRAMES[surface["fallback_frame"]].format(action=action)
-    selected = f"{structures[structure_index]} {conclusion} {fallback}"
+    components = {
+        "opening": opening,
+        "action": action_sentence,
+        "constraint": constraint_sentence,
+        "conclusion": conclusion,
+        "fallback": fallback,
+    }
+    selected = " ".join(
+        components[component] for component in RESPONSE_ORDERS[surface["order"]]
+    )
     return correct_indefinite_articles(selected)
 
 
@@ -269,7 +299,6 @@ def _conversation_rows(
             messages = _render_messages(scenario, variant, surface)
             rendered = _render_transcript(messages)
             mode = "instruct" if len(messages) == 2 else "chat"
-            opening_index, structure_index = _surface_selection(scenario, variant)
             payload = json.loads(scenario["semantic_payload"])
             fallback_key = _fallback_key(scenario["fallback"])
             fallback_action = fallback_actions(scenario["fallback"])[
@@ -296,10 +325,27 @@ def _conversation_rows(
                 "response_contract": scenario["response_contract"],
                 "variant": variant,
                 "mode": mode,
-                "response_opening_id": f"opening-{opening_index:02d}",
-                "response_structure_id": f"structure-{structure_index:02d}",
+                "response_opening_id": (
+                    f"{scenario['family']}:opening-{surface['opening']:02d}"
+                ),
+                "response_action_id": (
+                    f"{scenario['family']}:action-{surface['action_frame']:02d}"
+                ),
+                "response_constraint_id": (
+                    f"{scenario['family']}:constraint-"
+                    f"{surface['constraint_frame']:02d}"
+                ),
+                "response_order_id": f"order-{surface['order']:02d}",
+                "response_structure_id": (
+                    f"{scenario['family']}:action-{surface['action_frame']:02d}:"
+                    f"constraint-{surface['constraint_frame']:02d}:"
+                    f"order-{surface['order']:02d}"
+                ),
                 "response_surface_pattern_id": (
-                    f"opening-{opening_index:02d}:structure-{structure_index:02d}"
+                    f"{scenario['family']}:opening-{surface['opening']:02d}:"
+                    f"action-{surface['action_frame']:02d}:"
+                    f"constraint-{surface['constraint_frame']:02d}:"
+                    f"order-{surface['order']:02d}"
                 ),
                 "fallback_action_id": (
                     f"fallback-{fallback_key}:action-{surface['fallback_action']:02d}"
@@ -594,6 +640,20 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
     )
     structures = Counter(answer["response_structure_id"] for answer in answers)
     openings = Counter(answer["response_opening_id"] for answer in answers)
+    actions = Counter(answer["response_action_id"] for answer in answers)
+    constraints = Counter(answer["response_constraint_id"] for answer in answers)
+    orders = Counter(answer["response_order_id"] for answer in answers)
+    final_response_stats = _text_statistics(responses)
+    masked_response_diversity = _masked_diversity(responses, answers)
+    maximum_final_phrase_share = masked_response_diversity["eight_gram_stats"][
+        "maximum_message_coverage"
+    ]
+    if maximum_final_phrase_share >= _MAX_SURFACE_FORMULATION_SHARE:
+        raise ValueError(
+            "a masked final-response eight-token phrase reaches the "
+            "five-percent ceiling: "
+            f"{maximum_final_phrase_share:.3%}"
+        )
     all_message_tokens = [token for message in messages for token in _tokens(message)]
     vocabulary = set(all_message_tokens)
     family_metrics: dict[str, dict[str, Any]] = {}
@@ -649,7 +709,13 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "single_state_and_constraint_ratio": exact_anchor_rows / len(rows),
         "surface_pattern_stats": {
             "possible_opening_structure_pairs": (
-                len(_OPENINGS) * _RESPONSE_STRUCTURE_COUNT
+                sum(
+                    len(FAMILY_OPENINGS[family])
+                    * len(FAMILY_ACTION_FRAMES[family])
+                    * len(FAMILY_CONSTRAINT_FRAMES[family])
+                    * len(RESPONSE_ORDERS)
+                    for family in sorted(_INTENT_FIELD)
+                )
             ),
             "observed_opening_structure_pairs": len(surface_patterns),
             "maximum_examples_per_pair": max(surface_patterns.values()),
@@ -658,6 +724,32 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
             ),
             "opening_counts": dict(sorted(openings.items())),
             "structure_counts": dict(sorted(structures.items())),
+            "action_counts": dict(sorted(actions.items())),
+            "constraint_counts": dict(sorted(constraints.items())),
+            "order_counts": dict(sorted(orders.items())),
+        },
+        "body_surface_stats": {
+            "openings": _formulation_statistics(
+                [answer["response_opening_id"] for answer in answers]
+            ),
+            "actions": _formulation_statistics(
+                [answer["response_action_id"] for answer in answers]
+            ),
+            "constraints": _formulation_statistics(
+                [answer["response_constraint_id"] for answer in answers]
+            ),
+            "orders": {
+                "patterns": len(orders),
+                "counts": dict(sorted(orders.items())),
+            },
+            "masked_final_eight_token_phrase_ceiling": {
+                "maximum_message_coverage": maximum_final_phrase_share,
+                "strict_share_limit": _MAX_SURFACE_FORMULATION_SHARE,
+                "note": (
+                    "Source subjects, intents, states, constraints, outcomes and "
+                    "fallback semantics are masked before measuring prose templates."
+                ),
+            },
         },
         "fallback_surface_stats": _formulation_statistics(
             [answer["fallback_action_id"] for answer in answers],
@@ -666,11 +758,11 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "conclusion_surface_stats": _formulation_statistics(
             [answer["conclusion_surface_id"] for answer in answers]
         ),
-        "masked_response_diversity": _masked_diversity(responses, answers),
+        "masked_response_diversity": masked_response_diversity,
         "role_text_stats": {
             "user_prompts": _text_statistics(user_prompts),
             "assistant_messages": _text_statistics(assistant_messages),
-            "final_responses": _text_statistics(responses),
+            "final_responses": final_response_stats,
         },
         "message_length_stats": _length_statistics(messages),
         "response_length_stats": _length_statistics(responses),

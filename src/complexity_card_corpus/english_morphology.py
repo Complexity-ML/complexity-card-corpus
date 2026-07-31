@@ -99,6 +99,7 @@ _CONSONANT_SOUND_PREFIXES = (
     "use",
     "user",
     "usual",
+    "usable",
     "utility",
     "ufo",
 )

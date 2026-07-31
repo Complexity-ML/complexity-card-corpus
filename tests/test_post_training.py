@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 
+import complexity_card_corpus.post_training as post_training
 from complexity_card_corpus.english_morphology import (
     correct_indefinite_articles,
     indefinite_article,
@@ -32,6 +33,16 @@ def test_indefinite_articles_follow_common_english_sound_rules() -> None:
     assert correct_indefinite_articles("a account, a email, an useful option") == (
         "an account, an email, a useful option"
     )
+    assert correct_indefinite_articles("an usable example") == "a usable example"
+
+
+def test_intent_subject_composition_places_prepositional_complements_last() -> None:
+    assert post_training._intent_for_subject(
+        "restructure for action", "a set of meeting notes"
+    ) == "restructure a set of meeting notes for action"
+    assert post_training._intent_for_subject(
+        "clarify the immediate need", "a tense conversation"
+    ) == "clarify the immediate need for a tense conversation"
 
 
 def test_post_training_corpus_groups_splits_and_builds_review_queue(
@@ -96,7 +107,15 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
     assert 0 < result["audit"]["lexical_stats"]["mattr_100"] <= 1
     assert result["audit"]["surface_pattern_stats"][
         "observed_opening_structure_pairs"
-    ] == 144
+    ] > 144
+    body = result["audit"]["body_surface_stats"]
+    assert body["openings"]["maximum_formulation_share"] < 0.05
+    assert body["actions"]["maximum_formulation_share"] < 0.05
+    assert body["constraints"]["maximum_formulation_share"] < 0.05
+    assert body["orders"]["patterns"] == 12
+    assert body["masked_final_eight_token_phrase_ceiling"][
+        "maximum_message_coverage"
+    ] < 0.05
 
     source_splits: dict[str, set[str]] = {}
     for row in rows:
