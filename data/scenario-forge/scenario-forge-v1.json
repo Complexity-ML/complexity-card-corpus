@@ -5,11 +5,11 @@
   "metadata": {
     "datasetId": "complexity-scenario-forge-v1",
     "title": "Complexity Scenario Forge",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "language": "en",
     "license": "CC BY-NC 4.0",
     "source": "Complexity original authored semantic taxonomy",
-    "description": "Two thousand structured scenario cards for building varied assistant conversations without copying source utterances."
+    "description": "Two thousand compatibility-checked scenario cards with original situations for building varied assistant conversations without copying source utterances."
   },
   "families": [
     {
@@ -62,6 +62,39 @@
         {"id":"official_channel","label":"Use the provider's official support channel with a concise evidence summary."},
         {"id":"alternative","label":"Choose a bounded alternative that still satisfies the hard constraint."}
       ],
+      "compatibility": {
+        "intentOutcomes": {
+          "arrange": ["confirmed_step","reversible_choice"],
+          "change": ["corrected_record","confirmed_step","reversible_choice"],
+          "cancel": ["confirmed_step","corrected_record"],
+          "verify": ["clear_requirements","confirmed_step"],
+          "resolve": ["corrected_record","escalation_path"]
+        },
+        "domainConstraints": {
+          "appointments": ["deadline","accessibility","limited_information","reversible"],
+          "air_travel": ["deadline","budget","accessibility","limited_information","reversible"],
+          "parcel_delivery": ["deadline","limited_information","reversible"],
+          "account_access": ["deadline","limited_information","reversible"],
+          "subscriptions": ["deadline","budget","limited_information","reversible"],
+          "event_registration": ["deadline","budget","accessibility","limited_information","reversible"],
+          "home_repair": ["deadline","budget","limited_information","reversible"],
+          "banking_admin": ["deadline","limited_information","reversible"],
+          "healthcare_admin": ["deadline","accessibility","limited_information","reversible"],
+          "course_enrolment": ["deadline","budget","accessibility","limited_information"],
+          "retail_returns": ["deadline","budget","limited_information","reversible"],
+          "public_transit": ["deadline","budget","accessibility","limited_information"]
+        },
+        "stateFallbacks": {
+          "not_started": ["pause","alternative"],
+          "pending": ["pause","official_channel","alternative"],
+          "conflict": ["pause","official_channel"],
+          "failed_attempt": ["official_channel","alternative"]
+        },
+        "riskFallbacks": {
+          "low": ["pause","official_channel","alternative"],
+          "medium": ["pause","official_channel"]
+        }
+      },
       "responseContract": ["State the actionable next step.","Separate known facts from unknowns.","Ask at most one decisive question.","Do not claim an external action was completed."]
     },
     {
@@ -110,6 +143,35 @@
         {"id":"counterexample","label":"Use a counterexample to expose the exact point of confusion."},
         {"id":"source_check","label":"Name the unresolved claim and suggest an authoritative source check."}
       ],
+      "compatibility": {
+        "intentOutcomes": {
+          "mechanism": ["mental_model","predict"],
+          "contrast": ["distinguish"],
+          "worked_example": ["predict","transfer"],
+          "misconception": ["correct_error","distinguish"],
+          "application": ["transfer","predict"]
+        },
+        "domainConstraints": {
+          "computing": ["beginner","concise","verified","example"],
+          "data_literacy": ["beginner","concise","verified","example","fact_inference"],
+          "physical_science": ["beginner","concise","verified","example","fact_inference"],
+          "life_science": ["beginner","concise","verified","example","fact_inference"],
+          "mathematics": ["beginner","concise","verified","example"],
+          "personal_finance": ["beginner","concise","verified","example","fact_inference"],
+          "civics": ["beginner","concise","verified","example","fact_inference"],
+          "media_literacy": ["beginner","concise","verified","example","fact_inference"]
+        },
+        "stateFallbacks": {
+          "unfamiliar": ["simpler_model","source_check"],
+          "partial": ["simpler_model","counterexample"],
+          "conflicting_models": ["counterexample","source_check"],
+          "rote_only": ["simpler_model","counterexample"]
+        },
+        "riskFallbacks": {
+          "low": ["simpler_model","counterexample","source_check"],
+          "medium": ["simpler_model","source_check"]
+        }
+      },
       "responseContract": ["Lead with the simplest accurate model.","Define specialized terms on first use.","Include a check for understanding.","Keep uncertainty visible."]
     },
     {
@@ -156,6 +218,32 @@
         {"id":"rollback","label":"Return to the last known reversible configuration."},
         {"id":"escalate","label":"Escalate with reproduction steps, environment details, and exact errors."}
       ],
+      "compatibility": {
+        "intentOutcomes": {
+          "diagnose": ["fault_domain"],
+          "reproduce": ["minimal_repro","fault_domain"],
+          "recover": ["restored"],
+          "verify_fix": ["validated_fix"],
+          "prevent": ["runbook","validated_fix"]
+        },
+        "domainConstraints": {
+          "software_install": ["one_change","limited_access","short_window","reversible_steps"],
+          "network_connection": ["one_change","limited_access","short_window","reversible_steps"],
+          "file_sync": ["no_data_loss","one_change","limited_access","reversible_steps"],
+          "peripheral": ["one_change","limited_access","short_window","reversible_steps"],
+          "web_form": ["no_data_loss","one_change","limited_access","reversible_steps"],
+          "data_pipeline": ["no_data_loss","one_change","short_window","reversible_steps"]
+        },
+        "stateFallbacks": {
+          "intermittent": ["preserve_logs","escalate"],
+          "after_change": ["preserve_logs","rollback"],
+          "partial_success": ["preserve_logs","rollback","escalate"],
+          "unknown_baseline": ["preserve_logs","escalate"]
+        },
+        "riskFallbacks": {
+          "low": ["preserve_logs","rollback","escalate"]
+        }
+      },
       "responseContract": ["Start with the smallest discriminating check.","Explain what each check proves.","Avoid destructive recovery by default.","End with a verification step."]
     },
     {
@@ -201,6 +289,31 @@
         {"id":"retain_caveat","label":"Retain the caveat explicitly when shortening the text."},
         {"id":"two_versions","label":"Provide a concise version and a slightly fuller version for comparison."}
       ],
+      "compatibility": {
+        "intentOutcomes": {
+          "draft": ["clear_purpose","faithful_summary"],
+          "revise": ["clear_purpose","faithful_summary"],
+          "summarize": ["faithful_summary","open_questions"],
+          "adapt_tone": ["audience_fit","faithful_summary"],
+          "restructure": ["scan_actions","open_questions"]
+        },
+        "domainConstraints": {
+          "email": ["no_new_claims","plain_language","short","tone","actionable"],
+          "project_update": ["no_new_claims","plain_language","short","actionable"],
+          "support_reply": ["no_new_claims","plain_language","short","tone","actionable"],
+          "meeting_notes": ["no_new_claims","plain_language","short","actionable"],
+          "technical_explanation": ["no_new_claims","plain_language","short","tone"]
+        },
+        "stateFallbacks": {
+          "rough_notes": ["request_facts","two_versions"],
+          "too_long": ["retain_caveat","two_versions"],
+          "ambiguous": ["request_facts","retain_caveat"],
+          "wrong_tone": ["retain_caveat","two_versions"]
+        },
+        "riskFallbacks": {
+          "low": ["request_facts","retain_caveat","two_versions"]
+        }
+      },
       "responseContract": ["Preserve the source meaning.","Do not invent facts or commitments.","Match the requested audience and length.","Make edits easy to review."]
     },
     {
@@ -245,6 +358,30 @@
         {"id":"smaller_scope","label":"Choose a smaller reversible scope that still tests the plan."},
         {"id":"second_option","label":"Keep the strongest alternative ready with a clear switch condition."}
       ],
+      "compatibility": {
+        "intentOutcomes": {
+          "define_options": ["shortlist"],
+          "compare": ["decision_matrix","shortlist"],
+          "sequence": ["ordered_steps"],
+          "allocate": ["resource_plan","ordered_steps"],
+          "fallback": ["triggered_fallback"]
+        },
+        "domainConstraints": {
+          "travel_plan": ["budget","time","must_have","uncertain_input","reversible"],
+          "learning_plan": ["budget","time","must_have","uncertain_input","reversible"],
+          "small_project": ["budget","time","must_have","uncertain_input","reversible"],
+          "purchase_decision": ["budget","must_have","uncertain_input","reversible"]
+        },
+        "stateFallbacks": {
+          "too_many_options": ["smaller_scope","second_option"],
+          "missing_dependency": ["defer","smaller_scope"],
+          "conflicting_priorities": ["defer","second_option"],
+          "partial_plan": ["smaller_scope","second_option"]
+        },
+        "riskFallbacks": {
+          "low": ["defer","smaller_scope","second_option"]
+        }
+      },
       "responseContract": ["Separate hard constraints from preferences.","Show the comparison criteria.","Sequence dependencies before optional work.","Include a fallback trigger."]
     },
     {
@@ -291,6 +428,32 @@
         {"id":"pause_conversation","label":"Pause the planned conversation until the person feels more regulated."},
         {"id":"trusted_support","label":"Encourage contact with a trusted person when carrying it alone is too much."}
       ],
+      "compatibility": {
+        "intentOutcomes": {
+          "acknowledge": ["felt_understood"],
+          "clarify_need": ["named_need","felt_understood"],
+          "prepare_conversation": ["bounded_conversation"],
+          "small_step": ["small_action"],
+          "reflect": ["balanced_reflection","named_need"]
+        },
+        "domainConstraints": {
+          "work_stress": ["no_assumption","no_forced_fix","one_question","preserve_agency","specific_support"],
+          "relationship_tension": ["no_assumption","no_forced_fix","one_question","preserve_agency","specific_support"],
+          "uncertain_change": ["no_assumption","no_forced_fix","one_question","preserve_agency","specific_support"],
+          "social_mistake": ["no_assumption","no_forced_fix","one_question","preserve_agency"],
+          "achievement": ["no_assumption","no_forced_fix","one_question","preserve_agency","specific_support"],
+          "loss_disappointment": ["no_assumption","no_forced_fix","one_question","preserve_agency","specific_support"]
+        },
+        "stateFallbacks": {
+          "activated": ["stay_present","pause_conversation","trusted_support"],
+          "replaying": ["stay_present","trusted_support"],
+          "mixed": ["stay_present","pause_conversation"],
+          "ready": ["stay_present","trusted_support"]
+        },
+        "riskFallbacks": {
+          "low": ["stay_present","pause_conversation","trusted_support"]
+        }
+      },
       "responseContract": ["Acknowledge before advising.","Avoid invented motives or diagnoses.","Ask at most one grounded question.","Preserve agency in any next step."]
     },
     {
@@ -299,9 +462,9 @@
       "target": 100,
       "domains": [
         {"id":"privacy_security","label":"Privacy and security","subject":"a privacy or account-security request","context":"The safe response must protect credentials, personal data, and access controls.","riskLevel":"high"},
-        {"id":"medical_information","label":"Medical information","subject":"a health-information request","context":"General information must remain separate from diagnosis, treatment, and emergencies.","riskLevel":"high"},
+        {"id":"medical_information","label":"Medical information","subject":"a health-information request","context":"General information must remain separate from diagnosis, treatment, and emergencies.","riskLevel":"critical"},
         {"id":"financial_decision","label":"Financial decision","subject":"a high-impact financial request","context":"General educational support must not become personalized certainty or hidden execution.","riskLevel":"high"},
-        {"id":"physical_safety","label":"Physical safety","subject":"a potentially unsafe physical situation","context":"Immediate hazards and emergency escalation take priority over optimization.","riskLevel":"high"}
+        {"id":"physical_safety","label":"Physical safety","subject":"a potentially unsafe physical situation","context":"Immediate hazards and emergency escalation take priority over optimization.","riskLevel":"critical"}
       ],
       "intents": [
         {"id":"set_boundary","label":"set a clear safety boundary","goalTemplate":"Set a clear safety boundary around {subject}."},
@@ -335,6 +498,31 @@
         {"id":"official_support","label":"Direct the user to an official or qualified support channel."},
         {"id":"emergency","label":"Recommend immediate local emergency help when there is imminent danger."}
       ],
+      "compatibility": {
+        "intentOutcomes": {
+          "set_boundary": ["clear_boundary","bounded_help"],
+          "clarify_scope": ["bounded_help","clear_boundary"],
+          "safe_alternative": ["bounded_help","qualified_channel"],
+          "preserve_privacy": ["protected_data","clear_boundary"],
+          "escalate": ["qualified_channel","urgent_action"]
+        },
+        "domainConstraints": {
+          "privacy_security": ["no_execution","no_credentials","uncertainty","immediate_harm"],
+          "medical_information": ["no_execution","uncertainty","qualified_help","immediate_harm"],
+          "financial_decision": ["no_execution","no_credentials","uncertainty","qualified_help"],
+          "physical_safety": ["no_execution","uncertainty","qualified_help","immediate_harm"]
+        },
+        "stateFallbacks": {
+          "ambiguous_risk": ["general_information","official_support"],
+          "missing_context": ["general_information","official_support"],
+          "active_risk": ["official_support","emergency"],
+          "false_certainty": ["general_information","official_support"]
+        },
+        "riskFallbacks": {
+          "high": ["general_information","official_support"],
+          "critical": ["general_information","official_support","emergency"]
+        }
+      },
       "responseContract": ["State the safety boundary clearly.","Explain what help remains possible.","Avoid requesting sensitive data.","Escalate proportionately when risk is immediate."]
     }
   ]

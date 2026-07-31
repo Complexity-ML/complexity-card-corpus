@@ -100,8 +100,17 @@ Scenario Forge creates structured assistant situations before any conversation
 surface is written. Each card combines:
 
 ```text
-family + domain + intent + constraint + current state + desired outcome
+family + domain + compatible intent/outcome
+       + domain-compatible constraint
+       + current state + risk/state-compatible fallback
+       + original situation
 ```
+
+Compatibility is explicit in the registry. Intent determines the permitted
+outcomes, domain determines the permitted constraints, and the intersection of
+state and risk determines the permitted fallbacks. Hashing is applied only
+after those semantic rules: it provides deterministic allocation and identity,
+not semantic judgment.
 
 The current registry compiles exactly 2,000 unique semantic signatures:
 
@@ -120,13 +129,16 @@ uv run card-corpus build-scenario-forge \
 ```
 
 `scenarios.parquet` is canonical and `scenarios.jsonl` is intended for human
-review. The audit enforces unique IDs, signatures and payloads, exact family
-allocation, domain balance, family-specific payload contracts and absence of
-copied or generated dialogue text.
+review. Every card carries a unique original situation, a `creation_hash` over
+its semantic signature and a `verification_hash` over its canonical final
+content. The artifact manifest separately records SHA-256 hashes for each
+output file.
 
-Scenario Forge is currently a **semantic beta**. Its structure is valid, but
-intent/outcome and domain/constraint compatibility are being tightened before
-it is used to generate a released conversation dataset.
+The audit enforces 2,000 unique situations, IDs, signatures, payloads and hash
+pairs; exact family allocation; domain balance; complete axis coverage;
+family-specific payload contracts; and a 100% compatibility match. It rejects
+unknown matrix references, incompatible combinations and content changed after
+compilation.
 
 ## Original instruction tuning
 
