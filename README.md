@@ -32,6 +32,7 @@ No third-party dataset is included in the published Complexity corpus.
 | Computing Foundations | Computing | Original technical concept cards | Ready |
 | Systems Foundations | Computing | Original systems concept cards | Ready |
 | Scenario Forge | General assistant | 2,000 structured semantic scenarios across seven families | Semantic review in progress |
+| Post-training conversations | General assistant | 4,000 source-grouped instruct/chat examples plus a stratified review queue | Human review required |
 
 The checked-in source graph currently contains **21,602 cards** and **143,026
 typed relations** across seven original collections.
@@ -171,6 +172,41 @@ aspect, negation, modality and question order. Regular forms follow productive
 rules; genuinely irregular lemmas use a compact exception table. The manifest
 records the number of checked intent phrases, lemmas and realized forms.
 
+### Original post-training conversations
+
+The post-training builder turns every Scenario Forge card into one instruct
+example and one four-turn chat. State and constraint anchors each occur once in
+the source dialogue, common `a`/`an` errors are corrected from pronunciation
+rules, and the scenario audit keeps mean sentence length between 14 and 20
+words with 0.1–0.3 transition words per sentence.
+
+```bash
+uv run card-corpus build-post-training \
+  --scenarios build/scenario-forge/scenarios.parquet \
+  --output build/post-training \
+  --variants-per-scenario 2 \
+  --review-rows 70
+```
+
+Both variants inherit the split of their source `scenario_id`; a source card
+therefore has **0% train/validation leakage**. The current audit reports 4,000
+unique rendered conversations and 99.25% unique final responses. The generated
+`human_review.csv` selects ten examples from each of the seven families while
+cycling through available risk levels and splits.
+
+The manifest deliberately sets `training_ready=false` and
+`release_ready=false`. A reviewer must grade semantic accuracy, constraint
+following, language quality, individualization and safety before either flag
+can be changed. Passing automated tests is not a substitute for this review.
+
+After the CSV is completed, the explicit gate reports readiness only when all
+70 rows are marked `approved` and every quality field is marked `pass`:
+
+```bash
+uv run card-corpus audit-post-training-review \
+  --review build/post-training/human_review.csv
+```
+
 ### Private lexical mining and anti-copy audit
 
 Pinned third-party dialogue sources may be inspected locally to measure their
@@ -253,6 +289,10 @@ uv run card-corpus build-instruct \
 uv run card-corpus build-scenario-forge \
   --registry data/scenario-forge/scenario-forge-v1.json \
   --output build/scenario-forge
+
+uv run card-corpus build-post-training \
+  --scenarios build/scenario-forge/scenarios.parquet \
+  --output build/post-training
 
 uv run pytest -q
 ```

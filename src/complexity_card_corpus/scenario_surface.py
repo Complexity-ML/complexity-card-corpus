@@ -6,9 +6,18 @@ import statistics
 from collections import Counter
 from typing import Any
 
+from .english_morphology import correct_indefinite_articles
+
 
 SURFACE_WORD = re.compile(r"[A-Za-z]+(?:['’][A-Za-z]+)?")
 QUESTION_FAMILIES = frozenset({"conversation_empathy", "explanation_learning"})
+TRANSITIONS = frozenset(
+    {
+        "after", "although", "before", "finally", "first", "following",
+        "however", "instead", "meanwhile", "next", "once", "otherwise",
+        "then", "therefore", "unless", "until", "when", "while",
+    }
+)
 
 
 def _tokens(text: str) -> list[str]:
@@ -29,11 +38,15 @@ def scenario_surface_stats(rows: list[dict[str, Any]]) -> dict[str, Any]:
     vocabulary = Counter(token for tokens in tokenized for token in tokens)
     sentence_hashes: set[bytes] = set()
     sentence_count = 0
+    sentence_lengths: list[int] = []
+    transition_count = 0
     for text in texts:
         for sentence in re.split(r"[.!?]+", text):
             tokens = _tokens(sentence)
             if tokens:
                 sentence_count += 1
+                sentence_lengths.append(len(tokens))
+                transition_count += sum(token in TRANSITIONS for token in tokens)
                 sentence_hashes.add(
                     hashlib.sha256(" ".join(tokens).encode()).digest()
                 )
@@ -53,6 +66,8 @@ def scenario_surface_stats(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "type_token_ratio": round(len(vocabulary) / occurrences, 6),
         "unique_document_rate": round(len(set(texts)) / len(texts), 6),
         "unique_sentence_rate": round(len(sentence_hashes) / sentence_count, 6),
+        "mean_sentence_words": round(statistics.fmean(sentence_lengths), 6),
+        "transitions_per_sentence": round(transition_count / sentence_count, 6),
     }
 
 
@@ -86,7 +101,7 @@ def audit_scenario_surface(rows: list[dict[str, Any]]) -> dict[str, Any]:
         if not text.endswith((".", "?")):
             issues.append({"scenario_id": scenario_id, "kind": "terminal_punctuation"})
         sentence_parts = [part.strip() for part in re.split(r"[.!?]+", text) if part.strip()]
-        expected_sentences = 4 if row["family"] in QUESTION_FAMILIES else 5
+        expected_sentences = 6
         if len(sentence_parts) != expected_sentences:
             issues.append({"scenario_id": scenario_id, "kind": "sentence_count"})
         if any(part[:1] and not part[:1].isupper() for part in sentence_parts):
@@ -97,6 +112,8 @@ def audit_scenario_surface(rows: list[dict[str, Any]]) -> dict[str, Any]:
             issues.append({"scenario_id": scenario_id, "kind": "adjacent_word_repeat"})
         if any(sequence in normalized for sequence in suspect_sequences):
             issues.append({"scenario_id": scenario_id, "kind": "suspect_verb_chain"})
+        if correct_indefinite_articles(text) != text:
+            issues.append({"scenario_id": scenario_id, "kind": "indefinite_article"})
 
         should_question = row["family"] in QUESTION_FAMILIES
         if should_question != text.endswith("?") or text.count("?") != int(should_question):
@@ -109,6 +126,12 @@ def audit_scenario_surface(rows: list[dict[str, Any]]) -> dict[str, Any]:
             else:
                 issues.append(
                     {"scenario_id": scenario_id, "kind": f"missing_{field}_anchor"}
+                )
+        for field in ("state", "constraint"):
+            anchor = _normalized(str(row[field]))
+            if normalized.count(anchor) != 1:
+                issues.append(
+                    {"scenario_id": scenario_id, "kind": f"repeated_{field}_anchor"}
                 )
 
     return {

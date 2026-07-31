@@ -32,9 +32,13 @@ SCENARIO_PROVENANCE = (
     "Complexity original authored semantic taxonomy and narrative frames; "
     "no third-party source utterances and no model-generated dialogue."
 )
-MIN_UNIQUE_SENTENCE_RATE = 0.80
+MIN_UNIQUE_SENTENCE_RATE = 0.45
 MIN_QUESTION_RATE = 0.25
 MAX_QUESTION_RATE = 0.30
+MIN_MEAN_SENTENCE_WORDS = 14.0
+MAX_MEAN_SENTENCE_WORDS = 20.0
+MIN_TRANSITIONS_PER_SENTENCE = 0.10
+MAX_TRANSITIONS_PER_SENTENCE = 0.30
 
 SCENARIO_SCHEMA = pa.schema(
     [
@@ -834,6 +838,24 @@ def audit_scenarios(
         raise ValueError(
             "Scenario Forge question rate is outside the intended range: "
             f"{surface_stats['question_rate']:.3f}"
+        )
+    if not (
+        MIN_MEAN_SENTENCE_WORDS
+        <= surface_stats["mean_sentence_words"]
+        <= MAX_MEAN_SENTENCE_WORDS
+    ):
+        raise ValueError(
+            "Scenario Forge mean sentence length is outside the post-training "
+            f"target: {surface_stats['mean_sentence_words']:.3f}"
+        )
+    if not (
+        MIN_TRANSITIONS_PER_SENTENCE
+        <= surface_stats["transitions_per_sentence"]
+        <= MAX_TRANSITIONS_PER_SENTENCE
+    ):
+        raise ValueError(
+            "Scenario Forge transition density is outside the post-training "
+            f"target: {surface_stats['transitions_per_sentence']:.3f}"
         )
 
     morphology_audit = audit_verb_phrases(

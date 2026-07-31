@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Literal
 
 
@@ -87,6 +88,53 @@ _DOUBLE_FINAL = frozenset(
         "submit",
     }
 )
+
+_AN_INITIALISMS = frozenset("AEFHILMNORSX")
+_SILENT_H_PREFIXES = ("heir", "honest", "honor", "hour")
+_CONSONANT_SOUND_PREFIXES = (
+    "euro",
+    "one",
+    "once",
+    "uni",
+    "use",
+    "user",
+    "usual",
+    "utility",
+    "ufo",
+)
+_ARTICLE_PATTERN = re.compile(
+    r"\b(?P<article>a|an)\s+(?P<word>[A-Za-z][A-Za-z0-9'-]*)",
+    re.IGNORECASE,
+)
+
+
+def indefinite_article(value: str) -> str:
+    """Choose ``a`` or ``an`` from common English pronunciation rules."""
+    word = value.strip().split(maxsplit=1)[0] if value.strip() else ""
+    if not word:
+        raise ValueError("an indefinite article requires a following word")
+    normalized = word.lower().strip("\"'([{<")
+    if not normalized:
+        raise ValueError("an indefinite article requires an alphabetic word")
+    if word.isupper() and word[0] in _AN_INITIALISMS:
+        return "an"
+    if normalized.startswith(_SILENT_H_PREFIXES):
+        return "an"
+    if normalized.startswith(_CONSONANT_SOUND_PREFIXES):
+        return "a"
+    return "an" if normalized[0] in "aeiou" else "a"
+
+
+def correct_indefinite_articles(value: str) -> str:
+    """Correct explicit a/an pairs without otherwise paraphrasing text."""
+
+    def replace(match: re.Match[str]) -> str:
+        expected = indefinite_article(match.group("word"))
+        if match.group("article")[0].isupper():
+            expected = expected.capitalize()
+        return f"{expected} {match.group('word')}"
+
+    return _ARTICLE_PATTERN.sub(replace, value)
 
 
 @dataclass(frozen=True)

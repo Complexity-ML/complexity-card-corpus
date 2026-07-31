@@ -118,6 +118,8 @@ def test_surface_pilot_is_original_balanced_unique_and_deterministic(tmp_path: P
     assert first["audit"]["length_contract_match_ratio"] >= 0.95
     assert first["audit"]["question_contract_match_ratio"] == 1.0
     assert first["audit"]["task_context_contract_match_ratio"] == 1.0
+    assert first["audit"]["source_card_split_overlap"] == 0
+    assert first["audit"]["split_holdout_unit"] == "scenario_card_id"
 
     output_rows = pq.read_table(tmp_path / "first/conversations.parquet").to_pylist()
     assert len(output_rows) == 128

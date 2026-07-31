@@ -5,8 +5,7 @@ from collections import Counter
 from typing import Protocol
 
 from .english_morphology import (
-    VerbFeatures,
-    realize_clause,
+    correct_indefinite_articles,
     verb_forms,
 )
 
@@ -110,6 +109,7 @@ def _render_frame(
     outcome: AtomLike,
     fallback: AtomLike,
 ) -> tuple[str, str, str]:
+    """Render four compact sentences with each hard semantic anchor stated once."""
     subject = domain.subject
     context_text = domain.context.rstrip(".")
     state_text = state.label.rstrip(".")
@@ -119,95 +119,110 @@ def _render_frame(
     intent_forms = verb_forms(intent.label)
     intent_base = intent_forms["base"]
     intent_third = intent_forms["third_person_singular"]
-    intent_negative = realize_clause(
-        "the assistant",
-        intent.label,
-        VerbFeatures(negated=True),
-    )
-    intent_progressive = realize_clause(
-        "the assistant",
-        intent.label,
-        VerbFeatures(aspect="progressive"),
-    )
-    intent_should_question = realize_clause(
-        "the response",
-        intent.label,
-        VerbFeatures(modal="should", interrogative=True),
-    )
-    intent_can_question = realize_clause(
-        "the response",
-        intent.label,
-        VerbFeatures(modal="can", interrogative=True),
-    )
 
     triggers = (
-        f"A routine step involving {subject} reaches a decision point when {lower_first(state_text)}.",
-        f"The situation around {subject} changes because {lower_first(state_text)}.",
-        f"A new obstacle appears while handling {subject}: {state_text}.",
-        f"Work on {subject} can no longer continue unchanged after this update: {state_text}.",
-        f"The decisive signal in this {domain.label.lower()} case is that {lower_first(state_text)}.",
-        f"An otherwise ordinary request about {subject} becomes non-routine when {lower_first(state_text)}.",
-        f"Before the next step for {subject}, one fact changes the shape of the request: {state_text}.",
-        f"The immediate trigger for this {domain.label.lower()} scenario is simple: {state_text}.",
-        f"A checkpoint is reached for {subject} once {lower_first(state_text)}.",
-        f"The next decision about {subject} is prompted by one concrete condition: {state_text}.",
-        f"A request involving {subject} becomes actionable when {lower_first(state_text)}.",
-        f"This {domain.label.lower()} case begins from a specific turning point: {state_text}.",
+        f"A decision about {subject} now requires attention because {lower_first(state_text)}.",
+        f"The request concerning {subject} reaches a clear turning point: {state_text}.",
+        f"One concrete update changes how the assistant should {intent_base}: {state_text}.",
+        f"The {domain.label.lower()} request can no longer proceed routinely because {lower_first(state_text)}.",
+        f"A review of {subject} reveals the condition that matters most: {state_text}.",
+        f"The next choice for {subject} is shaped by one verified fact: {state_text}.",
+        f"Handling {subject} becomes a bounded decision with this verified update: {state_text}.",
+        f"The immediate issue in this {domain.label.lower()} case is specific: {state_text}.",
+        f"A checkpoint for {subject} exposes the operative condition: {state_text}.",
+        f"The assistant must reconsider how it will {intent_base} because {lower_first(state_text)}.",
+        f"This request about {subject} becomes actionable from one update: {state_text}.",
+        f"The {domain.label.lower()} scenario begins with a decisive change: {state_text}.",
     )
-    developments = (
-        f"Given that {lower_first(state_text)}, the relevant context is that {lower_first(context_text)}. The next move for {subject} is to {intent_base} without crossing “{constraint_text}”.",
-        f"Here, {lower_first(context_text)}, while {lower_first(state_text)}. For {subject}, the immediate task is to {intent_base} within “{constraint_text}”.",
-        f"The setting matters because {lower_first(context_text)} and {lower_first(state_text)}. A useful answer about {subject} should {intent_base} under “{constraint_text}”.",
-        f"The operative fact is that {lower_first(state_text)}, in a setting where {lower_first(context_text)}. The request about {subject} is to {intent_base} while retaining “{constraint_text}”.",
-        f"The case combines this context—{context_text}—with the fact that {lower_first(state_text)}. Together they call for an answer about {subject} that {intent_third} without violating “{constraint_text}”.",
-        f"Assumptions would be unreliable because {lower_first(context_text)} and {lower_first(state_text)}. The response about {subject} should {intent_base} from the stated facts and honor “{constraint_text}”.",
-        f"What is known is that {lower_first(context_text)}, while {lower_first(state_text)}. What is needed for {subject} is a way to {intent_base} that respects “{constraint_text}”.",
-        f"The current condition—{state_text}—sets the practical boundary in a context where {lower_first(context_text)}. The objective for {subject} is to {intent_base} under “{constraint_text}”.",
-        f"The broad subject is {subject}, and the current fact is that {lower_first(state_text)}. The actionable task is to {intent_base} within the limit “{constraint_text}”.",
-        f"In this setting, {lower_first(context_text)}, and {lower_first(state_text)}. A grounded response about {subject} must {intent_base} without crossing “{constraint_text}”.",
-        f"The context is that {lower_first(context_text)}, combined with the fact that {lower_first(state_text)}. For {subject}, the response {intent_third} while preserving “{constraint_text}”.",
-        f"A broad answer about {subject} would miss that {lower_first(state_text)} in a setting where {lower_first(context_text)}. The response must {intent_base} under “{constraint_text}”.",
+    contexts = (
+        f"The surrounding context keeps this {domain.label.lower()} request grounded: {context_text}.",
+        f"The setting provides the evidence needed to assess {subject}: {context_text}.",
+        f"A tailored answer depends on this concrete background: {context_text}.",
+        f"The practical setting remains tied to verifiable facts: {context_text}.",
+        f"The wider context narrows what a responsible answer can claim: {context_text}.",
+        f"The assistant can review {subject} against this background: {context_text}.",
+        f"One background fact protects the answer from guesswork: {context_text}.",
+        f"The domain context keeps the requested action evidence-bound: {context_text}.",
+        f"The available context defines the task without inviting assumptions: {context_text}.",
+        f"The request sits within a setting that requires observable support: {context_text}.",
+        f"This background rules out a generic answer about {subject}: {context_text}.",
+        f"The case retains a practical context for reviewing {subject}: {context_text}.",
     )
-
+    tasks = (
+        f"At this point, the assistant should {intent_base} for {subject} using only supported details.",
+        f"At this point, the response {intent_third} for {subject} through a concrete, reviewable step.",
+        f"At this point, the bounded task is to {intent_base} for {subject} without speculation.",
+        f"At this point, a useful response must {intent_base} for {subject} from known facts.",
+        f"At this point, the requested action is to {intent_base} for {subject} with a clear rationale.",
+        f"At this point, the answer should {intent_base} for {subject} and preserve an evidence trail.",
+        f"At this point, this case requires the assistant to {intent_base} for {subject} carefully.",
+        f"At this point, the practical objective is to {intent_base} for {subject} with reviewable support.",
+        f"At this point, any grounded answer should {intent_base} for {subject} using verified information.",
+        f"At this point, the assistant can {intent_base} for {subject} only from available evidence.",
+        f"At this point, the response must {intent_base} for {subject} and explain its basis.",
+        f"At this point, the intended task is to {intent_base} for {subject} without overclaiming.",
+    )
+    boundaries = (
+        f"One explicit boundary governs that work: {constraint_text}.",
+        f"The response must preserve this non-negotiable boundary: {constraint_text}.",
+        f"The task remains subject to one firm rule: {constraint_text}.",
+        f"No proposed step may cross this stated boundary: {constraint_text}.",
+        f"One condition limits the requested action: {constraint_text}.",
+        f"The answer must keep this requirement intact: {constraint_text}.",
+        f"This case also carries one clear limit: {constraint_text}.",
+        f"The practical objective remains bounded by this rule: {constraint_text}.",
+        f"Every grounded option must comply with this condition: {constraint_text}.",
+        f"The following boundary applies to every option: {constraint_text}.",
+        f"One requirement must remain intact throughout: {constraint_text}.",
+        f"The intended task cannot override this condition: {constraint_text}.",
+    )
+    outcomes = (
+        f"A valid result for this {domain.label.lower()} case establishes that {lower_first(outcome_text)}.",
+        f"The review succeeds only if the evidence shows that {lower_first(outcome_text)}.",
+        f"Completion requires the response to establish that {lower_first(outcome_text)}.",
+        f"The final check for {subject} is whether {lower_first(outcome_text)}.",
+        f"A valid endpoint for this request makes it true that {lower_first(outcome_text)}.",
+        f"The answer is complete by demonstrating that {lower_first(outcome_text)}.",
+        f"The result remains acceptable only if {lower_first(outcome_text)}.",
+        f"The completion rule for {subject} is that {lower_first(outcome_text)}.",
+        f"Acceptance depends on showing through evidence that {lower_first(outcome_text)}.",
+        f"The outcome is valid only when the record shows that {lower_first(outcome_text)}.",
+        f"The response should finish by demonstrating that {lower_first(outcome_text)}.",
+        f"The case closes successfully once the answer shows that {lower_first(outcome_text)}.",
+    )
     if family_id in {"conversation_empathy", "explanation_learning"}:
-        endings = (
-            f"What response can {intent_base} while respecting “{constraint_text}” and still establish that {lower_first(outcome_text)}?",
-            f"How can the answer respect the boundary “{constraint_text}” while helping to {intent_base} and reaching a point where {lower_first(outcome_text)}?",
-            f"What would an answer look like if it must {intent_base}, honor “{constraint_text}”, and ensure that {lower_first(outcome_text)}?",
-            f"Which response best combines the task to {intent_base} with the boundary “{constraint_text}” and the result that {lower_first(outcome_text)}?",
-            f"{upper_first(intent_should_question)} without crossing “{constraint_text}”, so that {lower_first(outcome_text)}?",
-            f"What is the clearest way to {intent_base} while keeping “{constraint_text}” intact and making sure that {lower_first(outcome_text)}?",
-            f"{upper_first(intent_can_question)}, respect the boundary “{constraint_text}”, and leave the situation such that {lower_first(outcome_text)}?",
-            f"What answer would respect “{constraint_text}” yet still {intent_base} and produce the result that {lower_first(outcome_text)}?",
-            f"How can one {intent_base} under the rule “{constraint_text}” and verify that {lower_first(outcome_text)}?",
-            f"What response would satisfy “{constraint_text}” while carrying out the goal to {intent_base} and establishing that {lower_first(outcome_text)}?",
-            f"How should this be handled if the response must {intent_base}, must respect the boundary “{constraint_text}”, and must end with {lower_first(outcome_text)}?",
-            f"Which bounded answer can {intent_base} and respect “{constraint_text}” while still producing the result that {lower_first(outcome_text)}?",
+        endings = tuple(
+            f"Which response can {intent_base} for {subject} and apply this fallback if support remains insufficient: {fallback_text}?"
+            for _ in NARRATIVE_FRAME_IDS
         )
     else:
         endings = (
-            f"In this {domain.label.lower()} case, given that {lower_first(state_text)}, completion under “{constraint_text}” requires that {lower_first(outcome_text)}. If that result remains unsupported while trying to {intent_base} for {subject}, {lower_first(fallback_text)}.",
-            f"Given that {lower_first(state_text)}, a {domain.label.lower()} response respecting “{constraint_text}” should establish that {lower_first(outcome_text)}. If it cannot do so while trying to {intent_base} for {subject}, {lower_first(fallback_text)}.",
-            f"From a state where {lower_first(state_text)}, success in this {domain.label.lower()} case means honoring “{constraint_text}” until {lower_first(outcome_text)}. If that result fails while trying to {intent_base} for {subject}, {lower_first(fallback_text)}.",
-            f"Two checks govern this {domain.label.lower()} case: “{constraint_text}”, and whether {lower_first(outcome_text)}. Given that {lower_first(state_text)}, failure while trying to {intent_base} for {subject} means that one should {lower_first(fallback_text)}.",
-            f"The endpoint in this {domain.label.lower()} case is valid only when “{constraint_text}” is preserved and {lower_first(outcome_text)}. Given that {lower_first(state_text)}, failure while trying to {intent_base} for {subject} means one should {lower_first(fallback_text)}.",
-            f"From a state where {lower_first(state_text)}, a {domain.label.lower()} answer must retain “{constraint_text}” and make it true that {lower_first(outcome_text)}. Without that support while trying to {intent_base} for {subject}, {lower_first(fallback_text)}.",
-            f"Given that {lower_first(state_text)}, work in this {domain.label.lower()} case remains bounded by “{constraint_text}” until {lower_first(outcome_text)}. Before trying to {intent_base} further for {subject}, {lower_first(fallback_text)}.",
-            f"In this {domain.label.lower()} case, given that {lower_first(state_text)}, success requires respecting “{constraint_text}” and establishing that {lower_first(outcome_text)}. If that remains unsupported while trying to {intent_base} for {subject}, {lower_first(fallback_text)}.",
-            f"From a state where {lower_first(state_text)}, the acceptance rule for this {domain.label.lower()} case combines “{constraint_text}” with the result that {lower_first(outcome_text)}. Otherwise, before trying to {intent_base} further for {subject}, {lower_first(fallback_text)}.",
-            f"Given that {lower_first(state_text)}, reject a {domain.label.lower()} answer that violates “{constraint_text}” or cannot show that {lower_first(outcome_text)}. In that case, when handling {subject}, {intent_negative} until the evidence changes; {lower_first(fallback_text)}.",
-            f"From a state where {lower_first(state_text)}, an acceptable {domain.label.lower()} response must honor “{constraint_text}” and leave the case such that {lower_first(outcome_text)}. Otherwise, while {intent_progressive}, the {domain.label.lower()} case remains unresolved; {lower_first(fallback_text)}.",
-            f"In this {domain.label.lower()} case, given that {lower_first(state_text)}, the finishing condition is that {lower_first(outcome_text)}, but never at the expense of “{constraint_text}”. If the two cannot be reconciled while trying to {intent_base} for {subject}, {lower_first(fallback_text)}.",
+            f"If evidence blocks efforts to {intent_base} for {subject}, {lower_first(fallback_text)}.",
+            f"If support for {intent_base} remains incomplete around {subject}, {lower_first(fallback_text)}.",
+            f"If the assistant cannot safely {intent_base} for {subject}, {lower_first(fallback_text)}.",
+            f"If verification prevents the assistant from trying to {intent_base} for {subject}, {lower_first(fallback_text)}.",
+            f"If the available record does not support efforts to {intent_base} for {subject}, {lower_first(fallback_text)}.",
+            f"If reliable support fails during efforts to {intent_base} for {subject}, {lower_first(fallback_text)}.",
+            f"If unresolved evidence prevents work to {intent_base} for {subject}, {lower_first(fallback_text)}.",
+            f"If the completion check blocks attempts to {intent_base} for {subject}, {lower_first(fallback_text)}.",
+            f"If proof remains insufficient to {intent_base} for {subject}, {lower_first(fallback_text)}.",
+            f"If uncertainty still prevents the assistant from trying to {intent_base} for {subject}, {lower_first(fallback_text)}.",
+            f"If the response cannot responsibly {intent_base} for {subject}, {lower_first(fallback_text)}.",
+            f"If the case cannot support an effort to {intent_base} for {subject}, {lower_first(fallback_text)}.",
         )
 
-    trigger = triggers[frame_index]
-    ending = endings[frame_index]
-    if family_id in {"conversation_empathy", "explanation_learning"}:
-        ending = (
-            f"For {subject}, given that {lower_first(state_text)}, "
-            f"{lower_first(ending)}"
+    trigger = correct_indefinite_articles(triggers[frame_index])
+    situation = " ".join(
+        correct_indefinite_articles(value)
+        for value in (
+            trigger,
+            contexts[frame_index],
+            tasks[frame_index],
+            boundaries[frame_index],
+            outcomes[frame_index],
+            endings[frame_index],
         )
-    situation = " ".join((trigger, developments[frame_index], ending))
+    )
     return trigger, situation, frame_id
 
 

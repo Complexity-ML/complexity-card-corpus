@@ -24,6 +24,7 @@ from .package import (
     package_for_hugging_face,
     package_instructions_for_hugging_face,
 )
+from .post_training import audit_human_review, build_post_training_corpus
 from .scenario_forge import build_scenario_forge
 from .tokenize import tokenize_documents
 
@@ -49,6 +50,16 @@ def parser() -> argparse.ArgumentParser:
     scenario_forge = commands.add_parser("build-scenario-forge")
     scenario_forge.add_argument("--registry", type=Path, required=True)
     scenario_forge.add_argument("--output", type=Path, required=True)
+
+    post_training = commands.add_parser("build-post-training")
+    post_training.add_argument("--scenarios", type=Path, required=True)
+    post_training.add_argument("--output", type=Path, required=True)
+    post_training.add_argument("--variants-per-scenario", type=int, default=2)
+    post_training.add_argument("--review-rows", type=int, default=70)
+    post_training.add_argument("--seed", type=int, default=42)
+
+    post_training_review = commands.add_parser("audit-post-training-review")
+    post_training_review.add_argument("--review", type=Path, required=True)
 
     tokenize = commands.add_parser("tokenize")
     tokenize.add_argument("--documents", type=Path, required=True)
@@ -176,6 +187,27 @@ def main() -> None:
                 sort_keys=True,
             )
         )
+    elif args.command == "build-post-training":
+        result = build_post_training_corpus(
+            args.scenarios,
+            args.output,
+            variants_per_scenario=args.variants_per_scenario,
+            review_rows=args.review_rows,
+            seed=args.seed,
+        )
+        print(
+            json.dumps(
+                {
+                    "audit": result["audit"],
+                    "human_review": result["human_review"],
+                    "training_ready": result["training_ready"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    elif args.command == "audit-post-training-review":
+        print(json.dumps(audit_human_review(args.review), indent=2, sort_keys=True))
     elif args.command == "tokenize":
         result = tokenize_documents(args.documents, args.tokenizer, args.output)
         print(

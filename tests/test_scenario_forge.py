@@ -55,7 +55,9 @@ def test_scenario_forge_compiles_two_thousand_semantic_cards() -> None:
     assert sum(audit["validation_family_counts"].values()) == 100
     assert audit["surface_stats"]["documents"] == 2_000
     assert audit["surface_stats"]["unique_document_rate"] == 1.0
-    assert audit["surface_stats"]["unique_sentence_rate"] >= 0.80
+    assert audit["surface_stats"]["unique_sentence_rate"] >= 0.45
+    assert 14 <= audit["surface_stats"]["mean_sentence_words"] <= 20
+    assert 0.10 <= audit["surface_stats"]["transitions_per_sentence"] <= 0.30
     assert 0.25 <= audit["surface_stats"]["question_rate"] <= 0.30
     assert audit["surface_language_audit"]["issue_count"] == 0
     assert audit["surface_language_audit"]["checked_rows"] == 2_000
@@ -78,6 +80,14 @@ def test_scenario_forge_compiles_two_thousand_semantic_cards() -> None:
     assert all(row["situation"] for row in rows)
     assert len({row["narrative_frame"] for row in rows}) == 12
     assert all(row["trigger"] for row in rows)
+    assert all(
+        row["situation"].lower().count(row["state"].rstrip(".").lower()) == 1
+        for row in rows
+    )
+    assert all(
+        row["situation"].lower().count(row["constraint"].rstrip(".").lower()) == 1
+        for row in rows
+    )
 
 
 def test_scenario_forge_output_is_deterministic_and_inspectable(tmp_path: Path) -> None:

@@ -38,10 +38,11 @@ def _stable_index(value: str, size: int) -> int:
     return int.from_bytes(_digest(value)[:8], "big") % size
 
 
-def _split(example_id: str, validation_percent: int) -> str:
+def _split(source_card_id: str, validation_percent: int) -> str:
     return (
         "validation"
-        if _stable_index(f"split:{example_id}", 100) < validation_percent
+        if _stable_index(f"split:scenario-card:{source_card_id}", 100)
+        < validation_percent
         else "train"
     )
 
@@ -867,8 +868,16 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
     safe_alternatives_with_followup = 0
     task_context_total = 0
     task_context_matches = 0
+    train_source_cards: set[str] = set()
+    validation_source_cards: set[str] = set()
     for row in rows:
         contract = json.loads(row["answer_json"])
+        source_cards = (
+            validation_source_cards
+            if row["split"] == "validation"
+            else train_source_cards
+        )
+        source_cards.add(contract["scenario_card_id"])
         expected_lengths = contract["target_length_pattern"]
         realized_lengths = [_length_bucket(message["content"]) for message in row["messages"]]
         length_total += len(expected_lengths)
@@ -939,6 +948,9 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
         sorted(repeated_four_grams.items(), key=lambda item: (-item[1], item[0]))[:20]
     )
     category_counts = Counter(f"{row['task']}:{row['domain']}" for row in rows)
+    leaking_source_cards = train_source_cards & validation_source_cards
+    if leaking_source_cards:
+        raise ValueError("source scenario cards leak across conversation splits")
     return {
         "rows": len(rows),
         "unique_rendered_ratio": len(set(rendered)) / len(rendered),
@@ -961,6 +973,8 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "top_repeated_four_grams": top_repeated,
         "category_counts": dict(sorted(category_counts.items())),
         "split_counts": dict(sorted(Counter(row["split"] for row in rows).items())),
+        "split_holdout_unit": "scenario_card_id",
+        "source_card_split_overlap": len(leaking_source_cards),
     }
 
 
@@ -1115,7 +1129,7 @@ def build_conversation_surface(
                 "dataset_id": DATASET_ID,
                 "domain": category,
                 "language": "en",
-                "split": _split(example_id, validation_percent),
+                "split": _split(card_id, validation_percent),
                 "messages": messages,
                 "prompt": messages[0]["content"],
                 "response": messages[-1]["content"],
