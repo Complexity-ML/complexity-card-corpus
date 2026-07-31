@@ -106,6 +106,48 @@ def test_reasoning_situation_does_not_invent_a_unit_mismatch() -> None:
     assert "different units" not in (hand.situation or "").lower()
 
 
+def test_explanation_preserves_sentence_initial_acronyms() -> None:
+    for variant in range(4):
+        hand = deal_task_hand(
+            _task_row("explanation_learning", "computing", scenario="611533d11592"),
+            variant,
+        )
+        assert "RAM holds" in hand.answer
+        assert "rAM" not in hand.answer
+
+
+def test_extraction_emits_exactly_the_requested_schema() -> None:
+    hand = deal_task_hand(
+        _task_row(
+            "extraction_classification",
+            "case_note",
+            scenario="20c14d43c3ff",
+        ),
+        0,
+    )
+    assert set(json.loads(hand.answer)) == {
+        "case",
+        "observed",
+        "reported",
+        "action",
+        "next_owner",
+    }
+
+
+def test_event_brainstorm_checks_every_hard_constraint() -> None:
+    hand = deal_task_hand(
+        _task_row(
+            "brainstorming_creativity",
+            "event_plan",
+            scenario="000000000003",
+        ),
+        0,
+    )
+    assert "two hours" in hand.answer
+    assert "three groups of eight" in hand.answer
+    assert "registration nor personal records" in hand.answer
+
+
 def test_troubleshooting_honors_missing_administrator_access() -> None:
     hand = deal_task_hand(
         _task_row(

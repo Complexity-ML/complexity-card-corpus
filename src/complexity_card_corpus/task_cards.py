@@ -44,6 +44,14 @@ def _payload(row: dict[str, Any]) -> dict[str, str]:
     return json.loads(row["semantic_payload"])
 
 
+def _lower_sentence_initial(value: str) -> str:
+    """Lower a sentence initial without corrupting an acronym such as RAM."""
+    initial = re.match(r"[A-Za-z]+", value)
+    if initial is None or initial.group(0).isupper():
+        return value
+    return value[:1].lower() + value[1:]
+
+
 _PRACTICAL_CARDS = {
     "public_transit": (
         "the transit operator",
@@ -236,13 +244,14 @@ _LESSONS = {
 
 def _explanation(row: dict[str, Any], variant: int) -> TaskHand:
     mechanism, example, check = _LESSONS[row["domain"]]
+    embedded_mechanism = _lower_sentence_initial(mechanism)
     data = f"Concept notes: {mechanism} Example available: {example}"
     goal = "Explain the mechanism in plain language, apply the example, and end with one check question."
     answer_cards = (
         f"Core idea: {mechanism} Example: {example} This applies the distinction directly. Check: {check}",
         f"Core idea: {mechanism} Example: {example} This turns the definition into a checkable case. Check: {check}",
-        f"Core idea: in plain terms, {mechanism[0].lower() + mechanism[1:]} Example: {example} Check: {check}",
-        f"Core idea: the key distinction is that {mechanism[0].lower() + mechanism[1:]} Example: {example} Check: {check}",
+        f"Core idea: in plain terms, {embedded_mechanism} Example: {example} Check: {check}",
+        f"Core idea: the key distinction is that {embedded_mechanism} Example: {example} Check: {check}",
     )
     answer = _card_pick(row, variant, "explanation-answer", answer_cards)
     return TaskHand(data, goal, answer, ("mechanism", "example", "question"))
@@ -1010,15 +1019,15 @@ def _brainstorm(row: dict[str, Any], variant: int) -> TaskHand:
         "event_plan": (
             (
                 "design a two-hour neighborhood event for 30 people with a $60 budget and step-free access",
-                "1. Skill Tables — rotating demonstrations. 2. Story Map — residents place anonymous local memories. 3. Repair Circle — shared guidance for small fixes. Each can use accessible tables and low-cost supplies. Select Skill Tables for flexible participation.",
+                "1. Skill Tables — rotating demonstrations. 2. Story Map — residents place anonymous local memories. 3. Repair Circle — shared guidance for small fixes. Each fits two hours, supports three step-free groups of ten, and can use no more than $60 in common supplies. Select Skill Tables for flexible participation.",
             ),
             (
                 "design a quiet 90-minute library event for 20 people with a $40 budget and step-free access",
-                "1. Mini Talks — three short resident presentations. 2. Swap Shelf — exchange labeled recommendations. 3. Local Puzzle — solve a seated team challenge. Each is quiet, accessible, and inexpensive. Select Local Puzzle for shared participation.",
+                "1. Mini Talks — three short resident presentations. 2. Swap Shelf — exchange labeled recommendations. 3. Local Puzzle — solve a seated team challenge. Each fits 90 minutes, seats 20 people with step-free access, remains quiet, and can use no more than $40 in common supplies. Select Local Puzzle for shared participation.",
             ),
             (
                 "design a two-hour intergenerational event for 24 people without collecting participant data",
-                "1. Story Stations — share optional memories at tables. 2. Skill Exchange — demonstrate simple techniques. 3. Object Stories — discuss an everyday object. None requires registration data. Select Skill Exchange for active participation.",
+                "1. Story Stations — share optional memories at tables. 2. Skill Exchange — demonstrate simple techniques. 3. Object Stories — discuss an everyday object. Each fits two hours as rotations for three groups of eight and requires neither registration nor personal records. Select Skill Exchange for active participation.",
             ),
         ),
         "feature_ideas": (
@@ -1223,7 +1232,6 @@ def deal_task_hand(row: dict[str, Any], variant: int) -> TaskHand:
     code = _code(row)
     if row["family"] == "extraction_classification":
         structured = json.loads(hand.answer)
-        structured = {"hand": code, **structured}
         answer = json.dumps(
             structured,
             separators=(",", ":") if variant % 2 == 0 else (", ", ": "),
