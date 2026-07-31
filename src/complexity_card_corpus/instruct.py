@@ -13,6 +13,12 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from .build import file_sha256
+from .chat_template import (
+    CHAT_TEMPLATE_ID,
+    chat_template_contract,
+    render_system_prefix,
+    render_user_turn,
+)
 from .tokenize import directory_sha256, load_encoding
 
 
@@ -462,18 +468,36 @@ def build_instruction_dataset(
     return manifest
 
 
-def _encode_messages(messages: list[dict[str, str]], encoding, eos_id: int) -> tuple[list[int], list[int]]:
+def _encode_messages(
+    messages: list[dict[str, str]],
+    encoding,
+    eos_id: int,
+    chat_template: dict[str, Any],
+) -> tuple[list[int], list[int]]:
     full_ids: list[int] = []
     target_labels: list[int] = []
-    for message in messages:
+    system_tokens = encoding.encode(
+        render_system_prefix(chat_template),
+        disallowed_special=(),
+    )
+    full_ids.extend(system_tokens)
+    target_labels.extend([IGNORE_INDEX] * len(system_tokens))
+    for index, message in enumerate(messages):
         if message["role"] == "user":
-            segment = f"User: {message['content']}\n"
+            segment = render_user_turn(message["content"], chat_template)
             tokens = encoding.encode(segment, disallowed_special=())
             full_ids.extend(tokens)
             target_labels.extend([IGNORE_INDEX] * len(tokens))
         else:
-            prefix = encoding.encode("Assistant: ", disallowed_special=())
-            response = encoding.encode(f"{message['content']}\n", disallowed_special=())
+            prefix = encoding.encode(
+                chat_template["assistant_prefix"],
+                disallowed_special=(),
+            )
+            suffix = chat_template["turn_separator"] if index < len(messages) - 1 else ""
+            response = encoding.encode(
+                f"{message['content'].strip()}{suffix}",
+                disallowed_special=(),
+            )
             full_ids.extend(prefix)
             target_labels.extend([IGNORE_INDEX] * len(prefix))
             full_ids.extend(response)
@@ -496,6 +520,8 @@ def tokenize_instruction_dataset(
         eos_id = encoding.encode_single_token(eos_token)
     except KeyError:
         eos_id = encoding.eot_token
+    chat_template = chat_template_contract()
+    chat_template["eos_token"] = eos_token
     rows = sorted(
         pq.read_table(instructions_path).to_pylist(),
         key=lambda row: row["example_id"],
@@ -509,6 +535,11 @@ def tokenize_instruction_dataset(
     if temporary.exists():
         shutil.rmtree(temporary)
     temporary.mkdir(parents=True)
+    chat_template_path = temporary / "chat_template.json"
+    chat_template_path.write_text(
+        json.dumps(chat_template, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     manifests: dict[str, Any] = {}
     for partition, partition_rows in sorted(grouped.items()):
         root = temporary / partition
@@ -520,7 +551,12 @@ def tokenize_instruction_dataset(
         supervised_tokens = 0
         with inputs_path.open("wb") as inputs_handle, labels_path.open("wb") as labels_handle, examples_path.open("w", encoding="utf-8") as examples_handle:
             for row in partition_rows:
-                input_ids, labels = _encode_messages(row["messages"], encoding, eos_id)
+                input_ids, labels = _encode_messages(
+                    row["messages"],
+                    encoding,
+                    eos_id,
+                    chat_template,
+                )
                 np.asarray(input_ids, dtype=TOKEN_DTYPE).tofile(inputs_handle)
                 np.asarray(labels, dtype=LABEL_DTYPE).tofile(labels_handle)
                 supervised = sum(label != IGNORE_INDEX for label in labels)
@@ -541,6 +577,8 @@ def tokenize_instruction_dataset(
                 supervised_tokens += supervised
         metadata = {
             "format": "complexity-sft-token-shard-v1",
+            "chat_template_id": CHAT_TEMPLATE_ID,
+            "chat_template_sha256": file_sha256(chat_template_path),
             "partition": partition,
             "examples": len(partition_rows),
             "num_tokens": offset,
@@ -563,7 +601,12 @@ def tokenize_instruction_dataset(
         "format": "complexity-atlas-instruct-tokenized-v1",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "tokenizer": tokenizer_config["encoding_name"],
-        "serialization": "User: <content>\\nAssistant: <content>\\n",
+        "chat_template_id": CHAT_TEMPLATE_ID,
+        "chat_template_sha256": file_sha256(chat_template_path),
+        "serialization": (
+            "System:\\n<system>\\n\\nUser:\\n<content>\\n\\n"
+            "Assistant:\\n<content><eos>"
+        ),
         "partitions": manifests,
         "total_examples": sum(item["examples"] for item in manifests.values()),
         "total_tokens": sum(item["num_tokens"] for item in manifests.values()),

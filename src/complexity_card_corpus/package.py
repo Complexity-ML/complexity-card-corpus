@@ -137,8 +137,10 @@ uses `-100` for user prompts, role prefixes and padding. Loss must be computed
 only where labels differ from `-100`. `examples.jsonl` records the offset and
 length of each independent example.
 
-Serialization is `User: <content>\\nAssistant: <content>\\n`. Training and
-inference should use the same format.
+Serialization follows the bundled `chat_template.json` contract
+(`complexity-chat-v1`). It renders a fixed system instruction followed by
+`User:\n<content>\n\nAssistant:\n`; only assistant content and EOS are
+supervised. Training and inference must use this exact same contract.
 
 ## Intended use
 

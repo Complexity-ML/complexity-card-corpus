@@ -13,7 +13,12 @@ from complexity_card_corpus.instruct import (
     build_instruction_dataset,
     tokenize_instruction_dataset,
 )
+from complexity_card_corpus.chat_template import (
+    CHAT_TEMPLATE_ID,
+    render_inference_prompt,
+)
 from complexity_card_corpus.package import package_instructions_for_hugging_face
+from complexity_card_corpus.tokenize import load_encoding
 
 
 def _card(dataset_id: str, split: str, key: str, name: str) -> dict:
@@ -145,6 +150,12 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
         tmp_path / "tokenized",
     )
     assert manifest["total_examples"] > 0
+    assert manifest["chat_template_id"] == CHAT_TEMPLATE_ID
+    template_path = tmp_path / "tokenized" / "chat_template.json"
+    assert template_path.exists()
+    template = json.loads(template_path.read_text())
+    assert template["id"] == CHAT_TEMPLATE_ID
+    assert template["assistant_only_loss"] is True
     for partition, metadata in manifest["partitions"].items():
         input_ids = np.fromfile(
             tmp_path / "tokenized" / partition / "input_ids.bin",
@@ -160,6 +171,12 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
         assert np.any(supervised)
         with (tmp_path / "tokenized" / partition / "examples.jsonl").open() as handle:
             examples = [json.loads(line) for line in handle]
+        source_rows = {
+            row["example_id"]: row
+            for row in pq.read_table(
+                tmp_path / "instructions/instructions.parquet"
+            ).to_pylist()
+        }
         for example in examples:
             start = example["offset"]
             end = start + example["num_tokens"]
@@ -169,6 +186,11 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
             assert np.array_equal(
                 local_inputs[1:][local_supervised],
                 local_labels[:-1][local_supervised],
+            )
+            decoded = load_encoding(tokenizer)[0].decode(local_inputs.tolist())
+            source = source_rows[example["example_id"]]
+            assert decoded.startswith(
+                render_inference_prompt(source["messages"][0]["content"], template)
             )
         assert int(supervised.sum()) == metadata["supervised_tokens"]
 
