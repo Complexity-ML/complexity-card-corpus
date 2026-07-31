@@ -53,6 +53,51 @@ def test_task_cards_do_not_invent_missing_trial_outcomes() -> None:
     assert "does not establish" in hand.answer.lower()
 
 
+def test_email_critique_does_not_invent_revision_details() -> None:
+    hand = deal_task_hand(_task_row("critique_revision", "email_draft"), 0)
+    assert "Please send the files" in hand.answer
+    assert "confirm the recipient, deadline, and file names" in hand.answer
+    assert "16:00" not in hand.answer
+    assert "project team" not in hand.answer
+    assert "two review files" not in hand.answer
+
+
+def test_grounded_qa_situation_matches_the_supplied_source() -> None:
+    hand = deal_task_hand(_task_row("grounded_qa", "historical_note"), 3)
+    assert "supplied source" in (hand.situation_title or "").lower()
+    assert "documented part" in (hand.situation or "").lower()
+    assert "conflict" not in (hand.situation or "").lower()
+    assert ", The bridge" not in hand.answer
+    assert "supplied source" in (hand.rule or "").lower()
+    assert "unknown" in (hand.rule or "").lower()
+
+
+def test_reasoning_situation_does_not_invent_a_unit_mismatch() -> None:
+    hand = deal_task_hand(_task_row("reasoning_verification", "shopping_arithmetic"), 0)
+    assert "complete calculation" in (hand.situation or "").lower()
+    assert "different units" not in (hand.situation or "").lower()
+
+
+def test_troubleshooting_honors_missing_administrator_access() -> None:
+    hand = deal_task_hand(
+        _task_row(
+            "troubleshooting",
+            "software_install",
+            constraint="Administrator access is unavailable.",
+        ),
+        0,
+    )
+    assert "user-level test profile" in hand.data
+    assert "without changing the system configuration" in hand.answer
+    assert "discard the test profile" in hand.answer
+
+
+def test_clarification_uses_the_hand_code_once() -> None:
+    hand = deal_task_hand(_task_row("context_clarification", "incomplete_goal"), 1)
+    assert hand.answer.count("ABCDEF") == 1
+    assert "For hand ABCDEF: For ABCDEF:" not in hand.answer
+
+
 def test_planning_card_states_the_failed_requirement_explicitly() -> None:
     hand = deal_task_hand(_task_row("planning_comparison", "learning_plan"), 0)
     assert "misses one non-negotiable requirement" in hand.data

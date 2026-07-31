@@ -125,21 +125,21 @@ The next language layer should be accepted only when it:
 7. reports prompt, assistant-message and final-response diversity separately;
 8. keeps the dominant exact response skeleton below 5% after semantic variables
    are replaced with placeholders;
-9. keeps each family-specific opening, action frame and constraint frame below
-   5% of final responses;
+9. keeps each family-level masked response template below the explicit 20%
+   within-family ceiling;
 10. keeps every masked eight-token prose sequence below 5% while retaining raw
     source-anchor repetition in a separate unmasked report.
 
 ## Current post-training surface gate
 
-The current 30,000-example build realizes 23,229 combinations of family
-opening, action frame, constraint frame and narrative order. No combination
-exceeds 0.017% of examples. The largest masked eight-token message coverage is
-4.17%, the largest fallback realization is 4.01%, and each of the 24 conclusion
-frames has a 4.17% share. Exact final responses are unique; 99.97% of masked
-response skeletons are unique. These are automated anti-template diagnostics;
-the 280-row stratified human review remains pending and the corpus remains
-explicitly not training-ready.
+In the current 30,000-example build, all final responses are exactly unique.
+After semantic fields, identifiers, dates, amounts, times and numbers are
+masked, 1,387 distinct response skeletons remain (4.62% exact
+masked-skeleton uniqueness). The largest exact masked-skeleton share is 0.83%,
+the largest masked eight-token message coverage is 3.12%, and the largest
+within-family masked-template share is 8.33%. These are automated anti-template
+diagnostics, not a correctness score. The 280-row stratified human review
+remains pending and the corpus remains explicitly not training-ready.
 
 All 15,000 source scenarios have paired instruct and chat renderings for
 review, but none of the chat openers is an exact match or literal prefix of the

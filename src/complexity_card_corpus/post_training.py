@@ -218,7 +218,7 @@ def _render_card_prompt(
     cards.extend(
         (
             f"DATA CARD\n{hand.data}",
-            f"RULE CARD\n{row['constraint']}",
+            f"RULE CARD\n{hand.rule or row['constraint']}",
             f"GOAL CARD\n{hand.goal}",
         )
     )
@@ -266,7 +266,7 @@ def _render_messages(
         f"SITUATION CARD\n{situation_title}\n{situation}"
         f"\n\nDATA CARD\n{hand.data}"
     )
-    follow_up = f"RULE CARD\n{row['constraint']}\n\nGOAL CARD\n{hand.goal}"
+    follow_up = f"RULE CARD\n{hand.rule or row['constraint']}\n\nGOAL CARD\n{hand.goal}"
     return [
         {
             "role": "user",
@@ -312,7 +312,8 @@ def _conversation_rows(
                 "split": scenario["split"],
                 "state": hand.situation or scenario["state"],
                 "source_state": scenario["state"],
-                "constraint": scenario["constraint"],
+                "constraint": hand.rule or scenario["constraint"],
+                "source_constraint": scenario["constraint"],
                 "desired_outcome": scenario["desired_outcome"],
                 "fallback": scenario["fallback"],
                 "subject": payload["subject"],

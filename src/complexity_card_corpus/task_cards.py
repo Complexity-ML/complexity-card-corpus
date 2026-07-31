@@ -17,6 +17,7 @@ class TaskHand:
     contract: tuple[str, ...]
     situation_title: str | None = None
     situation: str | None = None
+    rule: str | None = None
 
 
 def _number(key: str, low: int, high: int) -> int:
@@ -284,17 +285,35 @@ _ERRORS = {
 def _troubleshooting(row: dict[str, Any], variant: int) -> TaskHand:
     env, error, change = _ERRORS[row["domain"]]
     code = _code(row)
+    no_admin = "administrator access is unavailable" in row["constraint"].lower()
+    access_note = (
+        " A user-level test profile can reproduce the previous setting without "
+        "administrator access."
+        if no_admin
+        else ""
+    )
     data = (
         f"Environment: {env}. Observed error: {error}. Last change: {change}. "
         f"Control run {code} succeeded before that change; user data is backed up read-only."
+        f"{access_note}"
     )
     goal = "Give a reversible diagnostic sequence, a direct fix check, and a regression check."
+    restore_step = (
+        "In the user-level test profile, recreate the last known-good configuration without "
+        f"changing the system configuration; reverse only this recorded change: {change}."
+        if no_admin
+        else f"Reverse only the recorded change: {change}."
+    )
+    failure_step = (
+        "discard the test profile and stop with both logs intact"
+        if no_admin
+        else "restore the setting and stop with both logs intact"
+    )
     answer = (
-        f"1. Preserve log {code} and reproduce once without changing data. 2. Restore only "
-        f"the changed setting: {change}. 3. Repeat the failing operation and compare the new "
+        f"1. Preserve log {code} and reproduce once without changing data. 2. {restore_step} "
+        f"3. Repeat the failing operation and compare the new "
         f"log with {code}. Direct check: confirm that '{error}' no longer appears. Regression "
-        f"check: repeat the last known-good operation. If either check fails, restore the setting "
-        f"and stop with both logs intact."
+        f"check: repeat the last known-good operation. If either check fails, {failure_step}."
     )
     return TaskHand(data, goal, answer, ("steps", "direct_check", "regression_check"))
 
@@ -611,13 +630,28 @@ def _grounded_qa(row: dict[str, Any], variant: int) -> TaskHand:
     passage, goal, supported = cases[row["domain"]]
     data = f"Source {code}: {passage}"
     answer_cards = (
-        f"Based on Source {code}, {supported}",
+        f"Based on Source {code}: {supported}",
         f"Source {code} supports this answer: {supported}",
         f"The documented answer is: {supported} This is limited to Source {code}.",
-        f"According to Source {code}, {supported}",
+        f"According to Source {code}: {supported}",
     )
     answer = _card_pick(row, variant, "grounded-answer", answer_cards)
-    return TaskHand(data, goal, answer, ("direct_answer", "evidence", "unknown"))
+    subject = row["domain"].replace("_", " ").title()
+    return TaskHand(
+        data,
+        goal,
+        answer,
+        ("direct_answer", "evidence", "unknown"),
+        situation_title=f"{subject} — answer from the supplied source",
+        situation=(
+            "The supplied source answers the documented part of the request and leaves "
+            "one requested field undocumented."
+        ),
+        rule=(
+            "Use only the supplied source. Mark any requested field that the source does "
+            "not document as unknown."
+        ),
+    )
 
 
 def _summary(row: dict[str, Any], variant: int) -> TaskHand:
@@ -848,7 +882,18 @@ def _reasoning(row: dict[str, Any], variant: int) -> TaskHand:
         f"Equation: {equation}. Check: use a second view of the values; {check}. Total: {total}.",
     )
     answer = _card_pick(row, variant, "reasoning-answer", answer_cards)
-    return TaskHand(data, goal, answer, ("equation", "result", "check"))
+    subject = domain.replace("_", " ").title()
+    return TaskHand(
+        data,
+        goal,
+        answer,
+        ("equation", "result", "check"),
+        situation_title=f"{subject} — calculate and verify",
+        situation=(
+            "The supplied values define a complete calculation with an independently "
+            "checkable result."
+        ),
+    )
 
 
 def _critique(row: dict[str, Any], variant: int) -> TaskHand:
@@ -857,7 +902,7 @@ def _critique(row: dict[str, Any], variant: int) -> TaskHand:
         "email_draft": (
             "Send the files soon because everyone should know what I mean.",
             "the request has no recipient, deadline, or named files",
-            "Please send the two review files to the project team by 16:00 and confirm delivery.",
+            "Please send the files. First confirm the recipient, deadline, and file names.",
         ),
         "argument": (
             "Our trial proves the workflow is always faster because three of five testers finished sooner.",
@@ -1110,14 +1155,14 @@ def _clarification(row: dict[str, Any], variant: int) -> TaskHand:
     data = f'Request {code}: "{ambiguous}" {restatement}'
     goal = "Restate what is understood, ask one decisive question, and give only a reversible provisional interpretation."
     styles = (
-        f"Request {code}: {restatement} {question} Until confirmed, {reversible_default}.",
-        f"My current reading of {code}: {restatement} {question} For now, {reversible_default}.",
-        f"What is clear in {code}: {restatement} {question} Pending that answer, {reversible_default}.",
-        f"The supported interpretation of {code} is limited: {restatement} {question} As a reversible default, {reversible_default}.",
-        f"I understand the bounded issue in {code}: {restatement} {question} Until it is resolved, {reversible_default}.",
-        f"The available facts for {code} establish this much: {restatement} {question} Meanwhile, {reversible_default}.",
-        f"Request {code} can be restated without guessing: {restatement} {question} A reversible choice is simple: {reversible_default}.",
-        f"For {code}: {restatement} {question} While waiting for the answer, {reversible_default}.",
+        f"Understood: {restatement} {question} Until confirmed, {reversible_default}.",
+        f"My current reading: {restatement} {question} For now, {reversible_default}.",
+        f"What is clear: {restatement} {question} Pending that answer, {reversible_default}.",
+        f"The supported interpretation is limited: {restatement} {question} As a reversible default, {reversible_default}.",
+        f"I understand the bounded issue: {restatement} {question} Until it is resolved, {reversible_default}.",
+        f"The available facts establish this much: {restatement} {question} Meanwhile, {reversible_default}.",
+        f"The request can be restated without guessing: {restatement} {question} A reversible choice is simple: {reversible_default}.",
+        f"In short: {restatement} {question} While waiting for the answer, {reversible_default}.",
     )
     answer = styles[_number(f"clarify-style:{code}:{variant}", 0, len(styles) - 1)]
     return TaskHand(
@@ -1172,6 +1217,7 @@ def deal_task_hand(row: dict[str, Any], variant: int) -> TaskHand:
         hand.contract,
         situation_title=hand.situation_title,
         situation=hand.situation,
+        rule=hand.rule,
     )
     validate_task_hand(row["family"], hand)
     return hand
