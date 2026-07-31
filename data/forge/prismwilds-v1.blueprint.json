@@ -1,0 +1,460 @@
+{
+  "format": "complexity-atlas-forge-v1",
+  "seed": 777,
+  "metadata": {
+    "datasetId": "prismwilds-v1",
+    "title": "Prismwilds Creature Atlas",
+    "domain": "speculative natural history",
+    "themes": [
+      "creature collection",
+      "field research",
+      "strange ecology",
+      "friendship",
+      "evolution"
+    ],
+    "language": "en",
+    "version": "1.0.0",
+    "split": "train",
+    "source": "Complexity original creature-atlas seed",
+    "sourceUrls": [],
+    "license": "CC BY-NC 4.0",
+    "description": "An original linked bestiary of peculiar creatures, habitats, field guilds, relics and snacks. It evokes the joy of collecting and studying imaginary wildlife without using characters, names, designs or lore from an existing franchise."
+  },
+  "archetypes": [
+    {
+      "id": "creature",
+      "kind": "creature",
+      "keyPrefix": "creature",
+      "count": 24,
+      "slots": {
+        "name": [
+          "Embermoth",
+          "Puddlehorn",
+          "Mossjaw",
+          "Glassfin",
+          "Cloudkip",
+          "Nightbloom",
+          "Copperpup",
+          "Starroot",
+          "Bramblebyte",
+          "Moonwisp",
+          "Thunderplum",
+          "Velvetusk",
+          "Frostwink",
+          "Gloamgill",
+          "Sunspore",
+          "Pebbletail",
+          "Riftbeak",
+          "Nectarcoil",
+          "Quartzling",
+          "Sootsprite",
+          "Auroraquill",
+          "Mudcomet",
+          "Chimecub",
+          "Vortexhare"
+        ],
+        "field_name": [
+          "the Lantern Grazer",
+          "the Rain-Pocket Runner",
+          "the Root-Cruncher",
+          "the Mirror Swimmer",
+          "the Sky-Puddle Skipper",
+          "the Midnight Gardener",
+          "the Penny-Bell Pup",
+          "the Walking Constellation",
+          "the Hedge Hacker",
+          "the Sleepy Beacon",
+          "the Storm Orchard Bird",
+          "the Soft-Tusk Forager",
+          "the Snowblink",
+          "the Dusk-Fin",
+          "the Daybreak Puff",
+          "the Patient Stone Tail",
+          "the Crack-in-the-Sky Beak",
+          "the Honey Spiral",
+          "the Singing Crystal",
+          "the Chimney Sprite",
+          "the Polar Feather",
+          "the Falling Mud Star",
+          "the Bell-Belly Cub",
+          "the Spiral-Eared Hare"
+        ],
+        "affinity": [
+          "ember",
+          "tide",
+          "moss",
+          "prism",
+          "gale",
+          "gloam",
+          "alloy",
+          "astral"
+        ],
+        "body_form": [
+          "winged grazer",
+          "amphibious runner",
+          "armored browser",
+          "ribbon-finned swimmer",
+          "long-legged hopper",
+          "flower-backed prowler"
+        ],
+        "temperament": [
+          "curious",
+          "dramatic",
+          "patient",
+          "mischievous",
+          "protective",
+          "easily distracted"
+        ],
+        "ability": [
+          "stores yesterday's sunlight in its antennae",
+          "folds rain into floating beads",
+          "coaxes roots to untie themselves",
+          "bends reflections around small objects",
+          "rides pressure changes like invisible stairs",
+          "turns whispered secrets into harmless pollen",
+          "magnetizes lost buttons and coins",
+          "draws temporary star maps across its back"
+        ],
+        "quirk": [
+          "applauds thunderstorms",
+          "sleeps inside abandoned boots",
+          "collects perfectly round pebbles",
+          "refuses to cross its own reflection",
+          "hiccups when somebody lies",
+          "dances before eating",
+          "imitates doorbells",
+          "follows anyone carrying soup"
+        ],
+        "rarity": [
+          "common",
+          "uncommon",
+          "rare",
+          "seasonal",
+          "elusive",
+          "locally abundant"
+        ],
+        "growth_trigger": [
+          "hearing three different dawn choruses",
+          "sharing food during a magnetic storm",
+          "sleeping beside a warm relic",
+          "crossing running water under moonlight",
+          "protecting a smaller creature",
+          "finding its own shed feather"
+        ]
+      },
+      "nameTemplate": "{name}",
+      "aliasTemplates": [
+        "{field_name}"
+      ],
+      "summaryTemplate": "A {affinity}-affinity {body_form} with a {temperament} temperament, known because it {ability}.",
+      "descriptionTemplate": "{name} is catalogued as {rarity} in the Prismwilds. Field researchers approach it slowly: it is {temperament}, it {quirk}, and sudden confinement makes its {affinity} response unstable.",
+      "factTemplates": [
+        "Its signature field ability {ability}.",
+        "A healthy specimen often {quirk}.",
+        "Its next growth phase may begin after {growth_trigger}."
+      ],
+      "tags": [
+        "prismwilds",
+        "collectible-creature",
+        "original-fiction"
+      ],
+      "attributeTemplates": {
+        "affinity": "{affinity}",
+        "body_form": "{body_form}",
+        "temperament": "{temperament}",
+        "rarity": "{rarity}",
+        "field_ability": "{ability}",
+        "growth_trigger": "{growth_trigger}",
+        "research_rule": "Observe before approaching; never remove a creature from an active nest."
+      }
+    },
+    {
+      "id": "habitat",
+      "kind": "habitat",
+      "keyPrefix": "habitat",
+      "count": 8,
+      "slots": {
+        "name": [
+          "The Singing Mangroves",
+          "The Upside-Down Orchard",
+          "The Soda-Glass Desert",
+          "The Velvet Volcano",
+          "The Clockrain Prairie",
+          "The Moonmilk Caverns",
+          "The Static Kelp Forest",
+          "The Pillowstone Highlands"
+        ],
+        "weather": [
+          "warm rain that rings like cutlery",
+          "slow upward wind",
+          "blue lightning beneath clear skies",
+          "ash that falls as soft fibers",
+          "brief showers every thirteen minutes",
+          "cold mist glowing at the edges",
+          "electrical tides",
+          "dry snow that stacks into cubes"
+        ],
+        "feature": [
+          "roots that hum in harmony",
+          "fruit growing beneath floating soil",
+          "dunes made from translucent flakes",
+          "craters lined with velvet moss",
+          "grass that measures passing storms",
+          "calcium rivers flowing along cave ceilings",
+          "kelp fronds suspended in charged air",
+          "boulders soft enough to hold footprints"
+        ],
+        "danger": [
+          "echo predators",
+          "reversed gravity pockets",
+          "razor mirages",
+          "sleepwalking vents",
+          "time-lag hail",
+          "tide wraiths",
+          "static blooms",
+          "migrating cliffs"
+        ]
+      },
+      "nameTemplate": "{name}",
+      "summaryTemplate": "A strange ecosystem shaped by {feature}.",
+      "descriptionTemplate": "{name} experiences {weather}. Its ecology depends on {feature}, while field teams must plan around {danger}.",
+      "factTemplates": [
+        "Characteristic weather: {weather}.",
+        "Defining terrain: {feature}.",
+        "Primary field hazard: {danger}."
+      ],
+      "tags": [
+        "prismwilds",
+        "ecosystem",
+        "field-site"
+      ],
+      "attributeTemplates": {
+        "weather": "{weather}",
+        "defining_feature": "{feature}",
+        "hazard": "{danger}"
+      }
+    },
+    {
+      "id": "guild",
+      "kind": "research_guild",
+      "keyPrefix": "guild",
+      "count": 6,
+      "slots": {
+        "name": [
+          "The Soup Compass Society",
+          "The Quiet Thunder Club",
+          "The Pocket Observatory",
+          "The Mudlark Cartographers",
+          "The Lantern Veterinary Guild",
+          "The Unlost Expedition"
+        ],
+        "method": [
+          "mapping animal paths with scented steam",
+          "recording behavior without spoken commands",
+          "tracking nocturnal migration with folding telescopes",
+          "drawing maps that include temporary terrain",
+          "treating affinity sickness with light and music",
+          "following creatures that appear to be lost"
+        ],
+        "motto": [
+          "A warm bowl points home.",
+          "Listen before the lightning.",
+          "Every pocket contains a sky.",
+          "Mud remembers every traveler.",
+          "Gentle light, steady paws.",
+          "Getting lost is data."
+        ]
+      },
+      "nameTemplate": "{name}",
+      "summaryTemplate": "A field guild specializing in {method}.",
+      "descriptionTemplate": "{name} trains researchers in {method}. Its members repeat the motto: “{motto}”",
+      "factTemplates": [
+        "Primary method: {method}.",
+        "Guild motto: {motto}"
+      ],
+      "tags": [
+        "prismwilds",
+        "research",
+        "guild"
+      ],
+      "attributeTemplates": {
+        "method": "{method}",
+        "motto": "{motto}"
+      }
+    },
+    {
+      "id": "relic",
+      "kind": "field_relic",
+      "keyPrefix": "relic",
+      "count": 8,
+      "slots": {
+        "name": [
+          "The Thermos of Small Suns",
+          "The Backward Binoculars",
+          "The Weather Button",
+          "The Echo Umbrella",
+          "The Compass Egg",
+          "The Folded Horizon",
+          "The Borrowed Shadow",
+          "The Unfinished Bell"
+        ],
+        "effect": [
+          "keeps one captured sunbeam warm for a day",
+          "reveals where a creature stood ten minutes earlier",
+          "summons a cloud no wider than a dinner table",
+          "collects one dangerous sound and releases it as music",
+          "rolls toward the safest nearby path",
+          "opens a view onto a place just beyond walking distance",
+          "lends temporary shade to anything without a shadow",
+          "rings only when an unknown species is close"
+        ],
+        "cost": [
+          "a sincere compliment",
+          "one minute of perfect silence",
+          "three drops of clean rain",
+          "a melody the user has never hummed before",
+          "a map with one deliberate mistake",
+          "the memory of a boring afternoon",
+          "a candle allowed to burn out naturally",
+          "the promise to record what is found"
+        ]
+      },
+      "nameTemplate": "{name}",
+      "summaryTemplate": "A peculiar field instrument that {effect}.",
+      "descriptionTemplate": "{name} {effect}. Activating it requires {cost}; forcing it to operate without that exchange produces unreliable readings.",
+      "factTemplates": [
+        "Documented effect: it {effect}.",
+        "Activation exchange: {cost}."
+      ],
+      "tags": [
+        "prismwilds",
+        "artifact",
+        "field-equipment"
+      ],
+      "attributeTemplates": {
+        "effect": "{effect}",
+        "activation_cost": "{cost}"
+      }
+    },
+    {
+      "id": "snack",
+      "kind": "creature_food",
+      "keyPrefix": "snack",
+      "count": 8,
+      "slots": {
+        "name": [
+          "Cloudberry Crackle",
+          "Moss Macarons",
+          "Thunder Noodles",
+          "Moon-Salt Melon",
+          "Pocket Stew",
+          "Comet Dumplings",
+          "Whistle Pears",
+          "Glowcrumb Biscuits"
+        ],
+        "flavor": [
+          "sweet rain and toasted sugar",
+          "mint, earth and almond",
+          "pepper with a harmless electric finish",
+          "cold citrus and sea salt",
+          "whatever comfort food the eater remembers",
+          "smoky plum and ginger",
+          "bright pear with a musical aftertaste",
+          "butter, honey and faint blue light"
+        ],
+        "behavior": [
+          "encourages shy creatures to approach",
+          "calms territorial displays",
+          "restores energy after gliding",
+          "helps nocturnal creatures navigate",
+          "builds trust when shared",
+          "attracts high-altitude species",
+          "makes burrowing creatures surface",
+          "reveals tiny footprints for several minutes"
+        ]
+      },
+      "nameTemplate": "{name}",
+      "summaryTemplate": "A field snack tasting of {flavor}.",
+      "descriptionTemplate": "{name} tastes of {flavor} and {behavior}. Ethical field guides use it as enrichment, never as a trap.",
+      "factTemplates": [
+        "Flavor profile: {flavor}.",
+        "Observed response: it {behavior}."
+      ],
+      "tags": [
+        "prismwilds",
+        "food",
+        "field-enrichment"
+      ],
+      "attributeTemplates": {
+        "flavor": "{flavor}",
+        "observed_response": "{behavior}"
+      }
+    }
+  ],
+  "relationRules": [
+    {
+      "sourceArchetype": "creature",
+      "relation": "inhabits",
+      "targetArchetype": "habitat",
+      "offset": 0,
+      "stride": 3,
+      "detailTemplate": "{source} has a stable wild population in {target}."
+    },
+    {
+      "sourceArchetype": "creature",
+      "relation": "befriends",
+      "targetArchetype": "creature",
+      "offset": 7,
+      "stride": 1,
+      "detailTemplate": "{source} is frequently observed sharing shelter with {target}."
+    },
+    {
+      "sourceArchetype": "creature",
+      "relation": "studied_by",
+      "targetArchetype": "guild",
+      "offset": 1,
+      "stride": 1,
+      "detailTemplate": "{target} maintains the principal field notes for {source}."
+    },
+    {
+      "sourceArchetype": "creature",
+      "relation": "resonates_with",
+      "targetArchetype": "relic",
+      "offset": 2,
+      "stride": 3,
+      "detailTemplate": "{source} produces a measurable affinity response near {target}."
+    },
+    {
+      "sourceArchetype": "creature",
+      "relation": "enjoys",
+      "targetArchetype": "snack",
+      "offset": 4,
+      "stride": 5,
+      "detailTemplate": "{source} accepts {target} during patient trust-building sessions."
+    },
+    {
+      "sourceArchetype": "habitat",
+      "relation": "conceals",
+      "targetArchetype": "relic",
+      "offset": 3,
+      "stride": 1,
+      "detailTemplate": "{target} has been documented within {source}."
+    },
+    {
+      "sourceArchetype": "guild",
+      "relation": "surveys",
+      "targetArchetype": "habitat",
+      "offset": 1,
+      "stride": 3,
+      "detailTemplate": "{source} leads seasonal surveys in {target}."
+    },
+    {
+      "sourceArchetype": "snack",
+      "relation": "prepared_in",
+      "targetArchetype": "habitat",
+      "offset": 2,
+      "stride": 1,
+      "detailTemplate": "{source} was first prepared by researchers working in {target}."
+    }
+  ]
+}

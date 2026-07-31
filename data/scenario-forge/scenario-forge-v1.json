@@ -1,0 +1,341 @@
+{
+  "format": "scenario-forge-v1",
+  "seed": 20260731,
+  "validationPercent": 5,
+  "metadata": {
+    "datasetId": "complexity-scenario-forge-v1",
+    "title": "Complexity Scenario Forge",
+    "version": "1.0.0",
+    "language": "en",
+    "license": "CC BY-NC 4.0",
+    "source": "Complexity original authored semantic taxonomy",
+    "description": "Two thousand structured scenario cards for building varied assistant conversations without copying source utterances."
+  },
+  "families": [
+    {
+      "id": "practical_action",
+      "label": "Practical action",
+      "target": 600,
+      "domains": [
+        {"id":"appointments","label":"Appointments","subject":"an appointment","context":"A person needs a specific service slot and a verifiable confirmation."},
+        {"id":"air_travel","label":"Air travel","subject":"a flight booking","context":"A traveller must act within carrier rules and a fixed travel window."},
+        {"id":"parcel_delivery","label":"Parcel delivery","subject":"a parcel delivery","context":"Tracking information and the physical delivery state do not yet fully agree."},
+        {"id":"account_access","label":"Account access","subject":"access to an online account","context":"Identity must be verified without exposing credentials or bypassing controls.","riskLevel":"medium"},
+        {"id":"subscriptions","label":"Subscriptions","subject":"a recurring subscription","context":"Renewal terms, billing dates, and cancellation effects must remain explicit."},
+        {"id":"event_registration","label":"Event registration","subject":"an event registration","context":"Capacity, eligibility, and confirmation status may change before the event."},
+        {"id":"home_repair","label":"Home repair","subject":"a home repair visit","context":"The scope and price need confirmation before work begins."},
+        {"id":"banking_admin","label":"Banking administration","subject":"a routine banking request","context":"The action must use official channels and preserve an auditable record.","riskLevel":"medium"},
+        {"id":"healthcare_admin","label":"Healthcare administration","subject":"a healthcare administration request","context":"The task concerns scheduling or records, not diagnosis or treatment.","riskLevel":"medium"},
+        {"id":"course_enrolment","label":"Course enrolment","subject":"a course enrolment","context":"Prerequisites, deadlines, and available places determine the next step."},
+        {"id":"retail_returns","label":"Retail returns","subject":"a retail return","context":"The item condition, proof of purchase, and policy window matter."},
+        {"id":"public_transit","label":"Public transit","subject":"a public-transit journey","context":"Service changes and accessibility needs can alter the workable route."}
+      ],
+      "intents": [
+        {"id":"arrange","label":"arrange the next step","goalTemplate":"Arrange the next verifiable step for {subject}."},
+        {"id":"change","label":"change an existing arrangement","goalTemplate":"Change an existing arrangement involving {subject} without losing confirmed details."},
+        {"id":"cancel","label":"cancel or reverse an arrangement","goalTemplate":"Cancel or reverse {subject} while making consequences explicit."},
+        {"id":"verify","label":"confirm requirements and status","goalTemplate":"Confirm the requirements and current status of {subject} before acting."},
+        {"id":"resolve","label":"resolve a discrepancy","goalTemplate":"Resolve a discrepancy involving {subject} through a documented next step."}
+      ],
+      "constraints": [
+        {"id":"deadline","label":"The action must be completed before a fixed deadline."},
+        {"id":"budget","label":"The total cost cannot exceed a stated budget."},
+        {"id":"accessibility","label":"The result must preserve a stated accessibility need."},
+        {"id":"limited_information","label":"Only partial reference information is currently available."},
+        {"id":"reversible","label":"No irreversible action may occur before explicit confirmation."}
+      ],
+      "states": [
+        {"id":"not_started","label":"No action has been taken yet."},
+        {"id":"pending","label":"A request exists but has not been confirmed."},
+        {"id":"conflict","label":"Two available records contain conflicting details."},
+        {"id":"failed_attempt","label":"One reasonable attempt failed without resolving the task."}
+      ],
+      "outcomes": [
+        {"id":"confirmed_step","label":"A concrete next step is confirmed with owner and timing."},
+        {"id":"corrected_record","label":"The relevant record is corrected and the change is documented."},
+        {"id":"clear_requirements","label":"Requirements and missing information are separated clearly."},
+        {"id":"reversible_choice","label":"A safe reversible option is selected pending final confirmation."},
+        {"id":"escalation_path","label":"A justified escalation path is identified with the required evidence."}
+      ],
+      "fallbacks": [
+        {"id":"pause","label":"Pause before commitment and preserve the current confirmed state."},
+        {"id":"official_channel","label":"Use the provider's official support channel with a concise evidence summary."},
+        {"id":"alternative","label":"Choose a bounded alternative that still satisfies the hard constraint."}
+      ],
+      "responseContract": ["State the actionable next step.","Separate known facts from unknowns.","Ask at most one decisive question.","Do not claim an external action was completed."]
+    },
+    {
+      "id": "explanation_learning",
+      "label": "Explanation and learning",
+      "target": 400,
+      "domains": [
+        {"id":"computing","label":"Computing","subject":"a basic computing mechanism","context":"The learner needs a mental model rather than implementation trivia."},
+        {"id":"data_literacy","label":"Data literacy","subject":"a data interpretation concept","context":"A chart or summary must be read without overstating what it proves."},
+        {"id":"physical_science","label":"Physical science","subject":"a physical-science principle","context":"The explanation should connect an observable effect to a simple mechanism."},
+        {"id":"life_science","label":"Life science","subject":"a life-science process","context":"The learner needs accurate scale and causality without anthropomorphic shortcuts."},
+        {"id":"mathematics","label":"Mathematics","subject":"a mathematical relationship","context":"The explanation should connect notation, intuition, and one worked example."},
+        {"id":"personal_finance","label":"Personal finance literacy","subject":"a personal-finance concept","context":"The material is educational and must not become individualized financial advice.","riskLevel":"medium"},
+        {"id":"civics","label":"Civics","subject":"a civic process","context":"Roles, procedure, and jurisdiction need to remain distinct."},
+        {"id":"media_literacy","label":"Media literacy","subject":"a media-verification concept","context":"Evidence quality and uncertainty matter more than a quick verdict."}
+      ],
+      "intents": [
+        {"id":"mechanism","label":"explain the core mechanism","goalTemplate":"Explain the core mechanism behind {subject}."},
+        {"id":"contrast","label":"contrast nearby concepts","goalTemplate":"Contrast {subject} with the nearest commonly confused concept."},
+        {"id":"worked_example","label":"walk through a worked example","goalTemplate":"Teach {subject} through one concrete worked example."},
+        {"id":"misconception","label":"diagnose a misconception","goalTemplate":"Identify and correct a plausible misconception about {subject}."},
+        {"id":"application","label":"apply the principle","goalTemplate":"Apply {subject} to a new but simple situation."}
+      ],
+      "constraints": [
+        {"id":"beginner","label":"Use beginner-level vocabulary and define necessary terms."},
+        {"id":"concise","label":"Keep the explanation concise enough to retain the main causal chain."},
+        {"id":"verified","label":"Do not introduce claims that cannot be supported by the stated facts."},
+        {"id":"example","label":"Include one concrete example and explain why it fits."},
+        {"id":"fact_inference","label":"Mark the boundary between fact, inference, and simplification."}
+      ],
+      "states": [
+        {"id":"unfamiliar","label":"The learner has no reliable prior model."},
+        {"id":"partial","label":"The learner knows the vocabulary but not the mechanism."},
+        {"id":"conflicting_models","label":"Two explanations appear to contradict each other."},
+        {"id":"rote_only","label":"The learner can repeat a rule but cannot transfer it."}
+      ],
+      "outcomes": [
+        {"id":"mental_model","label":"The learner can restate the mechanism in their own words."},
+        {"id":"distinguish","label":"The learner can distinguish the concept from its nearest alternative."},
+        {"id":"predict","label":"The learner can predict one simple consequence."},
+        {"id":"correct_error","label":"The learner can identify why the earlier misconception fails."},
+        {"id":"transfer","label":"The learner can apply the principle to a fresh example."}
+      ],
+      "fallbacks": [
+        {"id":"simpler_model","label":"Return to a smaller causal model with fewer moving parts."},
+        {"id":"counterexample","label":"Use a counterexample to expose the exact point of confusion."},
+        {"id":"source_check","label":"Name the unresolved claim and suggest an authoritative source check."}
+      ],
+      "responseContract": ["Lead with the simplest accurate model.","Define specialized terms on first use.","Include a check for understanding.","Keep uncertainty visible."]
+    },
+    {
+      "id": "troubleshooting",
+      "label": "Troubleshooting",
+      "target": 300,
+      "domains": [
+        {"id":"software_install","label":"Software installation","subject":"a software installation failure","context":"The environment and error boundary must be identified before changing dependencies."},
+        {"id":"network_connection","label":"Network connection","subject":"an unreliable network connection","context":"Local device, router, name resolution, and remote service are separate fault domains."},
+        {"id":"file_sync","label":"File synchronization","subject":"a file synchronization mismatch","context":"Local and remote copies may diverge, so destructive overwrite is unsafe."},
+        {"id":"peripheral","label":"Device peripheral","subject":"an unresponsive peripheral","context":"Power, physical connection, permissions, and driver state are distinct checks."},
+        {"id":"web_form","label":"Web form","subject":"a web-form submission failure","context":"Validation, session state, browser behavior, and server response can fail independently."},
+        {"id":"data_pipeline","label":"Data pipeline","subject":"a data-pipeline failure","context":"Inputs, schema, transformation, and destination must be checked at explicit boundaries."}
+      ],
+      "intents": [
+        {"id":"diagnose","label":"isolate the failing boundary","goalTemplate":"Isolate the failing boundary in {subject}."},
+        {"id":"reproduce","label":"produce a minimal reproduction","goalTemplate":"Create a minimal, observable reproduction of {subject}."},
+        {"id":"recover","label":"recover safely","goalTemplate":"Recover safely from {subject} without destroying useful state."},
+        {"id":"verify_fix","label":"verify a proposed fix","goalTemplate":"Verify that a proposed fix actually resolves {subject}."},
+        {"id":"prevent","label":"prevent recurrence","goalTemplate":"Identify a proportionate prevention step after resolving {subject}."}
+      ],
+      "constraints": [
+        {"id":"no_data_loss","label":"Existing user data must not be overwritten or deleted."},
+        {"id":"one_change","label":"Change one variable at a time and preserve observations."},
+        {"id":"limited_access","label":"Administrator access is unavailable."},
+        {"id":"short_window","label":"Only a short maintenance window is available."},
+        {"id":"reversible_steps","label":"Every diagnostic step must be reversible."}
+      ],
+      "states": [
+        {"id":"intermittent","label":"The failure is intermittent rather than constant."},
+        {"id":"after_change","label":"The failure began after a known configuration change."},
+        {"id":"partial_success","label":"One stage succeeds while the next stage fails."},
+        {"id":"unknown_baseline","label":"The last known-good state is not documented."}
+      ],
+      "outcomes": [
+        {"id":"fault_domain","label":"The failing component or boundary is identified."},
+        {"id":"minimal_repro","label":"A minimal reproduction captures the same failure reliably."},
+        {"id":"restored","label":"Normal operation is restored without data loss."},
+        {"id":"validated_fix","label":"The fix passes a direct check and a regression check."},
+        {"id":"runbook","label":"A concise prevention or recovery note is recorded."}
+      ],
+      "fallbacks": [
+        {"id":"preserve_logs","label":"Stop changing state, preserve logs, and record the last confirmed boundary."},
+        {"id":"rollback","label":"Return to the last known reversible configuration."},
+        {"id":"escalate","label":"Escalate with reproduction steps, environment details, and exact errors."}
+      ],
+      "responseContract": ["Start with the smallest discriminating check.","Explain what each check proves.","Avoid destructive recovery by default.","End with a verification step."]
+    },
+    {
+      "id": "writing_transformation",
+      "label": "Writing and transformation",
+      "target": 250,
+      "domains": [
+        {"id":"email","label":"Email","subject":"a professional email","context":"The message needs a clear purpose, appropriate tone, and explicit next step."},
+        {"id":"project_update","label":"Project update","subject":"a project status update","context":"Progress, evidence, blockers, and ownership should be easy to scan."},
+        {"id":"support_reply","label":"Support reply","subject":"a customer-support response","context":"The reply should acknowledge the issue without claiming an unverified resolution."},
+        {"id":"meeting_notes","label":"Meeting notes","subject":"a set of meeting notes","context":"Decisions, open questions, and actions need separation."},
+        {"id":"technical_explanation","label":"Technical explanation","subject":"a short technical explanation","context":"Accuracy and reader orientation matter more than decorative jargon."}
+      ],
+      "intents": [
+        {"id":"draft","label":"draft from structured facts","goalTemplate":"Draft {subject} from a bounded set of facts."},
+        {"id":"revise","label":"revise for clarity","goalTemplate":"Revise {subject} for clarity without changing its claims."},
+        {"id":"summarize","label":"summarize faithfully","goalTemplate":"Summarize {subject} while preserving decisions and caveats."},
+        {"id":"adapt_tone","label":"adapt tone for the audience","goalTemplate":"Adapt the tone of {subject} for its intended audience."},
+        {"id":"restructure","label":"restructure for action","goalTemplate":"Restructure {subject} so the reader can identify the next action."}
+      ],
+      "constraints": [
+        {"id":"no_new_claims","label":"Do not add facts, commitments, or outcomes absent from the source."},
+        {"id":"plain_language","label":"Prefer plain language over jargon and inflated phrasing."},
+        {"id":"short","label":"Keep the result within a strict short-form length."},
+        {"id":"tone","label":"Maintain a calm, respectful, and direct tone."},
+        {"id":"actionable","label":"Make ownership and the requested next step explicit."}
+      ],
+      "states": [
+        {"id":"rough_notes","label":"The source is a rough collection of notes."},
+        {"id":"too_long","label":"The source is accurate but too long and repetitive."},
+        {"id":"ambiguous","label":"The source mixes facts, opinions, and unresolved questions."},
+        {"id":"wrong_tone","label":"The source content is useful but the tone does not fit the audience."}
+      ],
+      "outcomes": [
+        {"id":"clear_purpose","label":"The opening makes the purpose immediately clear."},
+        {"id":"faithful_summary","label":"All material claims remain faithful to the source."},
+        {"id":"scan_actions","label":"Actions, owners, and timing are easy to scan."},
+        {"id":"audience_fit","label":"Vocabulary and tone fit the intended reader."},
+        {"id":"open_questions","label":"Unresolved questions remain visible rather than being invented away."}
+      ],
+      "fallbacks": [
+        {"id":"request_facts","label":"Request the missing fact instead of inventing a bridge sentence."},
+        {"id":"retain_caveat","label":"Retain the caveat explicitly when shortening the text."},
+        {"id":"two_versions","label":"Provide a concise version and a slightly fuller version for comparison."}
+      ],
+      "responseContract": ["Preserve the source meaning.","Do not invent facts or commitments.","Match the requested audience and length.","Make edits easy to review."]
+    },
+    {
+      "id": "planning_comparison",
+      "label": "Planning and comparison",
+      "target": 200,
+      "domains": [
+        {"id":"travel_plan","label":"Travel plan","subject":"a bounded travel plan","context":"Timing, budget, mobility, and cancellation tolerance shape the options."},
+        {"id":"learning_plan","label":"Learning plan","subject":"a short learning plan","context":"Available time, prerequisites, and observable practice should drive the sequence."},
+        {"id":"small_project","label":"Small project","subject":"a small project plan","context":"Scope, dependencies, owners, and exit criteria need to stay explicit."},
+        {"id":"purchase_decision","label":"Purchase decision","subject":"a purchase comparison","context":"Requirements, total cost, and uncertainty matter more than feature count."}
+      ],
+      "intents": [
+        {"id":"define_options","label":"define viable options","goalTemplate":"Define the viable options for {subject}."},
+        {"id":"compare","label":"compare against hard criteria","goalTemplate":"Compare options for {subject} against explicit hard criteria."},
+        {"id":"sequence","label":"sequence the work","goalTemplate":"Sequence {subject} around dependencies and checkpoints."},
+        {"id":"allocate","label":"allocate limited resources","goalTemplate":"Allocate limited time or budget across {subject}."},
+        {"id":"fallback","label":"design a fallback","goalTemplate":"Design a fallback path for {subject} before commitment."}
+      ],
+      "constraints": [
+        {"id":"budget","label":"A fixed budget is a hard upper bound."},
+        {"id":"time","label":"A fixed deadline limits the feasible sequence."},
+        {"id":"must_have","label":"One stated requirement cannot be traded away."},
+        {"id":"uncertain_input","label":"One important input remains uncertain."},
+        {"id":"reversible","label":"Early steps should preserve the ability to change direction."}
+      ],
+      "states": [
+        {"id":"too_many_options","label":"There are too many loosely comparable options."},
+        {"id":"missing_dependency","label":"A dependency has not yet been resolved."},
+        {"id":"conflicting_priorities","label":"Two priorities currently conflict."},
+        {"id":"partial_plan","label":"A partial plan exists but lacks checkpoints and fallback conditions."}
+      ],
+      "outcomes": [
+        {"id":"shortlist","label":"A shortlist remains after applying hard constraints."},
+        {"id":"decision_matrix","label":"The comparison shows why one option fits better."},
+        {"id":"ordered_steps","label":"Steps are ordered by dependency with clear checkpoints."},
+        {"id":"resource_plan","label":"Time or budget is allocated to the highest-value work."},
+        {"id":"triggered_fallback","label":"The fallback has an explicit trigger rather than a vague intention."}
+      ],
+      "fallbacks": [
+        {"id":"defer","label":"Defer commitment until the decisive unknown is resolved."},
+        {"id":"smaller_scope","label":"Choose a smaller reversible scope that still tests the plan."},
+        {"id":"second_option","label":"Keep the strongest alternative ready with a clear switch condition."}
+      ],
+      "responseContract": ["Separate hard constraints from preferences.","Show the comparison criteria.","Sequence dependencies before optional work.","Include a fallback trigger."]
+    },
+    {
+      "id": "conversation_empathy",
+      "label": "Conversation and empathy",
+      "target": 150,
+      "domains": [
+        {"id":"work_stress","label":"Work stress","subject":"a stressful work situation","context":"The person wants acknowledgment and one manageable next step, not a diagnosis."},
+        {"id":"relationship_tension","label":"Relationship tension","subject":"a tense personal conversation","context":"Honesty and preservation of the relationship both matter."},
+        {"id":"uncertain_change","label":"Uncertain change","subject":"an uncertain life change","context":"The outcome is not controllable, but preparation and support are possible."},
+        {"id":"social_mistake","label":"Social mistake","subject":"an embarrassing social moment","context":"A small mistake is being replayed as if it were a lasting judgment."},
+        {"id":"achievement","label":"Achievement","subject":"a meaningful personal achievement","context":"The person wants to recognize progress without dismissing remaining difficulty."},
+        {"id":"loss_disappointment","label":"Loss and disappointment","subject":"a painful disappointment","context":"The response should make space for the feeling before moving to action."}
+      ],
+      "intents": [
+        {"id":"acknowledge","label":"acknowledge the experience","goalTemplate":"Respond supportively to {subject} without minimizing it."},
+        {"id":"clarify_need","label":"clarify the immediate need","goalTemplate":"Help the person identify what they need from {subject} right now."},
+        {"id":"prepare_conversation","label":"prepare a grounded conversation","goalTemplate":"Prepare one respectful conversation about {subject}."},
+        {"id":"small_step","label":"choose a gentle next step","goalTemplate":"Choose one manageable next step after {subject}."},
+        {"id":"reflect","label":"reflect on meaning and progress","goalTemplate":"Reflect on what {subject} reveals without forcing a quick resolution."}
+      ],
+      "constraints": [
+        {"id":"no_assumption","label":"Do not assume motives, diagnoses, or unstated facts."},
+        {"id":"no_forced_fix","label":"Do not force problem-solving before acknowledging the experience."},
+        {"id":"one_question","label":"Ask no more than one gentle, useful question."},
+        {"id":"preserve_agency","label":"Preserve the person's agency and avoid commands."},
+        {"id":"specific_support","label":"Offer support that is concrete but proportionate."}
+      ],
+      "states": [
+        {"id":"activated","label":"The emotion is immediate and physically activating."},
+        {"id":"replaying","label":"The person is repeatedly replaying the event."},
+        {"id":"mixed","label":"The person holds two conflicting feelings at once."},
+        {"id":"ready","label":"The person feels ready for a small constructive step."}
+      ],
+      "outcomes": [
+        {"id":"felt_understood","label":"The response accurately acknowledges the central feeling."},
+        {"id":"named_need","label":"The person can name the immediate need more clearly."},
+        {"id":"bounded_conversation","label":"A difficult conversation has one clear purpose and boundary."},
+        {"id":"small_action","label":"One manageable action is chosen without demanding certainty."},
+        {"id":"balanced_reflection","label":"The reflection holds both difficulty and evidence of agency."}
+      ],
+      "fallbacks": [
+        {"id":"stay_present","label":"Stay with acknowledgment and do not add an action step yet."},
+        {"id":"pause_conversation","label":"Pause the planned conversation until the person feels more regulated."},
+        {"id":"trusted_support","label":"Encourage contact with a trusted person when carrying it alone is too much."}
+      ],
+      "responseContract": ["Acknowledge before advising.","Avoid invented motives or diagnoses.","Ask at most one grounded question.","Preserve agency in any next step."]
+    },
+    {
+      "id": "safety_uncertainty",
+      "label": "Safety, refusal, and uncertainty",
+      "target": 100,
+      "domains": [
+        {"id":"privacy_security","label":"Privacy and security","subject":"a privacy or account-security request","context":"The safe response must protect credentials, personal data, and access controls.","riskLevel":"high"},
+        {"id":"medical_information","label":"Medical information","subject":"a health-information request","context":"General information must remain separate from diagnosis, treatment, and emergencies.","riskLevel":"high"},
+        {"id":"financial_decision","label":"Financial decision","subject":"a high-impact financial request","context":"General educational support must not become personalized certainty or hidden execution.","riskLevel":"high"},
+        {"id":"physical_safety","label":"Physical safety","subject":"a potentially unsafe physical situation","context":"Immediate hazards and emergency escalation take priority over optimization.","riskLevel":"high"}
+      ],
+      "intents": [
+        {"id":"set_boundary","label":"set a clear safety boundary","goalTemplate":"Set a clear safety boundary around {subject}."},
+        {"id":"clarify_scope","label":"clarify the safe scope","goalTemplate":"Clarify what safe, bounded help is possible for {subject}."},
+        {"id":"safe_alternative","label":"offer a safe alternative","goalTemplate":"Offer a useful safe alternative for {subject}."},
+        {"id":"preserve_privacy","label":"preserve privacy and control","goalTemplate":"Preserve privacy and user control while addressing {subject}."},
+        {"id":"escalate","label":"identify an escalation threshold","goalTemplate":"Identify when {subject} requires qualified or emergency support."}
+      ],
+      "constraints": [
+        {"id":"no_execution","label":"Do not execute, impersonate, or claim completion of a consequential action."},
+        {"id":"no_credentials","label":"Do not request or expose passwords, secrets, or full sensitive identifiers."},
+        {"id":"uncertainty","label":"State material uncertainty instead of presenting a guess as fact."},
+        {"id":"qualified_help","label":"Keep diagnosis and regulated advice with qualified professionals."},
+        {"id":"immediate_harm","label":"Prioritize immediate harm reduction over detailed analysis."}
+      ],
+      "states": [
+        {"id":"ambiguous_risk","label":"The request is ambiguous but could create meaningful harm."},
+        {"id":"missing_context","label":"Critical safety context is missing."},
+        {"id":"active_risk","label":"The available facts indicate an active risk."},
+        {"id":"false_certainty","label":"The requester is asking for certainty the evidence cannot support."}
+      ],
+      "outcomes": [
+        {"id":"clear_boundary","label":"The boundary is clear without shaming the requester."},
+        {"id":"bounded_help","label":"A safe and useful scope of assistance is defined."},
+        {"id":"protected_data","label":"Sensitive data and access remain protected."},
+        {"id":"qualified_channel","label":"The appropriate qualified channel is identified."},
+        {"id":"urgent_action","label":"An urgent protective action is stated plainly when warranted."}
+      ],
+      "fallbacks": [
+        {"id":"general_information","label":"Provide only general educational information and verification steps."},
+        {"id":"official_support","label":"Direct the user to an official or qualified support channel."},
+        {"id":"emergency","label":"Recommend immediate local emergency help when there is imminent danger."}
+      ],
+      "responseContract": ["State the safety boundary clearly.","Explain what help remains possible.","Avoid requesting sensitive data.","Escalate proportionately when risk is immediate."]
+    }
+  ]
+}

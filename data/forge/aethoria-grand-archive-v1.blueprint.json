@@ -1,0 +1,902 @@
+{
+  "format": "complexity-atlas-forge-v1",
+  "seed": 9149,
+  "metadata": {
+    "datasetId": "aethoria-grand-archive-v1",
+    "title": "Aethoria Grand Archive",
+    "domain": "fantasy",
+    "themes": [
+      "maritime fantasy",
+      "characters",
+      "factions",
+      "political intrigue",
+      "magic",
+      "quests",
+      "omens"
+    ],
+    "language": "en",
+    "version": "1.0.0",
+    "split": "train",
+    "source": "Complexity original combinatorial fantasy archive",
+    "sourceUrls": [],
+    "license": "CC BY-NC 4.0",
+    "description": "A large original fantasy knowledge graph expanding Aethoria with characters, locations, factions, artifacts, rituals and omens. All names, descriptions and relationships belong to this original setting."
+  },
+  "archetypes": [
+    {
+      "id": "character",
+      "kind": "character",
+      "keyPrefix": "character",
+      "count": 10000,
+      "slots": {
+        "given": [
+          "Aderin",
+          "Alwen",
+          "Amaris",
+          "Breya",
+          "Caelum",
+          "Cerys",
+          "Dorian",
+          "Elara",
+          "Fenric",
+          "Ilyra",
+          "Joren",
+          "Kaelis",
+          "Liora",
+          "Maeven",
+          "Neris",
+          "Orin",
+          "Phaedra",
+          "Quillan",
+          "Riven",
+          "Sable",
+          "Tamsin",
+          "Vaelor",
+          "Wren",
+          "Ysara"
+        ],
+        "epithet": [
+          "Ashmarked",
+          "Bellkeeper",
+          "Brightwake",
+          "Cloudbound",
+          "Crownless",
+          "Dawnscar",
+          "Deepglass",
+          "Emberhand",
+          "Farstrider",
+          "Gloam-Eyed",
+          "Harborborn",
+          "Ironquill",
+          "Lantern-Touched",
+          "Moonward",
+          "Oathwoven",
+          "Raincaller",
+          "Saltblood",
+          "Starfallen",
+          "Stormwise",
+          "Thornsworn",
+          "Tidemarked",
+          "Veilwalker",
+          "Whisper-Kin",
+          "Wildmap"
+        ],
+        "vocation": [
+          "Alchemist",
+          "Archivist",
+          "Beastwarden",
+          "Cartographer",
+          "Chronicler",
+          "Courier",
+          "Diplomat",
+          "Dreamsmith",
+          "Ferrymaster",
+          "Glasswright",
+          "Healer",
+          "Lantern Knight",
+          "Mapmaker",
+          "Oracle",
+          "Ranger",
+          "Relic Broker",
+          "Tide-Singer",
+          "Wayfinder"
+        ],
+        "origin": [
+          "the Free Coast",
+          "the Verdant March",
+          "Cinder Reach",
+          "the Western Shoals",
+          "High Gleam",
+          "the Hollow Crownlands",
+          "the Northwind Isles",
+          "the Saffron Basin",
+          "the Starfall Frontier",
+          "the Lantern Provinces",
+          "the Ashen Delta",
+          "the Mirror Vale"
+        ],
+        "affinity": [
+          "tidal resonance",
+          "emberglass shaping",
+          "oathbinding",
+          "probability reflection",
+          "stormcalling",
+          "memory weaving",
+          "luminous cartography",
+          "dream architecture",
+          "rootspeech",
+          "shadow navigation",
+          "bell magic",
+          "moonshard alchemy"
+        ],
+        "disposition": [
+          "cautious",
+          "idealistic",
+          "wry",
+          "ambitious",
+          "compassionate",
+          "secretive",
+          "impatient",
+          "methodical",
+          "restless",
+          "loyal",
+          "pragmatic",
+          "defiant"
+        ],
+        "talent": [
+          "can read erased routes by touch",
+          "recognizes counterfeit oaths by rhythm",
+          "repairs cracked emberglass without heat",
+          "remembers every harbor visited",
+          "calms moon-sick animals with humming",
+          "deciphers maps drawn in reflected light",
+          "predicts reverse tides within one minute",
+          "hears lies as a missing musical interval",
+          "grows medicinal moss on bare stone",
+          "navigates by the weight of shadows",
+          "translates pre-Starfall lighthouse codes",
+          "finds hidden doors by measuring drafts",
+          "stores spoken memories inside glass beads",
+          "identifies magical poison by color",
+          "draws temporary bridges with luminous chalk",
+          "tracks a person through their unfinished promises",
+          "repairs enchanted books while they are submerged",
+          "speaks with wind trapped inside ruins",
+          "detects unstable portals through copper needles",
+          "makes safe camps inside hostile weather",
+          "retrieves objects from shallow dreams",
+          "copies a key after hearing it turn once",
+          "reads family histories from woven cloth",
+          "maps underground rivers by echo"
+        ],
+        "flaw": [
+          "cannot refuse a sincere request for help",
+          "trusts official seals too easily",
+          "hides uncertainty behind elaborate plans",
+          "takes every broken promise personally",
+          "will not travel by ordinary road",
+          "keeps dangerous curiosities",
+          "underestimates quiet rivals",
+          "refuses to abandon incomplete maps",
+          "speaks too plainly in noble courts",
+          "believes every legend contains a precise fact",
+          "owes favors to competing factions",
+          "loses sleep before important tides",
+          "mistakes patience for agreement",
+          "protects old enemies from unfair accusations",
+          "cannot tolerate deliberate waste",
+          "answers riddles even when silence is safer"
+        ],
+        "secret": [
+          "carries a map to a province erased from law",
+          "once opened the Sunken Gate for seven seconds",
+          "is the anonymous author of a banned tide almanac",
+          "knows which Lantern Court seat is empty",
+          "possesses a shard of the unbroken moon",
+          "forged a royal travel warrant to save refugees",
+          "can hear the Drowned Archive while asleep",
+          "owes their life to an outlawed navigator",
+          "has seen a future where Lumenport moves inland",
+          "hid a dangerous relic beneath a public monument",
+          "was raised by members of a rival faction",
+          "knows the Ember Cartel's true extraction figures",
+          "survived a ritual believed to be fatal",
+          "remembers a year missing from official calendars",
+          "is followed by a shadow belonging to someone else",
+          "knows the ninth tone of the Bell of Tides"
+        ],
+        "ambition": [
+          "restore a forgotten lighthouse road",
+          "open the Drowned Archive safely",
+          "end the private trade in moonshards",
+          "map every seasonal island",
+          "rewrite the oath laws of the Ashwood",
+          "prove that a lost province still exists",
+          "unite the scattered Tidebound crews",
+          "build a public school of practical magic",
+          "recover the names erased after Starfall",
+          "prevent the next reverse-tide catastrophe",
+          "create a treaty between rival harbor cities",
+          "expose corruption in the Ember Cartel",
+          "find a cure for mirror sickness",
+          "protect migration routes through Obsidian Pass",
+          "restore the moon without repeating the impact",
+          "retire after completing one honest map"
+        ],
+        "reputation": [
+          "trusted locally",
+          "politically inconvenient",
+          "celebrated by apprentices",
+          "wanted for questioning",
+          "respected by rivals",
+          "poorly understood",
+          "officially disgraced",
+          "quietly influential"
+        ],
+        "age_band": [
+          "young adult",
+          "early career",
+          "established",
+          "mid-career",
+          "veteran",
+          "elder",
+          "age uncertain",
+          "chronologically displaced"
+        ]
+      },
+      "keySlots": [
+        "given",
+        "epithet",
+        "vocation"
+      ],
+      "nameTemplate": "{given} {epithet}, {vocation}",
+      "aliasTemplates": [
+        "{given} of {origin}",
+        "Archive subject {index}"
+      ],
+      "summaryTemplate": "A {disposition} {vocation} from {origin}. Documented talent: {talent}.",
+      "descriptionTemplate": "{given} {epithet} is a {vocation} trained in {affinity}. Archive age category: {age_band}. Public ambition: {ambition}. Recorded obstacle: {flaw}. Reputation: {reputation}.",
+      "factTemplates": [
+        "Origin: {origin}.",
+        "Magical discipline: {affinity}.",
+        "Distinctive talent: {talent}.",
+        "Personal obstacle: {flaw}.",
+        "Private intelligence: {secret}.",
+        "Long-term ambition: {ambition}."
+      ],
+      "tags": [
+        "aethoria",
+        "grand-archive",
+        "character",
+        "original-fantasy"
+      ],
+      "attributeTemplates": {
+        "origin": "{origin}",
+        "vocation": "{vocation}",
+        "affinity": "{affinity}",
+        "disposition": "{disposition}",
+        "talent": "{talent}",
+        "flaw": "{flaw}",
+        "secret": "{secret}",
+        "ambition": "{ambition}",
+        "reputation": "{reputation}",
+        "age_band": "{age_band}"
+      }
+    },
+    {
+      "id": "location",
+      "kind": "location",
+      "keyPrefix": "location",
+      "count": 256,
+      "slots": {
+        "modifier": [
+          "Ashen",
+          "Brass",
+          "Broken",
+          "Cloud",
+          "Crownless",
+          "Drowned",
+          "Ember",
+          "Glass",
+          "Hollow",
+          "Lantern",
+          "Mirror",
+          "Moonlit",
+          "Salt",
+          "Starfall",
+          "Thorn",
+          "Whispering"
+        ],
+        "place": [
+          "Abbey",
+          "Bastion",
+          "Citadel",
+          "Crossing",
+          "Delta",
+          "Harbor",
+          "Keep",
+          "Labyrinth",
+          "March",
+          "Observatory",
+          "Reach",
+          "Sanctuary",
+          "Spire",
+          "Vault",
+          "Watch",
+          "Wells"
+        ],
+        "province": [
+          "Free Coast",
+          "Verdant March",
+          "Cinder Reach",
+          "Western Shoals",
+          "High Gleam",
+          "Hollow Crownlands",
+          "Northwind Isles",
+          "Saffron Basin"
+        ],
+        "terrain": [
+          "black-barked forest",
+          "tidal city",
+          "volcanic ridge",
+          "crystal valley",
+          "floating archipelago",
+          "submerged ruin",
+          "salt marsh",
+          "wind-carved plateau",
+          "moonshard crater",
+          "river labyrinth",
+          "cliffside monastery",
+          "glass desert",
+          "lighthouse chain",
+          "oathbound grove",
+          "abandoned trade road",
+          "mirror lake"
+        ],
+        "resource": [
+          "emberglass",
+          "medicinal oathmoss",
+          "reverse-tide pearls",
+          "luminous map ink",
+          "starfall iron",
+          "resonant salt",
+          "memory crystal",
+          "storm silk",
+          "moonmilk",
+          "copper reed",
+          "mirror sand",
+          "deepwater paper"
+        ],
+        "danger": [
+          "unstable reflections",
+          "reverse tides",
+          "oath echoes",
+          "emberglass eruptions",
+          "moving roads",
+          "moon-sick wildlife",
+          "illegal relic hunters",
+          "memory fog",
+          "collapsing transit gates",
+          "territorial storm spirits",
+          "poisoned wells",
+          "false lighthouse signals"
+        ]
+      },
+      "keySlots": [
+        "modifier",
+        "place"
+      ],
+      "nameTemplate": "The {modifier} {place}",
+      "summaryTemplate": "A {terrain} in {province}, valued for {resource}.",
+      "descriptionTemplate": "The {modifier} {place} occupies a {terrain} in {province}. Travelers seek {resource}, although expeditions must prepare for {danger}.",
+      "factTemplates": [
+        "Province: {province}.",
+        "Terrain: {terrain}.",
+        "Strategic resource: {resource}.",
+        "Primary danger: {danger}."
+      ],
+      "tags": [
+        "aethoria",
+        "grand-archive",
+        "location",
+        "original-fantasy"
+      ],
+      "attributeTemplates": {
+        "province": "{province}",
+        "terrain": "{terrain}",
+        "resource": "{resource}",
+        "danger": "{danger}"
+      }
+    },
+    {
+      "id": "faction",
+      "kind": "faction",
+      "keyPrefix": "faction",
+      "count": 128,
+      "slots": {
+        "banner": [
+          "Ash",
+          "Brass",
+          "Broken Moon",
+          "Cinder",
+          "Cloud",
+          "Deepwater",
+          "Ember",
+          "Glass",
+          "Lantern",
+          "Mirror",
+          "Night Tide",
+          "Oath",
+          "Salt",
+          "Starfall",
+          "Thorn",
+          "White Bell"
+        ],
+        "form": [
+          "Accord",
+          "Cartel",
+          "Circle",
+          "Company",
+          "Covenant",
+          "Court",
+          "Expedition",
+          "Syndicate"
+        ],
+        "purpose": [
+          "protecting dangerous archives",
+          "controlling the trade in magical minerals",
+          "maintaining lighthouse roads",
+          "mapping reverse tides",
+          "enforcing old oath law",
+          "recovering pre-Starfall technology",
+          "providing neutral healers during conflict",
+          "smuggling refugees across sealed borders",
+          "studying unstable reflections",
+          "restoring abandoned harbor cities",
+          "regulating public ritual practice",
+          "guarding seasonal migration routes",
+          "breaking monopolies on navigation charts",
+          "negotiating with storm spirits",
+          "cataloguing lost names",
+          "hunting counterfeit relics"
+        ],
+        "alignment": [
+          "protective",
+          "mercantile",
+          "reformist",
+          "traditionalist",
+          "pragmatic",
+          "secretive",
+          "expansionist",
+          "scholarly"
+        ],
+        "internal_conflict": [
+          "elders refuse to publish their oldest maps",
+          "younger members reject inherited titles",
+          "two treasurers claim the same authority",
+          "its legal charter contradicts its current mission",
+          "field agents distrust the ruling council",
+          "a missing founder still casts votes by proxy",
+          "members disagree over using forbidden relics",
+          "regional chapters follow different oath codes"
+        ]
+      },
+      "keySlots": [
+        "banner",
+        "form"
+      ],
+      "nameTemplate": "The {banner} {form}",
+      "summaryTemplate": "A {alignment} organization devoted to {purpose}.",
+      "descriptionTemplate": "The {banner} {form} is a {alignment} faction devoted to {purpose}. Its present crisis is that {internal_conflict}.",
+      "factTemplates": [
+        "Public purpose: {purpose}.",
+        "Political tendency: {alignment}.",
+        "Internal conflict: {internal_conflict}."
+      ],
+      "tags": [
+        "aethoria",
+        "grand-archive",
+        "faction",
+        "original-fantasy"
+      ],
+      "attributeTemplates": {
+        "purpose": "{purpose}",
+        "alignment": "{alignment}",
+        "internal_conflict": "{internal_conflict}"
+      }
+    },
+    {
+      "id": "artifact",
+      "kind": "artifact",
+      "keyPrefix": "artifact",
+      "count": 128,
+      "slots": {
+        "material": [
+          "Ashwood",
+          "Brass",
+          "Cinder",
+          "Cloudglass",
+          "Deepwater",
+          "Emberglass",
+          "Hollow-Iron",
+          "Lantern",
+          "Mirror",
+          "Moonshard",
+          "Oathwoven",
+          "Salt-Silver",
+          "Starfall",
+          "Stormglass",
+          "Thorn",
+          "Whispering"
+        ],
+        "object": [
+          "Bell",
+          "Compass",
+          "Crown",
+          "Key",
+          "Lantern",
+          "Map",
+          "Mask",
+          "Needle"
+        ],
+        "power": [
+          "reveals a route erased from every ordinary map",
+          "stores one spoken oath until it is fulfilled",
+          "stabilizes a failing transit gate",
+          "translates the language of tidal currents",
+          "shows the most likely consequence of a promise",
+          "seals a memory without destroying it",
+          "draws heat from emberglass without cracking it",
+          "locates the nearest person carrying a false title",
+          "opens a doorway into a shallow shared dream",
+          "records the true name of every temporary island",
+          "summons a harmless light visible through storms",
+          "allows a drowned book to be read once",
+          "repairs one broken boundary marker",
+          "reveals hidden writing in reflected moonlight",
+          "measures the age of a magical wound",
+          "returns to the last honest person who held it"
+        ],
+        "cost": [
+          "one willingly surrendered secret",
+          "a promise kept for a full year",
+          "three drops of reverse-tide water",
+          "the user's most accurate map",
+          "a night spent without artificial light",
+          "the public correction of an old lie",
+          "one memory copied but not removed",
+          "a favor owed to the nearest witness"
+        ]
+      },
+      "keySlots": [
+        "material",
+        "object"
+      ],
+      "nameTemplate": "The {material} {object}",
+      "summaryTemplate": "A relic that {power}.",
+      "descriptionTemplate": "The {material} {object} {power}. Its use requires {cost}; attempts to avoid the exchange produce misleading effects.",
+      "factTemplates": [
+        "Documented power: it {power}.",
+        "Activation cost: {cost}."
+      ],
+      "tags": [
+        "aethoria",
+        "grand-archive",
+        "artifact",
+        "original-fantasy"
+      ],
+      "attributeTemplates": {
+        "power": "{power}",
+        "activation_cost": "{cost}"
+      }
+    },
+    {
+      "id": "ritual",
+      "kind": "ritual",
+      "keyPrefix": "ritual",
+      "count": 128,
+      "slots": {
+        "aspect": [
+          "Ash",
+          "Bell",
+          "Cinder",
+          "Cloud",
+          "Deep Tide",
+          "Ember",
+          "Glass",
+          "Lantern",
+          "Mirror",
+          "Moon",
+          "Oath",
+          "Rain",
+          "Salt",
+          "Starfall",
+          "Thorn",
+          "Whisper"
+        ],
+        "practice": [
+          "Concord",
+          "Descent",
+          "Invocation",
+          "Measure",
+          "Passage",
+          "Reckoning",
+          "Vigil",
+          "Weaving"
+        ],
+        "effect": [
+          "binds a public promise to a visible light",
+          "reveals whether a road existed before Starfall",
+          "calms a dangerous reverse tide",
+          "allows two witnesses to compare memories safely",
+          "protects a harbor from false lighthouse signals",
+          "restores the missing line of a damaged map",
+          "separates an inherited curse from its family name",
+          "opens an archive that recognizes no living key",
+          "guides travelers through probability reflections",
+          "lets a wounded grove renegotiate an old oath",
+          "records a storm spirit's consent",
+          "finds the lawful owner of an abandoned relic",
+          "shares warmth across a stranded expedition",
+          "marks a migration corridor for one season",
+          "returns a stolen shadow without revealing the thief",
+          "tests whether a prophecy has already failed"
+        ],
+        "requirement": [
+          "nine witnesses facing different directions",
+          "a map drawn by someone who has never visited",
+          "a bell cast without a clapper",
+          "salt collected from three provinces",
+          "one honest statement from each participant",
+          "an extinguished lantern relit by moonlight",
+          "a promise written on dissolving paper",
+          "silence maintained through one tide change"
+        ]
+      },
+      "keySlots": [
+        "aspect",
+        "practice"
+      ],
+      "nameTemplate": "The {aspect} {practice}",
+      "summaryTemplate": "A formal magical practice that {effect}.",
+      "descriptionTemplate": "The {aspect} {practice} {effect}. A valid performance requires {requirement}; substitutions change the ritual's legal and magical meaning.",
+      "factTemplates": [
+        "Intended effect: it {effect}.",
+        "Required condition: {requirement}."
+      ],
+      "tags": [
+        "aethoria",
+        "grand-archive",
+        "ritual",
+        "original-fantasy"
+      ],
+      "attributeTemplates": {
+        "effect": "{effect}",
+        "requirement": "{requirement}"
+      }
+    },
+    {
+      "id": "omen",
+      "kind": "omen",
+      "keyPrefix": "omen",
+      "count": 128,
+      "slots": {
+        "sign": [
+          "Amber",
+          "Black",
+          "Blue",
+          "Borrowed",
+          "Broken",
+          "Cinder",
+          "Glass",
+          "Golden",
+          "Hollow",
+          "Lantern",
+          "Mirror",
+          "Moonless",
+          "Salt",
+          "Silver",
+          "Starfall",
+          "White"
+        ],
+        "manifestation": [
+          "Bell",
+          "Crown",
+          "Eclipse",
+          "Rain",
+          "Road",
+          "Tide",
+          "Wing",
+          "Witness"
+        ],
+        "meaning": [
+          "a lawful ruler will abandon a title",
+          "a sealed road will reopen from the wrong side",
+          "an old oath will demand a new witness",
+          "a harbor will survive by moving inland",
+          "a forgotten province will send a messenger",
+          "the moonshard trade will lose its value",
+          "two rival maps will both prove correct",
+          "a public lie will become physically visible",
+          "the Drowned Archive will reject its keepers",
+          "a storm spirit will request legal standing",
+          "an extinct lighthouse will shine again",
+          "a missing year will return to the calendar",
+          "an heir will refuse the restored crown",
+          "a migration will cross a forbidden city",
+          "the Sunken Gate will open without a key",
+          "a broken promise will protect someone"
+        ],
+        "reliability": [
+          "contested",
+          "supported by three archives",
+          "politically suppressed",
+          "frequently misquoted",
+          "reliable only near reverse tides",
+          "possibly self-fulfilling",
+          "translated from damaged glass",
+          "unverified"
+        ]
+      },
+      "keySlots": [
+        "sign",
+        "manifestation"
+      ],
+      "nameTemplate": "The {sign} {manifestation}",
+      "summaryTemplate": "A {reliability} omen suggesting that {meaning}.",
+      "descriptionTemplate": "The {sign} {manifestation} is {reliability}. Its oldest surviving interpretation says that {meaning}.",
+      "factTemplates": [
+        "Predicted meaning: {meaning}.",
+        "Evidence status: {reliability}."
+      ],
+      "tags": [
+        "aethoria",
+        "grand-archive",
+        "omen",
+        "original-fantasy"
+      ],
+      "attributeTemplates": {
+        "meaning": "{meaning}",
+        "reliability": "{reliability}"
+      }
+    }
+  ],
+  "relationRules": [
+    {
+      "sourceArchetype": "character",
+      "relation": "operates_from",
+      "targetArchetype": "location",
+      "offset": 7,
+      "stride": 37,
+      "detailTemplate": "{source} currently operates from {target}."
+    },
+    {
+      "sourceArchetype": "character",
+      "relation": "serves",
+      "targetArchetype": "faction",
+      "offset": 13,
+      "stride": 29,
+      "detailTemplate": "{source} has a documented obligation to {target}."
+    },
+    {
+      "sourceArchetype": "character",
+      "relation": "carries",
+      "targetArchetype": "artifact",
+      "offset": 17,
+      "stride": 43,
+      "detailTemplate": "{source} is the last recorded custodian of {target}."
+    },
+    {
+      "sourceArchetype": "character",
+      "relation": "practices",
+      "targetArchetype": "ritual",
+      "offset": 23,
+      "stride": 47,
+      "detailTemplate": "{source} is licensed or otherwise known to practice {target}."
+    },
+    {
+      "sourceArchetype": "character",
+      "relation": "marked_by",
+      "targetArchetype": "omen",
+      "offset": 31,
+      "stride": 53,
+      "detailTemplate": "Interpreters connect the present choices of {source} to {target}."
+    },
+    {
+      "sourceArchetype": "character",
+      "relation": "rivals",
+      "targetArchetype": "character",
+      "offset": 701,
+      "stride": 1,
+      "detailTemplate": "{source} and {target} pursue incompatible versions of the same objective."
+    },
+    {
+      "sourceArchetype": "character",
+      "relation": "trusts",
+      "targetArchetype": "character",
+      "offset": 1103,
+      "stride": 1,
+      "detailTemplate": "{source} has privately entrusted a consequential secret to {target}."
+    },
+    {
+      "sourceArchetype": "location",
+      "relation": "seat_of",
+      "targetArchetype": "faction",
+      "offset": 5,
+      "stride": 11,
+      "detailTemplate": "{target} maintains a permanent seat in {source}."
+    },
+    {
+      "sourceArchetype": "location",
+      "relation": "contains",
+      "targetArchetype": "artifact",
+      "offset": 9,
+      "stride": 17,
+      "detailTemplate": "The last reliable inventory places {target} within {source}."
+    },
+    {
+      "sourceArchetype": "location",
+      "relation": "shadowed_by",
+      "targetArchetype": "omen",
+      "offset": 15,
+      "stride": 23,
+      "detailTemplate": "Local events in {source} are commonly interpreted through {target}."
+    },
+    {
+      "sourceArchetype": "faction",
+      "relation": "controls",
+      "targetArchetype": "location",
+      "offset": 3,
+      "stride": 19,
+      "detailTemplate": "{source} exercises disputed authority over {target}."
+    },
+    {
+      "sourceArchetype": "faction",
+      "relation": "seeks",
+      "targetArchetype": "artifact",
+      "offset": 21,
+      "stride": 13,
+      "detailTemplate": "{source} has assigned agents to locate {target}."
+    },
+    {
+      "sourceArchetype": "faction",
+      "relation": "teaches",
+      "targetArchetype": "ritual",
+      "offset": 27,
+      "stride": 7,
+      "detailTemplate": "{source} preserves one recognized form of {target}."
+    },
+    {
+      "sourceArchetype": "artifact",
+      "relation": "enables",
+      "targetArchetype": "ritual",
+      "offset": 33,
+      "stride": 31,
+      "detailTemplate": "{source} can satisfy one material condition of {target}."
+    },
+    {
+      "sourceArchetype": "artifact",
+      "relation": "hidden_in",
+      "targetArchetype": "location",
+      "offset": 39,
+      "stride": 29,
+      "detailTemplate": "A disputed archival note associates {source} with {target}."
+    },
+    {
+      "sourceArchetype": "ritual",
+      "relation": "interprets",
+      "targetArchetype": "omen",
+      "offset": 45,
+      "stride": 37,
+      "detailTemplate": "{source} contains a formal interpretation of {target}."
+    },
+    {
+      "sourceArchetype": "omen",
+      "relation": "concerns",
+      "targetArchetype": "location",
+      "offset": 51,
+      "stride": 41,
+      "detailTemplate": "The earliest surviving version of {source} concerns {target}."
+    }
+  ]
+}

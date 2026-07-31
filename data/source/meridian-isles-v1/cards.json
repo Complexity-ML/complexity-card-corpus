@@ -1,0 +1,319 @@
+[
+  {
+    "key": "world:meridian_isles",
+    "kind": "world",
+    "name": "The Meridian Isles",
+    "aliases": ["The Wandering Archipelago"],
+    "summary": "An archipelago whose islands drift along invisible magnetic currents.",
+    "description": "The Meridian Isles circle a blue magnetic rift. During a convergence, stone reefs rise, compasses reverse and navigable channels move hundreds of leagues before dawn.",
+    "facts": [
+      "The archipelago has no permanent geographic center.",
+      "Cobalt storms reveal temporary bridges between islands.",
+      "Every licensed vessel carries a storm calendar."
+    ],
+    "tags": ["fantasy", "archipelago", "navigation"],
+    "attributes": {"primaryMagic": "magnetic tides", "chartedIslands": 27},
+    "relations": [
+      {"type": "contains", "targetKey": "location:astra_harbor"},
+      {"type": "contains", "targetKey": "location:cloudstep"},
+      {"type": "contains", "targetKey": "location:kelp_vault"}
+    ]
+  },
+  {
+    "key": "location:astra_harbor",
+    "kind": "location",
+    "name": "Astra Harbor",
+    "aliases": ["The Anchored City"],
+    "summary": "A floating port held in place by twelve chains of magnetized stone.",
+    "description": "Astra Harbor serves as the archipelago's principal exchange. Its chain towers adjust their pull throughout the day to keep the city beside a stable shipping current.",
+    "facts": [
+      "The Cartographers' Guild certifies every public route.",
+      "Chain eleven has weakened since the last convergence.",
+      "Unregistered compasses are confiscated at the eastern quay."
+    ],
+    "tags": ["city", "harbor", "trade"],
+    "attributes": {"anchorChains": 12, "danger": "medium"},
+    "relations": [
+      {"type": "charted_by", "targetKey": "faction:cartographers_guild"},
+      {"type": "home_of", "targetKey": "character:lya_voss"},
+      {"type": "trades_with", "targetKey": "faction:cobalt_consortium"}
+    ]
+  },
+  {
+    "key": "location:cloudstep",
+    "kind": "location",
+    "name": "Cloudstep",
+    "aliases": ["The High Island"],
+    "summary": "A steep island lifted above the sea by a permanent magnetic updraft.",
+    "description": "Cloudstep drifts above ordinary shipping lanes. Sailors reach it by following sky rays through narrow columns of blue rain.",
+    "facts": [
+      "Metal tools become weightless near the northern cliff.",
+      "The oldest storm calendars are carved beneath its observatory.",
+      "No ordinary anchor can hold on Cloudstep."
+    ],
+    "tags": ["island", "sky", "storm"],
+    "attributes": {"altitudeMeters": 3100, "danger": "high"},
+    "relations": [
+      {"type": "inhabited_by", "targetKey": "creature:sky_ray"},
+      {"type": "guarded_by", "targetKey": "character:sera_kestrel"},
+      {"type": "observes", "targetKey": "event:blue_convergence"}
+    ]
+  },
+  {
+    "key": "location:kelp_vault",
+    "kind": "location",
+    "name": "The Kelp Vault",
+    "aliases": ["Green Archive"],
+    "summary": "A submerged archive woven into a living forest of iron kelp.",
+    "description": "The Kelp Vault stores navigational records on thin cobalt leaves. Tide Wardens cultivate the archive and release one leaf whenever a lost vessel is found.",
+    "facts": [
+      "The archive can only be entered at slack tide.",
+      "Salt golems protect its central catalog.",
+      "Orin Reef can read damaged cobalt leaves."
+    ],
+    "tags": ["archive", "underwater", "navigation"],
+    "attributes": {"access": "slack tide", "danger": "high"},
+    "relations": [
+      {"type": "protected_by", "targetKey": "faction:tide_wardens"},
+      {"type": "guarded_by", "targetKey": "creature:salt_golem"},
+      {"type": "studied_by", "targetKey": "character:orin_reef"}
+    ]
+  },
+  {
+    "key": "location:storm_orchard",
+    "kind": "location",
+    "name": "Storm Orchard",
+    "aliases": ["Orchard of Blue Fruit"],
+    "summary": "A terraced island where trees store lightning inside translucent fruit.",
+    "description": "Storm Orchard farmers guide small cobalt storms between copper trellises. Ripe fruit powers lamps and instruments but bursts if carried across a reversed meridian.",
+    "facts": [
+      "Harvest begins seven days before a convergence.",
+      "Tide Wardens forbid copper cutting tools in the upper terraces.",
+      "The Cobalt Consortium controls most exports."
+    ],
+    "tags": ["island", "agriculture", "lightning"],
+    "attributes": {"crop": "storm fruit", "danger": "medium"},
+    "relations": [
+      {"type": "exported_by", "targetKey": "faction:cobalt_consortium"},
+      {"type": "regulated_by", "targetKey": "faction:tide_wardens"}
+    ]
+  },
+  {
+    "key": "faction:cartographers_guild",
+    "kind": "faction",
+    "name": "Cartographers' Guild",
+    "aliases": ["Guild of Moving Maps"],
+    "summary": "A navigators' guild that publishes routes valid for a single magnetic cycle.",
+    "description": "Guild cartographers combine sky-ray migration, storm calendars and compass readings. Their maps expire after every blue convergence.",
+    "facts": [
+      "A valid guild map bears three changing cobalt marks.",
+      "The guild refuses to chart military routes.",
+      "Lya Voss leads its experimental survey crew."
+    ],
+    "tags": ["faction", "maps", "navigation"],
+    "attributes": {"headquarters": "Astra Harbor"},
+    "relations": [
+      {"type": "employs", "targetKey": "character:lya_voss"},
+      {"type": "uses", "targetKey": "artifact:meridian_compass"},
+      {"type": "opposes", "targetKey": "faction:cobalt_consortium"}
+    ]
+  },
+  {
+    "key": "faction:tide_wardens",
+    "kind": "faction",
+    "name": "Tide Wardens",
+    "aliases": ["Wardens of the Green Archive"],
+    "summary": "A civic order that protects shared routes, archives and storm shelters.",
+    "description": "The Tide Wardens maintain public warning beacons and the Kelp Vault. They can close a channel when magnetic conditions make every known route unsafe.",
+    "facts": [
+      "Wardens answer to island councils rather than merchants.",
+      "Their green lantern marks a public shelter.",
+      "Orin Reef advises their archive keepers."
+    ],
+    "tags": ["faction", "safety", "archive"],
+    "attributes": {"symbol": "green lantern"},
+    "relations": [
+      {"type": "protects", "targetKey": "location:kelp_vault"},
+      {"type": "advised_by", "targetKey": "character:orin_reef"},
+      {"type": "regulates", "targetKey": "location:storm_orchard"}
+    ]
+  },
+  {
+    "key": "faction:cobalt_consortium",
+    "kind": "faction",
+    "name": "Cobalt Consortium",
+    "aliases": ["The Blue Exchange"],
+    "summary": "A merchant alliance seeking exclusive control of storm-powered trade.",
+    "description": "The Consortium finances fast survey ships and buys expired maps to predict future routes. Its private ledgers hide the cost of failed expeditions.",
+    "facts": [
+      "The Consortium owns seven storm-fruit warehouses.",
+      "It offers rewards for unregistered route data.",
+      "The Glass Ledger records its concealed losses."
+    ],
+    "tags": ["faction", "trade", "secrecy"],
+    "attributes": {"warehouses": 7},
+    "relations": [
+      {"type": "controls_exports_from", "targetKey": "location:storm_orchard"},
+      {"type": "seeks", "targetKey": "artifact:glass_ledger"},
+      {"type": "rivals", "targetKey": "faction:cartographers_guild"}
+    ]
+  },
+  {
+    "key": "character:lya_voss",
+    "kind": "character",
+    "name": "Lya Voss",
+    "aliases": ["The Compass Listener"],
+    "summary": "A survey captain who detects route changes through variations in compass song.",
+    "description": "Lya commands the Cartographers' Guild experimental crew. She trusts measurements over inherited maps and records every failed prediction.",
+    "facts": [
+      "Lya designed the current Meridian Compass housing.",
+      "She survived the uncharted thirteenth channel.",
+      "She suspects chain eleven was deliberately weakened."
+    ],
+    "tags": ["character", "navigator", "captain"],
+    "attributes": {"role": "survey captain"},
+    "relations": [
+      {"type": "works_for", "targetKey": "faction:cartographers_guild"},
+      {"type": "carries", "targetKey": "artifact:meridian_compass"},
+      {"type": "trusts", "targetKey": "character:sera_kestrel"}
+    ]
+  },
+  {
+    "key": "character:orin_reef",
+    "kind": "character",
+    "name": "Orin Reef",
+    "aliases": ["Reader of Leaves"],
+    "summary": "An archivist who reconstructs damaged route records from cobalt leaves.",
+    "description": "Orin studies changes in the Kelp Vault catalog. He believes the islands follow a long cycle hidden across generations of damaged records.",
+    "facts": [
+      "Orin can distinguish storm damage from deliberate erasure.",
+      "He refuses to sell archive copies.",
+      "He decoded the first half of the Glass Ledger."
+    ],
+    "tags": ["character", "archivist", "scholar"],
+    "attributes": {"specialty": "cobalt leaf restoration"},
+    "relations": [
+      {"type": "studies", "targetKey": "location:kelp_vault"},
+      {"type": "advises", "targetKey": "faction:tide_wardens"},
+      {"type": "decoded", "targetKey": "artifact:glass_ledger"}
+    ]
+  },
+  {
+    "key": "character:sera_kestrel",
+    "kind": "character",
+    "name": "Sera Kestrel",
+    "aliases": ["Cloudstep Warden"],
+    "summary": "A glider pilot who protects Cloudstep's observatory and storm calendars.",
+    "description": "Sera follows sky-ray schools through dangerous rain columns. Her observations give the first warning of a blue convergence.",
+    "facts": [
+      "Sera never carries iron while flying.",
+      "She rescued Lya Voss during the thirteenth-channel survey.",
+      "Her glider uses woven storm-fruit fibers."
+    ],
+    "tags": ["character", "pilot", "warden"],
+    "attributes": {"role": "observatory warden"},
+    "relations": [
+      {"type": "guards", "targetKey": "location:cloudstep"},
+      {"type": "observes", "targetKey": "creature:sky_ray"},
+      {"type": "warns_of", "targetKey": "event:blue_convergence"}
+    ]
+  },
+  {
+    "key": "artifact:meridian_compass",
+    "kind": "artifact",
+    "name": "Meridian Compass",
+    "aliases": ["Singing Compass"],
+    "summary": "A navigation instrument that measures the direction and tone of magnetic currents.",
+    "description": "The Meridian Compass contains twelve suspended cobalt needles. Their combined tone changes before channels move, allowing a trained navigator to estimate a safe route.",
+    "facts": [
+      "The instrument does not point north.",
+      "A cracked needle creates a false low tone.",
+      "Lya Voss added a nonmagnetic glass housing."
+    ],
+    "tags": ["artifact", "navigation", "instrument"],
+    "attributes": {"needles": 12, "material": "cobalt and glass"},
+    "relations": [
+      {"type": "used_by", "targetKey": "faction:cartographers_guild"},
+      {"type": "carried_by", "targetKey": "character:lya_voss"},
+      {"type": "predicts", "targetKey": "event:blue_convergence"}
+    ]
+  },
+  {
+    "key": "artifact:glass_ledger",
+    "kind": "artifact",
+    "name": "The Glass Ledger",
+    "aliases": ["Blue Exchange Ledger"],
+    "summary": "A concealed commercial record etched onto transparent storm glass.",
+    "description": "The Glass Ledger records lost Consortium ships, secret route purchases and payments to unidentified saboteurs. Its overlapping pages are readable only in a reversed magnetic field.",
+    "facts": [
+      "Orin Reef decoded its first half.",
+      "The final page mentions Astra Harbor's chain eleven.",
+      "The Consortium claims the ledger is counterfeit."
+    ],
+    "tags": ["artifact", "ledger", "mystery"],
+    "attributes": {"material": "storm glass", "status": "partially decoded"},
+    "relations": [
+      {"type": "sought_by", "targetKey": "faction:cobalt_consortium"},
+      {"type": "decoded_by", "targetKey": "character:orin_reef"},
+      {"type": "implicates", "targetKey": "location:astra_harbor"}
+    ]
+  },
+  {
+    "key": "creature:sky_ray",
+    "kind": "creature",
+    "name": "Sky Ray",
+    "aliases": ["Cloud Manta"],
+    "summary": "A broad flying creature that migrates along stable magnetic currents.",
+    "description": "Sky rays feed on charged mist. Navigators follow their schools because the creatures avoid collapsing currents and violent cobalt storms.",
+    "facts": [
+      "A sky ray's wing edges glow before a route reversal.",
+      "Young rays shelter beneath Cloudstep.",
+      "Metal noise can scatter a migrating school."
+    ],
+    "tags": ["creature", "sky", "navigation"],
+    "attributes": {"diet": "charged mist"},
+    "relations": [
+      {"type": "nests_at", "targetKey": "location:cloudstep"},
+      {"type": "observed_by", "targetKey": "character:sera_kestrel"}
+    ]
+  },
+  {
+    "key": "creature:salt_golem",
+    "kind": "creature",
+    "name": "Salt Golem",
+    "aliases": ["Archive Sentinel"],
+    "summary": "A tidal guardian formed from salt crystals and iron kelp.",
+    "description": "Salt golems patrol the Kelp Vault without leaving the archive current. They recognize Tide Warden lantern patterns and block anyone carrying cut cobalt leaves.",
+    "facts": [
+      "Fresh water weakens their crystal joints.",
+      "They reform after each spring tide.",
+      "A green lantern permits supervised passage."
+    ],
+    "tags": ["creature", "guardian", "archive"],
+    "attributes": {"weakness": "fresh water"},
+    "relations": [
+      {"type": "guards", "targetKey": "location:kelp_vault"},
+      {"type": "recognizes", "targetKey": "faction:tide_wardens"}
+    ]
+  },
+  {
+    "key": "event:blue_convergence",
+    "kind": "event",
+    "name": "Blue Convergence",
+    "aliases": ["Meridian Reversal"],
+    "summary": "A rare alignment that reverses the archipelago's magnetic currents.",
+    "description": "During a blue convergence, islands accelerate toward new routes, dormant reefs rise and every conventional compass reverses. Accurate warnings can prevent entire fleets from entering collapsing channels.",
+    "facts": [
+      "Sky rays migrate upward three days before a convergence.",
+      "Storm fruit ripens early during the warning period.",
+      "The next convergence is predicted but not yet dated."
+    ],
+    "tags": ["event", "storm", "navigation"],
+    "attributes": {"frequency": "irregular", "durationHours": 9},
+    "relations": [
+      {"type": "predicted_by", "targetKey": "artifact:meridian_compass"},
+      {"type": "observed_from", "targetKey": "location:cloudstep"},
+      {"type": "changes", "targetKey": "world:meridian_isles"}
+    ]
+  }
+]

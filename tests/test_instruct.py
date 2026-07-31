@@ -1,0 +1,186 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import numpy as np
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+from complexity_card_corpus.build import CARD_SCHEMA, DOCUMENT_SCHEMA, RELATION_SCHEMA
+from complexity_card_corpus.instruct import (
+    IGNORE_INDEX,
+    build_instruction_dataset,
+    tokenize_instruction_dataset,
+)
+from complexity_card_corpus.package import package_instructions_for_hugging_face
+
+
+def _card(dataset_id: str, split: str, key: str, name: str) -> dict:
+    return {
+        "dataset_id": dataset_id,
+        "domain": "fantasy",
+        "themes": ["test atlas"],
+        "language": "en",
+        "split": split,
+        "key": key,
+        "kind": "artifact",
+        "name": name,
+        "aliases": [],
+        "summary": f"{name} records a precise test property.",
+        "description": f"{name} records a precise test property and no other claim.",
+        "facts": [f"Documented fact: {name} is part of the test atlas."],
+        "tags": ["test"],
+        "attributes_json": json.dumps({"material": "blue glass", "status": "catalogued"}),
+        "source": "Complexity original test cards",
+        "source_urls": [],
+        "license": "CC BY-NC 4.0",
+        "version": "1.0.0",
+    }
+
+
+def _tiny_corpus(root: Path) -> None:
+    root.mkdir()
+    cards = [
+        _card("train-deck", "train", "artifact:alpha", "Alpha Lens"),
+        _card("train-deck", "train", "artifact:beta", "Beta Bell"),
+        _card("validation-deck", "validation", "artifact:gamma", "Gamma Key"),
+        _card("validation-deck", "validation", "artifact:delta", "Delta Map"),
+    ]
+    relations = [
+        {
+            "dataset_id": "train-deck",
+            "split": "train",
+            "from_key": "artifact:alpha",
+            "relation": "reveals",
+            "to_dataset_id": "train-deck",
+            "to_key": "artifact:beta",
+            "detail": "Alpha Lens reveals Beta Bell.",
+        },
+        {
+            "dataset_id": "validation-deck",
+            "split": "validation",
+            "from_key": "artifact:gamma",
+            "relation": "locates",
+            "to_dataset_id": "validation-deck",
+            "to_key": "artifact:delta",
+            "detail": "Gamma Key locates Delta Map.",
+        },
+    ]
+    documents = [
+        {
+            "document_id": "train-deck:path:alpha:00",
+            "dataset_id": "train-deck",
+            "domain": "fantasy",
+            "themes": ["test atlas"],
+            "language": "en",
+            "split": "train",
+            "template": "path",
+            "source_keys": ["artifact:alpha", "artifact:beta"],
+            "text": "Relationship path from Alpha Lens\n\nAlpha Lens reveals Beta Bell.",
+            "source": "Complexity original test cards",
+            "source_urls": [],
+            "license": "CC BY-NC 4.0",
+            "version": "1.0.0",
+        },
+        {
+            "document_id": "validation-deck:path:gamma:00",
+            "dataset_id": "validation-deck",
+            "domain": "fantasy",
+            "themes": ["test atlas"],
+            "language": "en",
+            "split": "validation",
+            "template": "path",
+            "source_keys": ["artifact:gamma", "artifact:delta"],
+            "text": "Relationship path from Gamma Key\n\nGamma Key locates Delta Map.",
+            "source": "Complexity original test cards",
+            "source_urls": [],
+            "license": "CC BY-NC 4.0",
+            "version": "1.0.0",
+        },
+    ]
+    pq.write_table(pa.Table.from_pylist(cards, schema=CARD_SCHEMA), root / "cards.parquet")
+    pq.write_table(
+        pa.Table.from_pylist(relations, schema=RELATION_SCHEMA),
+        root / "relations.parquet",
+    )
+    pq.write_table(
+        pa.Table.from_pylist(documents, schema=DOCUMENT_SCHEMA),
+        root / "documents.parquet",
+    )
+
+
+def test_original_instructions_are_deterministic_and_deck_split(tmp_path: Path) -> None:
+    corpus = tmp_path / "corpus"
+    _tiny_corpus(corpus)
+    first = build_instruction_dataset(corpus, tmp_path / "first")
+    second = build_instruction_dataset(corpus, tmp_path / "second")
+    assert first["files"]["instructions.parquet"]["sha256"] == second["files"]["instructions.parquet"]["sha256"]
+
+    rows = pq.read_table(tmp_path / "first/instructions.parquet").to_pylist()
+    assert {row["split"] for row in rows} == {"train", "validation"}
+    assert len({row["example_id"] for row in rows}) == len(rows)
+    assert {row["mode"] for row in rows} == {"instruct", "chat"}
+    assert all(row["license"] == "CC BY-NC 4.0" for row in rows)
+    for row in rows:
+        expected_deck = "train-deck" if row["split"] == "train" else "validation-deck"
+        assert row["dataset_id"] == expected_deck
+        assert row["messages"][0]["role"] == "user"
+        assert row["messages"][-1]["role"] == "assistant"
+        assert row["evidence"]
+        if row["task"] == "structured_extraction":
+            assert json.loads(row["response"]) == json.loads(row["answer_json"])
+
+
+def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> None:
+    tokenizer = Path("/Users/boris/Dev/complexity-framework/tokenizer-o200k")
+    if not tokenizer.exists():
+        return
+    corpus = tmp_path / "corpus"
+    _tiny_corpus(corpus)
+    build_instruction_dataset(corpus, tmp_path / "instructions")
+    manifest = tokenize_instruction_dataset(
+        tmp_path / "instructions/instructions.parquet",
+        tokenizer,
+        tmp_path / "tokenized",
+    )
+    assert manifest["total_examples"] > 0
+    for partition, metadata in manifest["partitions"].items():
+        input_ids = np.fromfile(
+            tmp_path / "tokenized" / partition / "input_ids.bin",
+            dtype="<u4",
+        )
+        labels = np.fromfile(
+            tmp_path / "tokenized" / partition / "labels.bin",
+            dtype="<i4",
+        )
+        assert len(input_ids) == len(labels) == metadata["num_tokens"]
+        assert np.any(labels == IGNORE_INDEX)
+        supervised = labels != IGNORE_INDEX
+        assert np.any(supervised)
+        with (tmp_path / "tokenized" / partition / "examples.jsonl").open() as handle:
+            examples = [json.loads(line) for line in handle]
+        for example in examples:
+            start = example["offset"]
+            end = start + example["num_tokens"]
+            local_inputs = input_ids[start:end]
+            local_labels = labels[start:end]
+            local_supervised = local_labels[:-1] != IGNORE_INDEX
+            assert np.array_equal(
+                local_inputs[1:][local_supervised],
+                local_labels[:-1][local_supervised],
+            )
+        assert int(supervised.sum()) == metadata["supervised_tokens"]
+
+    package = package_instructions_for_hugging_face(
+        tmp_path / "instructions",
+        tmp_path / "tokenized",
+        tmp_path / "hf",
+    )
+    assert package["format"] == "complexity-atlas-instruct-hf-package-v1"
+    assert (tmp_path / "hf/data/train.parquet").exists()
+    assert (tmp_path / "hf/data/validation.parquet").exists()
+    assert (tmp_path / "hf/tokenized/o200k/train/input_ids.bin").exists()
+    assert (tmp_path / "hf/tokenized/o200k/train/labels.bin").exists()
+    assert "No language model generated" in (tmp_path / "hf/README.md").read_text()
+    assert "/Users/" not in (tmp_path / "hf/manifest.json").read_text()

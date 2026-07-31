@@ -2,6 +2,7 @@
   "datasetId": "computing-foundations-v1",
   "title": "Computing Foundations",
   "domain": "computing",
+  "themes": ["data representation", "serialization", "storage"],
   "language": "en",
   "version": "1.0.0",
   "split": "validation",

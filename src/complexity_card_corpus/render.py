@@ -13,6 +13,7 @@ class RenderedDocument:
     document_id: str
     dataset_id: str
     domain: str
+    themes: list[str]
     language: str
     split: str
     template: str
@@ -137,6 +138,7 @@ def render_documents(
                     document_id=f"{metadata.dataset_id}:{template}:{suffix}",
                     dataset_id=metadata.dataset_id,
                     domain=metadata.domain,
+                    themes=metadata.themes,
                     language=metadata.language,
                     split=metadata.split,
                     template=template,
@@ -186,4 +188,3 @@ def render_documents(
                 add("path", f"{card.key}:{path_index:02d}", source_keys, text)
 
     return sorted(documents, key=lambda item: item.document_id)
-

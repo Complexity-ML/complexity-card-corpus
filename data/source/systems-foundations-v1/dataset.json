@@ -1,0 +1,18 @@
+{
+  "datasetId": "systems-foundations-v1",
+  "title": "Computer Systems Foundations",
+  "domain": "computing",
+  "themes": ["computer systems", "operating systems", "networking"],
+  "language": "en",
+  "version": "1.0.0",
+  "split": "train",
+  "source": "Complexity original synthesis from primary technical specifications",
+  "sourceUrls": [
+    "https://pubs.opengroup.org/onlinepubs/9799919799/",
+    "https://www.rfc-editor.org/rfc/rfc8200",
+    "https://www.rfc-editor.org/rfc/rfc9293",
+    "https://www.rfc-editor.org/rfc/rfc9110"
+  ],
+  "license": "CC BY-NC 4.0",
+  "description": "An original linked overview of processors, memory, operating-system abstractions, filesystems and network protocols."
+}

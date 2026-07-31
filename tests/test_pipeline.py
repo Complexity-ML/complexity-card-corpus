@@ -59,8 +59,12 @@ def _oasst_row(
 
 def test_sources_form_a_valid_graph() -> None:
     datasets = discover_datasets(ROOT / "data/source")
-    assert {dataset.metadata.domain for dataset in datasets} == {"computing", "fantasy"}
-    assert sum(len(dataset.cards) for dataset in datasets) == 42
+    assert {dataset.metadata.domain for dataset in datasets} == {
+        "computing",
+        "fantasy",
+        "speculative natural history",
+    }
+    assert sum(len(dataset.cards) for dataset in datasets) == 21_602
 
 
 def test_oasst1_builds_instruct_and_chat_cards() -> None:

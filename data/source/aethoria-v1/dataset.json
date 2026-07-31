@@ -2,6 +2,7 @@
   "datasetId": "aethoria-v1",
   "title": "Aethoria Knowledge Graph",
   "domain": "fantasy",
+  "themes": ["maritime fantasy", "magic", "factions", "quests"],
   "language": "en",
   "version": "1.0.0",
   "split": "train",

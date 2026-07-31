@@ -1,0 +1,13 @@
+{
+  "datasetId": "meridian-isles-v1",
+  "title": "Meridian Isles Knowledge Graph",
+  "domain": "fantasy",
+  "themes": ["navigation", "archipelago", "magnetic storms", "factions"],
+  "language": "en",
+  "version": "1.0.0",
+  "split": "validation",
+  "source": "Complexity original fantasy seed",
+  "sourceUrls": [],
+  "license": "CC BY-NC 4.0",
+  "description": "An independent held-out fantasy graph about an archipelago whose geography changes with magnetic storms."
+}

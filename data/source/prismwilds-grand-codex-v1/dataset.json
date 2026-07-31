@@ -1,0 +1,20 @@
+{
+  "datasetId": "prismwilds-grand-codex-v1",
+  "title": "Prismwilds Grand Creature Codex",
+  "domain": "speculative natural history",
+  "themes": [
+    "creature collection",
+    "field ecology",
+    "evolution",
+    "friendship",
+    "expedition",
+    "strange natural history"
+  ],
+  "language": "en",
+  "version": "1.0.0",
+  "split": "train",
+  "source": "Complexity original combinatorial creature atlas",
+  "sourceUrls": [],
+  "license": "CC BY-NC 4.0",
+  "description": "A large original field-guide graph of imaginary creatures and the ecosystems, phenomena, researchers, relics and food surrounding them. The collection-and-discovery premise is original and does not reuse the characters, names, designs or lore of an existing franchise."
+}

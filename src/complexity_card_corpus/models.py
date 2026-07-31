@@ -72,6 +72,7 @@ class DatasetMetadata(BaseModel):
     dataset_id: str = Field(alias="datasetId")
     title: str
     domain: str
+    themes: list[str] = Field(default_factory=list)
     language: str = "en"
     version: str
     split: Literal["train", "validation", "test"]
@@ -89,6 +90,14 @@ class DatasetMetadata(BaseModel):
         if not value:
             raise ValueError("dataset metadata cannot be empty")
         return value
+
+    @field_validator("themes")
+    @classmethod
+    def clean_themes(cls, values: list[str]) -> list[str]:
+        cleaned = [value.strip() for value in values if value.strip()]
+        if len(cleaned) != len(set(cleaned)):
+            raise ValueError("dataset themes cannot contain duplicates")
+        return cleaned
 
 
 class CardDataset(BaseModel):
@@ -145,4 +154,3 @@ class AlignmentCard(BaseModel):
         if not 0.0 <= self.quality_score <= 1.0:
             raise ValueError("quality_score must be between zero and one")
         return self
-

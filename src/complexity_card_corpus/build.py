@@ -18,6 +18,7 @@ CARD_SCHEMA = pa.schema(
     [
         ("dataset_id", pa.string()),
         ("domain", pa.string()),
+        ("themes", pa.list_(pa.string())),
         ("language", pa.string()),
         ("split", pa.string()),
         ("key", pa.string()),
@@ -53,6 +54,7 @@ DOCUMENT_SCHEMA = pa.schema(
         ("document_id", pa.string()),
         ("dataset_id", pa.string()),
         ("domain", pa.string()),
+        ("themes", pa.list_(pa.string())),
         ("language", pa.string()),
         ("split", pa.string()),
         ("template", pa.string()),
@@ -83,6 +85,7 @@ def _card_rows(datasets: list[CardDataset]) -> list[dict[str, Any]]:
                 {
                     "dataset_id": metadata.dataset_id,
                     "domain": metadata.domain,
+                    "themes": metadata.themes,
                     "language": metadata.language,
                     "split": metadata.split,
                     "key": card.key,
@@ -161,6 +164,7 @@ def build_corpus(
             "document_id": document.document_id,
             "dataset_id": document.dataset_id,
             "domain": document.domain,
+            "themes": document.themes,
             "language": document.language,
             "split": document.split,
             "template": document.template,
@@ -221,4 +225,3 @@ def build_corpus(
     manifest_path = output_root / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     return manifest
-

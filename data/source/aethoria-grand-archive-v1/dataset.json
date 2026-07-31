@@ -1,0 +1,21 @@
+{
+  "datasetId": "aethoria-grand-archive-v1",
+  "title": "Aethoria Grand Archive",
+  "domain": "fantasy",
+  "themes": [
+    "maritime fantasy",
+    "characters",
+    "factions",
+    "political intrigue",
+    "magic",
+    "quests",
+    "omens"
+  ],
+  "language": "en",
+  "version": "1.0.0",
+  "split": "train",
+  "source": "Complexity original combinatorial fantasy archive",
+  "sourceUrls": [],
+  "license": "CC BY-NC 4.0",
+  "description": "A large original fantasy knowledge graph expanding Aethoria with characters, locations, factions, artifacts, rituals and omens. All names, descriptions and relationships belong to this original setting."
+}
