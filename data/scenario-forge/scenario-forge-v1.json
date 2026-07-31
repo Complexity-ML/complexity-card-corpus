@@ -5,11 +5,11 @@
   "metadata": {
     "datasetId": "complexity-scenario-forge-v1",
     "title": "Complexity Scenario Forge",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "language": "en",
     "license": "CC BY-NC 4.0",
     "source": "Complexity original authored semantic taxonomy",
-    "description": "Two thousand compatibility-checked scenario cards with original situations for building varied assistant conversations without copying source utterances."
+    "description": "Two thousand compatibility-checked scenario cards with authored narrative frames, domain-specific triggers, and deterministic integrity hashes."
   },
   "families": [
     {
@@ -70,6 +70,20 @@
           "verify": ["clear_requirements","confirmed_step"],
           "resolve": ["corrected_record","escalation_path"]
         },
+        "domainIntents": {
+          "appointments": ["arrange","change","cancel","verify","resolve"],
+          "air_travel": ["arrange","change","cancel","verify","resolve"],
+          "parcel_delivery": ["arrange","change","verify","resolve"],
+          "account_access": ["arrange","change","verify","resolve"],
+          "subscriptions": ["arrange","change","cancel","verify","resolve"],
+          "event_registration": ["arrange","change","cancel","verify","resolve"],
+          "home_repair": ["arrange","change","cancel","verify","resolve"],
+          "banking_admin": ["arrange","change","cancel","verify","resolve"],
+          "healthcare_admin": ["arrange","change","cancel","verify","resolve"],
+          "course_enrolment": ["arrange","change","cancel","verify","resolve"],
+          "retail_returns": ["arrange","verify","resolve"],
+          "public_transit": ["arrange","change","verify","resolve"]
+        },
         "domainConstraints": {
           "appointments": ["deadline","accessibility","limited_information","reversible"],
           "air_travel": ["deadline","budget","accessibility","limited_information","reversible"],
@@ -83,6 +97,12 @@
           "course_enrolment": ["deadline","budget","accessibility","limited_information"],
           "retail_returns": ["deadline","budget","limited_information","reversible"],
           "public_transit": ["deadline","budget","accessibility","limited_information"]
+        },
+        "stateOutcomes": {
+          "not_started": ["confirmed_step","corrected_record","clear_requirements","reversible_choice"],
+          "pending": ["confirmed_step","clear_requirements","reversible_choice","escalation_path"],
+          "conflict": ["corrected_record","clear_requirements","escalation_path"],
+          "failed_attempt": ["corrected_record","reversible_choice","escalation_path"]
         },
         "stateFallbacks": {
           "not_started": ["pause","alternative"],
@@ -151,6 +171,16 @@
           "misconception": ["correct_error","distinguish"],
           "application": ["transfer","predict"]
         },
+        "domainIntents": {
+          "computing": ["mechanism","contrast","worked_example","misconception","application"],
+          "data_literacy": ["mechanism","contrast","worked_example","misconception","application"],
+          "physical_science": ["mechanism","contrast","worked_example","misconception","application"],
+          "life_science": ["mechanism","contrast","worked_example","misconception","application"],
+          "mathematics": ["mechanism","contrast","worked_example","misconception","application"],
+          "personal_finance": ["mechanism","contrast","worked_example","misconception","application"],
+          "civics": ["mechanism","contrast","worked_example","misconception","application"],
+          "media_literacy": ["mechanism","contrast","worked_example","misconception","application"]
+        },
         "domainConstraints": {
           "computing": ["beginner","concise","verified","example"],
           "data_literacy": ["beginner","concise","verified","example","fact_inference"],
@@ -160,6 +190,12 @@
           "personal_finance": ["beginner","concise","verified","example","fact_inference"],
           "civics": ["beginner","concise","verified","example","fact_inference"],
           "media_literacy": ["beginner","concise","verified","example","fact_inference"]
+        },
+        "stateOutcomes": {
+          "unfamiliar": ["mental_model","distinguish","predict"],
+          "partial": ["mental_model","predict","transfer"],
+          "conflicting_models": ["distinguish","correct_error"],
+          "rote_only": ["predict","correct_error","transfer"]
         },
         "stateFallbacks": {
           "unfamiliar": ["simpler_model","source_check"],
@@ -226,6 +262,14 @@
           "verify_fix": ["validated_fix"],
           "prevent": ["runbook","validated_fix"]
         },
+        "domainIntents": {
+          "software_install": ["diagnose","reproduce","recover","verify_fix","prevent"],
+          "network_connection": ["diagnose","reproduce","recover","verify_fix","prevent"],
+          "file_sync": ["diagnose","reproduce","recover","verify_fix","prevent"],
+          "peripheral": ["diagnose","reproduce","recover","verify_fix","prevent"],
+          "web_form": ["diagnose","reproduce","recover","verify_fix","prevent"],
+          "data_pipeline": ["diagnose","reproduce","recover","verify_fix","prevent"]
+        },
         "domainConstraints": {
           "software_install": ["one_change","limited_access","short_window","reversible_steps"],
           "network_connection": ["one_change","limited_access","short_window","reversible_steps"],
@@ -233,6 +277,12 @@
           "peripheral": ["one_change","limited_access","short_window","reversible_steps"],
           "web_form": ["no_data_loss","one_change","limited_access","reversible_steps"],
           "data_pipeline": ["no_data_loss","one_change","short_window","reversible_steps"]
+        },
+        "stateOutcomes": {
+          "intermittent": ["fault_domain","minimal_repro","validated_fix","runbook"],
+          "after_change": ["fault_domain","restored","validated_fix","runbook"],
+          "partial_success": ["fault_domain","minimal_repro","restored","validated_fix"],
+          "unknown_baseline": ["fault_domain","minimal_repro","runbook"]
         },
         "stateFallbacks": {
           "intermittent": ["preserve_logs","escalate"],
@@ -297,12 +347,25 @@
           "adapt_tone": ["audience_fit","faithful_summary"],
           "restructure": ["scan_actions","open_questions"]
         },
+        "domainIntents": {
+          "email": ["draft","revise","summarize","adapt_tone","restructure"],
+          "project_update": ["draft","revise","summarize","adapt_tone","restructure"],
+          "support_reply": ["draft","revise","summarize","adapt_tone","restructure"],
+          "meeting_notes": ["draft","revise","summarize","restructure"],
+          "technical_explanation": ["draft","revise","summarize","adapt_tone","restructure"]
+        },
         "domainConstraints": {
           "email": ["no_new_claims","plain_language","short","tone","actionable"],
           "project_update": ["no_new_claims","plain_language","short","actionable"],
           "support_reply": ["no_new_claims","plain_language","short","tone","actionable"],
           "meeting_notes": ["no_new_claims","plain_language","short","actionable"],
           "technical_explanation": ["no_new_claims","plain_language","short","tone"]
+        },
+        "stateOutcomes": {
+          "rough_notes": ["clear_purpose","faithful_summary","scan_actions","open_questions"],
+          "too_long": ["clear_purpose","faithful_summary","scan_actions"],
+          "ambiguous": ["faithful_summary","open_questions"],
+          "wrong_tone": ["faithful_summary","audience_fit"]
         },
         "stateFallbacks": {
           "rough_notes": ["request_facts","two_versions"],
@@ -366,11 +429,23 @@
           "allocate": ["resource_plan","ordered_steps"],
           "fallback": ["triggered_fallback"]
         },
+        "domainIntents": {
+          "travel_plan": ["define_options","compare","sequence","allocate","fallback"],
+          "learning_plan": ["define_options","compare","sequence","allocate","fallback"],
+          "small_project": ["define_options","compare","sequence","allocate","fallback"],
+          "purchase_decision": ["define_options","compare","allocate","fallback"]
+        },
         "domainConstraints": {
           "travel_plan": ["budget","time","must_have","uncertain_input","reversible"],
           "learning_plan": ["budget","time","must_have","uncertain_input","reversible"],
           "small_project": ["budget","time","must_have","uncertain_input","reversible"],
-          "purchase_decision": ["budget","must_have","uncertain_input","reversible"]
+          "purchase_decision": ["budget","time","must_have","uncertain_input","reversible"]
+        },
+        "stateOutcomes": {
+          "too_many_options": ["shortlist","decision_matrix"],
+          "missing_dependency": ["ordered_steps","triggered_fallback"],
+          "conflicting_priorities": ["decision_matrix","resource_plan","triggered_fallback"],
+          "partial_plan": ["ordered_steps","resource_plan","triggered_fallback"]
         },
         "stateFallbacks": {
           "too_many_options": ["smaller_scope","second_option"],
@@ -436,6 +511,14 @@
           "small_step": ["small_action"],
           "reflect": ["balanced_reflection","named_need"]
         },
+        "domainIntents": {
+          "work_stress": ["acknowledge","clarify_need","prepare_conversation","small_step","reflect"],
+          "relationship_tension": ["acknowledge","clarify_need","prepare_conversation","small_step","reflect"],
+          "uncertain_change": ["acknowledge","clarify_need","small_step","reflect"],
+          "social_mistake": ["acknowledge","clarify_need","prepare_conversation","small_step","reflect"],
+          "achievement": ["acknowledge","clarify_need","small_step","reflect"],
+          "loss_disappointment": ["acknowledge","clarify_need","prepare_conversation","small_step","reflect"]
+        },
         "domainConstraints": {
           "work_stress": ["no_assumption","no_forced_fix","one_question","preserve_agency","specific_support"],
           "relationship_tension": ["no_assumption","no_forced_fix","one_question","preserve_agency","specific_support"],
@@ -443,6 +526,12 @@
           "social_mistake": ["no_assumption","no_forced_fix","one_question","preserve_agency"],
           "achievement": ["no_assumption","no_forced_fix","one_question","preserve_agency","specific_support"],
           "loss_disappointment": ["no_assumption","no_forced_fix","one_question","preserve_agency","specific_support"]
+        },
+        "stateOutcomes": {
+          "activated": ["felt_understood","named_need","balanced_reflection"],
+          "replaying": ["felt_understood","named_need","small_action","balanced_reflection"],
+          "mixed": ["felt_understood","named_need","bounded_conversation","balanced_reflection"],
+          "ready": ["named_need","bounded_conversation","small_action","balanced_reflection"]
         },
         "stateFallbacks": {
           "activated": ["stay_present","pause_conversation","trusted_support"],
@@ -506,16 +595,28 @@
           "preserve_privacy": ["protected_data","clear_boundary"],
           "escalate": ["qualified_channel","urgent_action"]
         },
+        "domainIntents": {
+          "privacy_security": ["set_boundary","clarify_scope","safe_alternative","preserve_privacy","escalate"],
+          "medical_information": ["set_boundary","clarify_scope","safe_alternative","preserve_privacy","escalate"],
+          "financial_decision": ["set_boundary","clarify_scope","safe_alternative","preserve_privacy","escalate"],
+          "physical_safety": ["set_boundary","clarify_scope","safe_alternative","escalate"]
+        },
         "domainConstraints": {
           "privacy_security": ["no_execution","no_credentials","uncertainty","immediate_harm"],
           "medical_information": ["no_execution","uncertainty","qualified_help","immediate_harm"],
           "financial_decision": ["no_execution","no_credentials","uncertainty","qualified_help"],
           "physical_safety": ["no_execution","uncertainty","qualified_help","immediate_harm"]
         },
+        "stateOutcomes": {
+          "ambiguous_risk": ["clear_boundary","bounded_help","protected_data","qualified_channel"],
+          "missing_context": ["clear_boundary","bounded_help","protected_data","qualified_channel"],
+          "active_risk": ["clear_boundary","protected_data","qualified_channel","urgent_action"],
+          "false_certainty": ["clear_boundary","bounded_help","qualified_channel"]
+        },
         "stateFallbacks": {
           "ambiguous_risk": ["general_information","official_support"],
           "missing_context": ["general_information","official_support"],
-          "active_risk": ["official_support","emergency"],
+          "active_risk": ["emergency","official_support"],
           "false_certainty": ["general_information","official_support"]
         },
         "riskFallbacks": {

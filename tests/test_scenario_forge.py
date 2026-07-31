@@ -31,6 +31,9 @@ def test_scenario_forge_compiles_two_thousand_semantic_cards() -> None:
     assert audit["unique_semantic_signatures"] == 2_000
     assert audit["unique_semantic_payloads"] == 2_000
     assert audit["unique_situations"] == 2_000
+    assert audit["unique_titles"] == 2_000
+    assert audit["unique_goals"] == 2_000
+    assert audit["unique_triggers"] >= 100
     assert audit["unique_creation_hashes"] == 2_000
     assert audit["unique_verification_hashes"] == 2_000
     assert audit["family_counts"] == {
@@ -42,18 +45,20 @@ def test_scenario_forge_compiles_two_thousand_semantic_cards() -> None:
         "troubleshooting": 300,
         "writing_transformation": 250,
     }
-    assert audit["surface_text_rows"] == 0
+    assert audit["model_generated_dialogue_rows"] == 0
     assert audit["payload_contract_match_ratio"] == 1.0
     assert audit["compatibility_match_ratio"] == 1.0
-    assert set(audit["split_counts"]) == {"train", "validation"}
+    assert audit["split_counts"] == {"train": 1_900, "validation": 100}
 
     assert all(row["provenance"] == SCENARIO_PROVENANCE for row in rows)
-    assert all(not row["surface_text_generated"] for row in rows)
+    assert all(not row["model_generated_dialogue"] for row in rows)
     assert all(row["response_contract"] for row in rows)
-    assert all(len(row["source_structure_keys"]) == 3 for row in rows)
+    assert all(len(row["source_structure_keys"]) == 6 for row in rows)
     assert all(len(row["creation_hash"]) == 64 for row in rows)
     assert all(len(row["verification_hash"]) == 64 for row in rows)
     assert all(row["situation"] for row in rows)
+    assert len({row["narrative_frame"] for row in rows}) == 12
+    assert all(row["trigger"] for row in rows)
 
 
 def test_scenario_forge_output_is_deterministic_and_inspectable(tmp_path: Path) -> None:
@@ -124,6 +129,18 @@ def test_scenario_registry_rejects_incomplete_compatibility_matrix() -> None:
         ScenarioForgeRegistry.model_validate(payload)
 
 
+@pytest.mark.parametrize("matrix", ["domainIntents", "stateOutcomes"])
+def test_scenario_registry_rejects_missing_new_compatibility_rows(
+    matrix: str,
+) -> None:
+    payload = json.loads(REGISTRY.read_text())
+    family = payload["families"][0]
+    del family["compatibility"][matrix][next(iter(family["compatibility"][matrix]))]
+
+    with pytest.raises(ValueError, match=f"{matrix} must cover exactly"):
+        ScenarioForgeRegistry.model_validate(payload)
+
+
 def test_scenario_registry_rejects_unknown_compatibility_reference() -> None:
     payload = json.loads(REGISTRY.read_text())
     payload["families"][0]["compatibility"]["intentOutcomes"]["arrange"] = [
@@ -159,8 +176,7 @@ def test_audit_rejects_semantically_incompatible_outcome() -> None:
     row = next(
         value
         for value in rows
-        if value["family"] == "planning_comparison"
-        and value["intent"] == "compare"
+        if value["family"] == "planning_comparison" and value["intent"] == "compare"
     )
     row["desired_outcome"] = "Steps are ordered by dependency with clear checkpoints."
     payload = json.loads(row["semantic_payload"])
@@ -171,3 +187,53 @@ def test_audit_rejects_semantically_incompatible_outcome() -> None:
 
     with pytest.raises(ValueError, match="compatibility violations"):
         audit_scenarios(rows, registry)
+
+
+def test_domain_intent_and_state_outcome_rules_are_realized() -> None:
+    registry = load_scenario_registry(REGISTRY)
+    rows = compile_scenarios(registry)
+
+    assert not any(
+        row["family"] == "safety_uncertainty"
+        and row["domain"] == "physical_safety"
+        and row["intent"] == "preserve_privacy"
+        for row in rows
+    )
+    urgent = [
+        row
+        for row in rows
+        if row["family"] == "safety_uncertainty"
+        and row["desired_outcome"]
+        == "An urgent protective action is stated plainly when warranted."
+    ]
+    assert urgent
+    assert all(
+        row["state"] == "The available facts indicate an active risk." for row in urgent
+    )
+
+
+def test_fallback_selection_uses_registry_priority() -> None:
+    registry = load_scenario_registry(REGISTRY)
+    rows = compile_scenarios(registry)
+
+    critical_active = [
+        row
+        for row in rows
+        if row["family"] == "safety_uncertainty"
+        and row["risk_level"] == "critical"
+        and row["state"] == "The available facts indicate an active risk."
+    ]
+    high_active = [
+        row
+        for row in rows
+        if row["family"] == "safety_uncertainty"
+        and row["risk_level"] == "high"
+        and row["state"] == "The available facts indicate an active risk."
+    ]
+    assert critical_active and high_active
+    assert {row["fallback"] for row in critical_active} == {
+        "Recommend immediate local emergency help when there is imminent danger."
+    }
+    assert {row["fallback"] for row in high_active} == {
+        "Direct the user to an official or qualified support channel."
+    }

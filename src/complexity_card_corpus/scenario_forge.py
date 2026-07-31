@@ -17,9 +17,11 @@ from .build import file_sha256
 
 SCENARIO_FORGE_VERSION = "scenario-forge-v1"
 SCENARIO_PROVENANCE = (
-    "Complexity original authored semantic taxonomy; no source utterances and "
-    "no model-generated prose."
+    "Complexity original authored semantic taxonomy and narrative frames; "
+    "no third-party source utterances and no model-generated dialogue."
 )
+
+NARRATIVE_FRAME_IDS = tuple(f"frame_{index:02d}" for index in range(1, 13))
 
 SCENARIO_SCHEMA = pa.schema(
     [
@@ -30,7 +32,9 @@ SCENARIO_SCHEMA = pa.schema(
         ("domain", pa.string()),
         ("intent", pa.string()),
         ("title", pa.string()),
+        ("trigger", pa.string()),
         ("situation", pa.string()),
+        ("narrative_frame", pa.string()),
         ("goal", pa.string()),
         ("constraint", pa.string()),
         ("state", pa.string()),
@@ -42,7 +46,7 @@ SCENARIO_SCHEMA = pa.schema(
         ("semantic_payload", pa.string()),
         ("response_contract", pa.list_(pa.string())),
         ("source_structure_keys", pa.list_(pa.string())),
-        ("surface_text_generated", pa.bool_()),
+        ("model_generated_dialogue", pa.bool_()),
         ("provenance", pa.string()),
         ("license", pa.string()),
         ("version", pa.string()),
@@ -99,12 +103,19 @@ class CompatibilitySpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     intent_outcomes: dict[str, list[str]] = Field(alias="intentOutcomes")
+    domain_intents: dict[str, list[str]] = Field(alias="domainIntents")
     domain_constraints: dict[str, list[str]] = Field(alias="domainConstraints")
+    state_outcomes: dict[str, list[str]] = Field(alias="stateOutcomes")
     state_fallbacks: dict[str, list[str]] = Field(alias="stateFallbacks")
     risk_fallbacks: dict[str, list[str]] = Field(alias="riskFallbacks")
 
     @field_validator(
-        "intent_outcomes", "domain_constraints", "state_fallbacks", "risk_fallbacks"
+        "intent_outcomes",
+        "domain_intents",
+        "domain_constraints",
+        "state_outcomes",
+        "state_fallbacks",
+        "risk_fallbacks",
     )
     @classmethod
     def non_empty_matrix(cls, matrix: dict[str, list[str]]) -> dict[str, list[str]]:
@@ -184,14 +195,36 @@ class ScenarioFamilySpec(BaseModel):
         fallback_ids = {value.atom_id for value in self.fallbacks}
         risk_levels = {value.risk_level for value in self.domains}
         matrices = (
-            ("intentOutcomes", self.compatibility.intent_outcomes, intent_ids, outcome_ids),
+            (
+                "intentOutcomes",
+                self.compatibility.intent_outcomes,
+                intent_ids,
+                outcome_ids,
+            ),
+            (
+                "domainIntents",
+                self.compatibility.domain_intents,
+                domain_ids,
+                intent_ids,
+            ),
             (
                 "domainConstraints",
                 self.compatibility.domain_constraints,
                 domain_ids,
                 constraint_ids,
             ),
-            ("stateFallbacks", self.compatibility.state_fallbacks, state_ids, fallback_ids),
+            (
+                "stateOutcomes",
+                self.compatibility.state_outcomes,
+                state_ids,
+                outcome_ids,
+            ),
+            (
+                "stateFallbacks",
+                self.compatibility.state_fallbacks,
+                state_ids,
+                fallback_ids,
+            ),
             (
                 "riskFallbacks",
                 self.compatibility.risk_fallbacks,
@@ -226,15 +259,16 @@ class ScenarioFamilySpec(BaseModel):
                         f"{domain.domain_id}, state {state.atom_id}, risk {domain.risk_level}"
                     )
 
-        signature_capacity = sum(
-            len(self.compatibility.domain_constraints[domain.domain_id])
-            * len(self.states)
-            * sum(
-                len(self.compatibility.intent_outcomes[intent.atom_id])
-                for intent in self.intents
-            )
-            for domain in self.domains
-        )
+        signature_capacity = 0
+        for domain in self.domains:
+            for intent_id in self.compatibility.domain_intents[domain.domain_id]:
+                for state in self.states:
+                    compatible_outcomes = set(
+                        self.compatibility.intent_outcomes[intent_id]
+                    ) & set(self.compatibility.state_outcomes[state.atom_id])
+                    signature_capacity += len(
+                        self.compatibility.domain_constraints[domain.domain_id]
+                    ) * len(compatible_outcomes)
         if self.target > signature_capacity:
             raise ValueError(
                 f"family {self.family_id} requests {self.target} scenarios but "
@@ -280,7 +314,9 @@ class ScenarioForgeRegistry(BaseModel):
             raise ValueError(f"unsupported Scenario Forge format: {self.format}")
         identifiers = [family.family_id for family in self.families]
         if not identifiers or len(identifiers) != len(set(identifiers)):
-            raise ValueError("Scenario Forge family identifiers must be non-empty and unique")
+            raise ValueError(
+                "Scenario Forge family identifiers must be non-empty and unique"
+            )
         return self
 
 
@@ -290,11 +326,6 @@ def _digest(value: str) -> bytes:
 
 def _stable_index(value: str, size: int) -> int:
     return int.from_bytes(_digest(value)[:8], "big") % size
-
-
-def _split(scenario_id: str, validation_percent: int) -> str:
-    bucket = _stable_index(f"split:{scenario_id}", 100)
-    return "validation" if bucket < validation_percent else "train"
 
 
 def _creation_hash(signature: str) -> str:
@@ -330,6 +361,36 @@ def _domain_quotas(family: ScenarioFamilySpec, seed: int) -> dict[str, int]:
     }
 
 
+def _assign_splits(
+    rows: list[dict[str, Any]], validation_percent: int, seed: int
+) -> None:
+    strata: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        row["split"] = "train"
+        strata[(row["family"], row["domain"])].append(row)
+
+    target = round(len(rows) * validation_percent / 100)
+    quotas: dict[tuple[str, str], int] = {}
+    remainders: list[tuple[int, bytes, tuple[str, str]]] = []
+    for key, values in strata.items():
+        numerator = len(values) * validation_percent
+        quotas[key] = numerator // 100
+        remainders.append((numerator % 100, _digest(f"{seed}:split-quota:{key}"), key))
+    remaining = target - sum(quotas.values())
+    for _, _, key in sorted(remainders, key=lambda value: (-value[0], value[1]))[
+        :remaining
+    ]:
+        quotas[key] += 1
+
+    for key, values in strata.items():
+        selected = sorted(
+            values,
+            key=lambda row: _digest(f"{seed}:validation:{row['scenario_id']}"),
+        )[: quotas[key]]
+        for row in selected:
+            row["split"] = "validation"
+
+
 def _semantic_combinations(
     family: ScenarioFamilySpec,
     domain: DomainSpec,
@@ -337,9 +398,9 @@ def _semantic_combinations(
     seed: int,
 ) -> list[tuple[IntentSpec, SemanticAtom, SemanticAtom, SemanticAtom]]:
     prefix = f"{seed}:{family.family_id}:{domain.domain_id}"
-    intents = _permuted(family.intents, f"{prefix}:intent")
     constraint_by_id = {value.atom_id: value for value in family.constraints}
     outcome_by_id = {value.atom_id: value for value in family.outcomes}
+    intent_by_id = {value.atom_id: value for value in family.intents}
     constraints = _permuted(
         [
             constraint_by_id[value]
@@ -348,12 +409,22 @@ def _semantic_combinations(
         f"{prefix}:constraint",
     )
     states = _permuted(family.states, f"{prefix}:state")
+    intents = _permuted(
+        [
+            intent_by_id[value]
+            for value in family.compatibility.domain_intents[domain.domain_id]
+        ],
+        f"{prefix}:intent",
+    )
     combinations = [
         (intent, constraint, state, outcome_by_id[outcome_id])
         for intent in intents
         for constraint in constraints
         for state in states
-        for outcome_id in family.compatibility.intent_outcomes[intent.atom_id]
+        for outcome_id in sorted(
+            set(family.compatibility.intent_outcomes[intent.atom_id])
+            & set(family.compatibility.state_outcomes[state.atom_id])
+        )
     ]
     return sorted(
         combinations,
@@ -376,21 +447,143 @@ def _compatible_fallbacks(
     return [fallback_by_id[value] for value in allowed_ids]
 
 
-def _situation(
+def _select_fallback(
+    family: ScenarioFamilySpec,
+    domain: DomainSpec,
+    state: SemanticAtom,
+) -> SemanticAtom:
+    candidates = {
+        value.atom_id: value for value in _compatible_fallbacks(family, domain, state)
+    }
+    for fallback_id in family.compatibility.state_fallbacks[state.atom_id]:
+        if fallback_id in candidates:
+            return candidates[fallback_id]
+    raise ValueError(
+        f"no prioritized fallback for {family.family_id}/{domain.domain_id}/{state.atom_id}"
+    )
+
+
+def _lower_first(value: str) -> str:
+    value = value.strip()
+    if not value:
+        return value
+    return value[:1].lower() + value[1:]
+
+
+def _narrative(
+    domain: DomainSpec,
+    intent: IntentSpec,
+    constraint: SemanticAtom,
+    state: SemanticAtom,
+    outcome: SemanticAtom,
+    creation_hash: str,
+) -> tuple[str, str, str]:
+    subject = domain.subject
+    context_text = domain.context.rstrip(".")
+    state_text = state.label.rstrip(".")
+    constraint_text = constraint.label.rstrip(".")
+    outcome_text = outcome.label.rstrip(".")
+    frame_index = int(creation_hash[:8], 16) % len(NARRATIVE_FRAME_IDS)
+    frame_id = NARRATIVE_FRAME_IDS[frame_index]
+    frames = (
+        (
+            f"A routine step involving {subject} reaches a decision point when "
+            f"{_lower_first(state_text)}.",
+            f"{context_text}. The person needs to {intent.label}, while respecting "
+            f"this boundary: {constraint_text}. A satisfactory resolution is one "
+            f"where {_lower_first(outcome_text)}.",
+        ),
+        (
+            f"The situation around {subject} changes because {_lower_first(state_text)}.",
+            f"The relevant setting is clear: {_lower_first(context_text)}. The immediate "
+            f"objective is to {intent.label}. The governing condition is: "
+            f"{constraint_text}. Success requires that {_lower_first(outcome_text)}.",
+        ),
+        (
+            f"A new obstacle appears while handling {subject}: {state_text}.",
+            f"In this case, {_lower_first(context_text)}. The next response must "
+            f"{intent.label}. It must preserve this boundary: {constraint_text}. "
+            f"The target result is that {_lower_first(outcome_text)}.",
+        ),
+        (
+            f"Work on {subject} can no longer continue unchanged after this update: "
+            f"{state_text}.",
+            f"{context_text}. The person therefore needs to {intent.label}. The plan "
+            f"must account for this condition: {constraint_text}. It should end in a "
+            f"state where {_lower_first(outcome_text)}.",
+        ),
+        (
+            f"The decisive signal in this {domain.label.lower()} case is that "
+            f"{_lower_first(state_text)}.",
+            f"The case concerns {subject}. {context_text}. The useful task is to "
+            f"{intent.label}, subject to this limit: {constraint_text}. Completion "
+            f"means that {_lower_first(outcome_text)}.",
+        ),
+        (
+            f"An otherwise ordinary request about {subject} becomes non-routine when "
+            f"{_lower_first(state_text)}.",
+            f"{context_text}. The person needs to {intent.label}. "
+            f"The response must preserve this rule: {constraint_text}. "
+            f"The intended endpoint is one where {_lower_first(outcome_text)}.",
+        ),
+        (
+            f"Before the next step for {subject}, one fact changes the shape of the "
+            f"request: {state_text}.",
+            f"{context_text}. The person is trying to {intent.label}. Any proposal "
+            f"must honor this condition: {constraint_text}. It succeeds only if "
+            f"{_lower_first(outcome_text)}.",
+        ),
+        (
+            f"The immediate trigger for this {domain.label.lower()} scenario is simple: "
+            f"{state_text}.",
+            f"The subject is {subject}. {context_text}. The requested help "
+            f"is to {intent.label}. The hard boundary is: "
+            f"{constraint_text}. The desired result is that "
+            f"{_lower_first(outcome_text)}.",
+        ),
+        (
+            f"A checkpoint is reached for {subject} once {_lower_first(state_text)}.",
+            f"{context_text}. The task is to {intent.label}. "
+            f"The answer must observe this condition: {constraint_text}. It should "
+            f"lead to a state where {_lower_first(outcome_text)}.",
+        ),
+        (
+            f"The next decision about {subject} is prompted by one concrete condition: "
+            f"{state_text}.",
+            f"{context_text}. The person now wants to {intent.label}. The response is "
+            f"bounded by this requirement: {constraint_text}. The finish line is that "
+            f"{_lower_first(outcome_text)}.",
+        ),
+        (
+            f"A request involving {subject} becomes actionable at the moment when "
+            f"{_lower_first(state_text)}.",
+            f"The surrounding context is this: {_lower_first(context_text)}. The person "
+            f"needs to {intent.label}. The solution must respect this condition: "
+            f"{constraint_text}. It must establish that {_lower_first(outcome_text)}.",
+        ),
+        (
+            f"This {domain.label.lower()} case begins from a specific turning point: "
+            f"{state_text}.",
+            f"It concerns {subject}. {context_text}. The next useful move is to "
+            f"{intent.label}, under this constraint: {constraint_text}. "
+            f"The case is resolved when {_lower_first(outcome_text)}.",
+        ),
+    )
+    trigger, situation = frames[frame_index]
+    return trigger, f"{trigger} {situation}", frame_id
+
+
+def _title(
     domain: DomainSpec,
     intent: IntentSpec,
     constraint: SemanticAtom,
     state: SemanticAtom,
     outcome: SemanticAtom,
 ) -> str:
-    return " ".join(
-        (
-            domain.context,
-            f"The immediate trigger is this: {state.label}",
-            f"The person now needs to {intent.label}.",
-            f"The governing boundary is: {constraint.label}",
-            f"Success in this situation means: {outcome.label}",
-        )
+    return (
+        f"{domain.label} — {intent.label}: "
+        f"{state.atom_id.replace('_', ' ')} / {constraint.atom_id.replace('_', ' ')} "
+        f"→ {outcome.atom_id.replace('_', ' ')}"
     )
 
 
@@ -458,9 +651,7 @@ def compile_scenarios(registry: ScenarioForgeRegistry) -> list[dict[str, Any]]:
     for family in registry.families:
         quotas = _domain_quotas(family, registry.seed)
         for domain in family.domains:
-            combinations = _semantic_combinations(
-                family, domain, seed=registry.seed
-            )
+            combinations = _semantic_combinations(family, domain, seed=registry.seed)
             for rank, (intent, constraint, state, outcome) in enumerate(
                 combinations[: quotas[domain.domain_id]]
             ):
@@ -476,16 +667,23 @@ def compile_scenarios(registry: ScenarioForgeRegistry) -> list[dict[str, Any]]:
                 )
                 creation_hash = _creation_hash(signature)
                 scenario_id = f"scenario:{creation_hash[:24]}"
-                fallback_candidates = _compatible_fallbacks(family, domain, state)
-                fallback = fallback_candidates[
-                    _stable_index(
-                        f"{registry.seed}:{signature}:fallback",
-                        len(fallback_candidates),
-                    )
-                ]
-                goal = intent.goal_template.format(
+                fallback = _select_fallback(family, domain, state)
+                trigger, situation, narrative_frame = _narrative(
+                    domain,
+                    intent,
+                    constraint,
+                    state,
+                    outcome,
+                    creation_hash,
+                )
+                base_goal = intent.goal_template.format(
                     subject=domain.subject,
                     context=domain.context,
+                )
+                goal = (
+                    f"{base_goal} Account for this state: {state.label.rstrip('.')}. "
+                    f"Respect this boundary: {constraint.label.rstrip('.')}. "
+                    f"Establish this result: {outcome.label.rstrip('.')}."
                 )
                 payload = _payload(
                     family,
@@ -497,39 +695,44 @@ def compile_scenarios(registry: ScenarioForgeRegistry) -> list[dict[str, Any]]:
                     fallback,
                 )
                 row = {
-                        "scenario_id": scenario_id,
-                        "creation_hash": creation_hash,
-                        "verification_hash": "",
-                        "family": family.family_id,
-                        "domain": domain.domain_id,
-                        "intent": intent.atom_id,
-                        "title": f"{family.label}: {domain.label} — {intent.label}",
-                        "situation": _situation(
-                            domain, intent, constraint, state, outcome
-                        ),
-                        "goal": goal,
-                        "constraint": constraint.label,
-                        "state": state.label,
-                        "desired_outcome": outcome.label,
-                        "fallback": fallback.label,
-                        "risk_level": domain.risk_level,
-                        "split": _split(scenario_id, registry.validation_percent),
-                        "semantic_signature": signature,
-                        "semantic_payload": json.dumps(payload, sort_keys=True),
-                        "response_contract": list(family.response_contract),
-                        "source_structure_keys": [
-                            f"family:{family.family_id}",
-                            f"domain:{domain.domain_id}",
-                            f"intent:{intent.atom_id}",
-                        ],
-                        "surface_text_generated": False,
-                        "provenance": SCENARIO_PROVENANCE,
-                        "license": registry.metadata.license,
-                        "version": registry.metadata.version,
-                    }
-                row["verification_hash"] = _verification_hash(row)
+                    "scenario_id": scenario_id,
+                    "creation_hash": creation_hash,
+                    "verification_hash": "",
+                    "family": family.family_id,
+                    "domain": domain.domain_id,
+                    "intent": intent.atom_id,
+                    "title": _title(domain, intent, constraint, state, outcome),
+                    "trigger": trigger,
+                    "situation": situation,
+                    "narrative_frame": narrative_frame,
+                    "goal": goal,
+                    "constraint": constraint.label,
+                    "state": state.label,
+                    "desired_outcome": outcome.label,
+                    "fallback": fallback.label,
+                    "risk_level": domain.risk_level,
+                    "split": "",
+                    "semantic_signature": signature,
+                    "semantic_payload": json.dumps(payload, sort_keys=True),
+                    "response_contract": list(family.response_contract),
+                    "source_structure_keys": [
+                        f"family:{family.family_id}",
+                        f"domain:{domain.domain_id}",
+                        f"intent:{intent.atom_id}",
+                        f"constraint:{constraint.atom_id}",
+                        f"state:{state.atom_id}",
+                        f"outcome:{outcome.atom_id}",
+                    ],
+                    "model_generated_dialogue": False,
+                    "provenance": SCENARIO_PROVENANCE,
+                    "license": registry.metadata.license,
+                    "version": registry.metadata.version,
+                }
                 rows.append(row)
     rows.sort(key=lambda row: row["scenario_id"])
+    _assign_splits(rows, registry.validation_percent, registry.seed)
+    for row in rows:
+        row["verification_hash"] = _verification_hash(row)
     audit_scenarios(rows, registry)
     return rows
 
@@ -548,8 +751,11 @@ def audit_scenarios(
         raise ValueError("duplicate Scenario Forge semantic payloads")
     if len({row["situation"] for row in rows}) != len(rows):
         raise ValueError("duplicate Scenario Forge situations")
-    if any(row["surface_text_generated"] for row in rows):
-        raise ValueError("Scenario Forge must not generate surface text")
+    for field in ("title", "goal"):
+        if len({row[field] for row in rows}) != len(rows):
+            raise ValueError(f"duplicate Scenario Forge {field} values")
+    if any(row["model_generated_dialogue"] for row in rows):
+        raise ValueError("Scenario Forge must not contain model-generated dialogue")
     if any(row["provenance"] != SCENARIO_PROVENANCE for row in rows):
         raise ValueError("Scenario Forge provenance mismatch")
     for row in rows:
@@ -561,7 +767,9 @@ def audit_scenarios(
         if row["verification_hash"] != _verification_hash(row):
             raise ValueError(f"verification hash mismatch for {row['scenario_id']}")
 
-    expected_by_family = {family.family_id: family.target for family in registry.families}
+    expected_by_family = {
+        family.family_id: family.target for family in registry.families
+    }
     actual_by_family = Counter(row["family"] for row in rows)
     if dict(actual_by_family) != expected_by_family:
         raise ValueError(
@@ -640,13 +848,18 @@ def audit_scenarios(
             fallback_id = fallback_by_label[row["fallback"]]
             domain = domain_by_id[row["domain"]]
             if outcome_id not in family.compatibility.intent_outcomes[intent_id]:
-                compatibility_violations.append(
-                    f"{row['scenario_id']}:intent_outcome"
-                )
-            if constraint_id not in family.compatibility.domain_constraints[domain.domain_id]:
+                compatibility_violations.append(f"{row['scenario_id']}:intent_outcome")
+            if intent_id not in family.compatibility.domain_intents[domain.domain_id]:
+                compatibility_violations.append(f"{row['scenario_id']}:domain_intent")
+            if (
+                constraint_id
+                not in family.compatibility.domain_constraints[domain.domain_id]
+            ):
                 compatibility_violations.append(
                     f"{row['scenario_id']}:domain_constraint"
                 )
+            if outcome_id not in family.compatibility.state_outcomes[state_id]:
+                compatibility_violations.append(f"{row['scenario_id']}:state_outcome")
             if (
                 fallback_id not in family.compatibility.state_fallbacks[state_id]
                 or fallback_id
@@ -686,26 +899,31 @@ def audit_scenarios(
             + ", ".join(compatibility_violations[:10])
         )
 
+    split_counts = Counter(row["split"] for row in rows)
+    expected_validation = round(len(rows) * registry.validation_percent / 100)
+    if split_counts["validation"] != expected_validation:
+        raise ValueError(
+            f"expected exactly {expected_validation} validation rows, found "
+            f"{split_counts['validation']}"
+        )
+
     return {
         "scenarios": len(rows),
         "unique_ids": len({row["scenario_id"] for row in rows}),
-        "unique_semantic_signatures": len(
-            {row["semantic_signature"] for row in rows}
-        ),
+        "unique_semantic_signatures": len({row["semantic_signature"] for row in rows}),
         "unique_semantic_payloads": len({row["semantic_payload"] for row in rows}),
         "unique_situations": len({row["situation"] for row in rows}),
+        "unique_titles": len({row["title"] for row in rows}),
+        "unique_goals": len({row["goal"] for row in rows}),
+        "unique_triggers": len({row["trigger"] for row in rows}),
         "unique_creation_hashes": len({row["creation_hash"] for row in rows}),
-        "unique_verification_hashes": len(
-            {row["verification_hash"] for row in rows}
-        ),
-        "surface_text_rows": 0,
+        "unique_verification_hashes": len({row["verification_hash"] for row in rows}),
+        "model_generated_dialogue_rows": 0,
         "family_counts": dict(sorted(actual_by_family.items())),
         "domain_counts": dict(sorted(domain_counts.items())),
         "axis_coverage": dict(sorted(axis_coverage.items())),
-        "split_counts": dict(sorted(Counter(row["split"] for row in rows).items())),
-        "risk_counts": dict(
-            sorted(Counter(row["risk_level"] for row in rows).items())
-        ),
+        "split_counts": dict(sorted(split_counts.items())),
+        "risk_counts": dict(sorted(Counter(row["risk_level"] for row in rows).items())),
         "payload_contract_match_ratio": 1.0,
         "compatibility_match_ratio": 1.0,
     }
@@ -765,9 +983,10 @@ def build_scenario_forge(
             "by_family": audit["family_counts"],
             "by_split": audit["split_counts"],
         },
-        "surface_text": {
-            "generated": False,
-            "source_utterances_accessed": False,
+        "generation": {
+            "model_generated_dialogue": False,
+            "third_party_utterances_accessed": False,
+            "narrative_frames": len(NARRATIVE_FRAME_IDS),
             "provenance": SCENARIO_PROVENANCE,
         },
         "audit": audit,

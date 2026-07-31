@@ -96,21 +96,23 @@ not leak into train and validation through different cards.
 
 ## Scenario Forge
 
-Scenario Forge creates structured assistant situations before any conversation
-surface is written. Each card combines:
+Scenario Forge creates inspectable assistant scenarios without generating model
+dialogue. Each card combines:
 
 ```text
-family + domain + compatible intent/outcome
+family + domain-compatible intent
+       + intent/state-compatible outcome
        + domain-compatible constraint
-       + current state + risk/state-compatible fallback
-       + original situation
+       + current state + prioritized risk/state fallback
+       + domain-specific trigger + deterministic narrative frame
 ```
 
-Compatibility is explicit in the registry. Intent determines the permitted
-outcomes, domain determines the permitted constraints, and the intersection of
-state and risk determines the permitted fallbacks. Hashing is applied only
-after those semantic rules: it provides deterministic allocation and identity,
-not semantic judgment.
+Compatibility is explicit in the registry. Domain constrains both intent and
+constraint, intent and state jointly constrain the outcome, and state priority
+intersected with risk determines the fallback. Hashing is applied only after
+those semantic rules: it distributes compatible combinations, selects one of
+12 authored narrative frames, assigns stable identities and verifies final
+content. It does not decide safety or semantic compatibility.
 
 The current registry compiles exactly 2,000 unique semantic signatures:
 
@@ -129,13 +131,16 @@ uv run card-corpus build-scenario-forge \
 ```
 
 `scenarios.parquet` is canonical and `scenarios.jsonl` is intended for human
-review. Every card carries a unique original situation, a `creation_hash` over
-its semantic signature and a `verification_hash` over its canonical final
-content. The artifact manifest separately records SHA-256 hashes for each
-output file.
+review. Every card carries a unique title, objective and original situation, a
+domain-specific trigger, a `creation_hash` over its semantic signature and a
+`verification_hash` over its canonical final content. The explicit
+`model_generated_dialogue=false` field distinguishes composed scenario prose
+from generated dialogue. The artifact manifest separately records SHA-256
+hashes for each output file.
 
-The audit enforces 2,000 unique situations, IDs, signatures, payloads and hash
-pairs; exact family allocation; domain balance; complete axis coverage;
+The audit enforces 2,000 unique situations, titles, objectives, IDs,
+signatures, payloads and hash pairs; exactly 1,900 training and 100 validation
+cards; exact family allocation; domain balance; complete axis coverage;
 family-specific payload contracts; and a 100% compatibility match. It rejects
 unknown matrix references, incompatible combinations and content changed after
 compilation.
