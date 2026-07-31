@@ -59,6 +59,9 @@ def test_scenario_forge_compiles_two_thousand_semantic_cards() -> None:
     assert 14 <= audit["surface_stats"]["mean_sentence_words"] <= 20
     assert 0.10 <= audit["surface_stats"]["transitions_per_sentence"] <= 0.30
     assert 0.25 <= audit["surface_stats"]["question_rate"] <= 0.30
+    assert 0 < audit["surface_stats"]["raw_type_token_ratio"] <= 1
+    assert 0 < audit["surface_stats"]["mattr_100"] <= 1
+    assert "type_token_ratio" not in audit["surface_stats"]
     assert audit["surface_language_audit"]["issue_count"] == 0
     assert audit["surface_language_audit"]["checked_rows"] == 2_000
     assert audit["surface_language_audit"]["semantic_anchor_match_rate"] == 1.0

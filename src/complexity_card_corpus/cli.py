@@ -55,7 +55,17 @@ def parser() -> argparse.ArgumentParser:
     post_training.add_argument("--scenarios", type=Path, required=True)
     post_training.add_argument("--output", type=Path, required=True)
     post_training.add_argument("--variants-per-scenario", type=int, default=2)
-    post_training.add_argument("--review-rows", type=int, default=70)
+    post_training.add_argument(
+        "--review-scenarios",
+        "--review-rows",
+        dest="review_scenarios",
+        type=int,
+        default=70,
+        help=(
+            "number of unique source scenarios to review; one instruct and one "
+            "chat row are emitted for each scenario"
+        ),
+    )
     post_training.add_argument("--seed", type=int, default=42)
 
     post_training_review = commands.add_parser("audit-post-training-review")
@@ -192,7 +202,7 @@ def main() -> None:
             args.scenarios,
             args.output,
             variants_per_scenario=args.variants_per_scenario,
-            review_rows=args.review_rows,
+            review_scenarios=args.review_scenarios,
             seed=args.seed,
         )
         print(

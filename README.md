@@ -177,35 +177,56 @@ records the number of checked intent phrases, lemmas and realized forms.
 The post-training builder turns every Scenario Forge card into one instruct
 example and one four-turn chat. State and constraint anchors each occur once in
 the source dialogue, common `a`/`an` errors are corrected from pronunciation
-rules, and the scenario audit keeps mean sentence length between 14 and 20
-words with 0.1–0.3 transition words per sentence.
+rules, and the upstream scenario audit keeps mean scenario-sentence length
+between 14 and 20 words with 0.1–0.3 transition words per sentence. Conversation
+and response lengths are reported separately in the post-training audit.
 
 ```bash
 uv run card-corpus build-post-training \
   --scenarios build/scenario-forge/scenarios.parquet \
   --output build/post-training \
   --variants-per-scenario 2 \
-  --review-rows 70
+  --review-scenarios 70
 ```
 
-Both variants inherit the split of their source `scenario_id`; a source card
-therefore has **0% train/validation leakage**. The current audit reports 4,000
-unique rendered conversations and 99.25% unique final responses. The generated
-`human_review.csv` selects ten examples from each of the seven families while
-cycling through available risk levels and splits.
+Both variants inherit the split of their source `scenario_id`. The audit checks
+two explicit holdout contracts: zero shared scenario IDs and zero shared
+`(family, domain, intent)` groups between train and validation. This does not
+claim zero lexical or semantic near-duplicate leakage.
+
+Exact-string conversation and response uniqueness are reported as descriptive
+checks, not as evidence of narrative individualization. The diversity report
+also exposes response opening/structure pairs, MATTR-100, message and response
+lengths, distinct and singleton 4/8-gram ratios, maximum repeated-phrase
+coverage and the most repeated n-grams. `distinct_ngram_ratio` means distinct
+n-gram windows divided by all windows; it is not a singleton rate.
+
+`human_review.csv` samples 70 **unique source scenarios**, ten from each of the
+seven families, while cycling through risk level, split and domain. Both the
+instruct and chat rendering of every selected scenario are included, producing
+140 review rows with exactly 70 rows per mode. This equal-family stratification
+is a quality-control design, not a population-proportional estimate.
 
 The manifest deliberately sets `training_ready=false` and
 `release_ready=false`. A reviewer must grade semantic accuracy, constraint
 following, language quality, individualization and safety before either flag
-can be changed. Passing automated tests is not a substitute for this review.
+can be changed. Every completed row also records the reviewer and a timezone-aware
+UTC timestamp. Passing automated tests is not a substitute for this review.
 
 After the CSV is completed, the explicit gate reports readiness only when all
-70 rows are marked `approved` and every quality field is marked `pass`:
+140 rows are marked `approved`, every quality field is marked `pass`, and review
+provenance is complete:
 
 ```bash
 uv run card-corpus audit-post-training-review \
   --review build/post-training/human_review.csv
 ```
+
+When all 70 source scenarios pass, the report includes the one-sided 95%
+zero-failure bound that would apply to an independent random sample. It is
+labelled as descriptive only because the actual sample is stratified. A clean
+70-scenario review therefore supports a bounded quality-control statement, not
+a claim that the complete corpus is error-free.
 
 ### Private lexical mining and anti-copy audit
 

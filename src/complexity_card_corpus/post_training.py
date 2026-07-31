@@ -3,8 +3,10 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import math
 import re
 import shutil
+import statistics
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,6 +31,9 @@ REVIEW_GRADES = (
     "safety",
 )
 _WORD = re.compile(r"[A-Za-z]+(?:['’][A-Za-z]+)?")
+_REVIEW_STATUSES = frozenset({"pending", "approved", "rejected"})
+_REVIEW_GRADE_VALUES = frozenset({"", "pass", "fail"})
+_RESPONSE_STRUCTURE_COUNT = 12
 
 _INTENT_FIELD = {
     "practical_action": "requested_action",
@@ -114,6 +119,15 @@ def _intent(payload: dict[str, str], family: str) -> str:
     return payload[_INTENT_FIELD[family]].rstrip(".")
 
 
+def _surface_selection(row: dict[str, Any], variant: int) -> tuple[int, int]:
+    return (
+        _stable_index(f"final:{row['scenario_id']}:{variant}", len(_OPENINGS)),
+        _stable_index(
+            f"structure:{row['scenario_id']}:{variant}", _RESPONSE_STRUCTURE_COUNT
+        ),
+    )
+
+
 def _render_final(row: dict[str, Any], variant: int) -> str:
     payload = json.loads(row["semantic_payload"])
     intent = _intent(payload, row["family"])
@@ -121,9 +135,8 @@ def _render_final(row: dict[str, Any], variant: int) -> str:
     constraint = row["constraint"].rstrip(".")
     outcome = row["desired_outcome"].rstrip(".")
     fallback = row["fallback"].rstrip(".")
-    opening = _OPENINGS[
-        _stable_index(f"final:{row['scenario_id']}:{variant}", len(_OPENINGS))
-    ]
+    opening_index, structure_index = _surface_selection(row, variant)
+    opening = _OPENINGS[opening_index]
     structures = (
         f"{opening}. I would {intent} for {subject} while preserving this boundary: {constraint}. The answer is complete when {_lower_first(outcome)}. If the evidence cannot support that result, {_lower_first(fallback)}.",
         f"{opening}. For {subject}, the immediate objective is to {intent}. One limit remains firm: {constraint}. Success means that {_lower_first(outcome)}. If that cannot be verified, {_lower_first(fallback)}.",
@@ -138,9 +151,9 @@ def _render_final(row: dict[str, Any], variant: int) -> str:
         f"{opening}. I would make one reversible move to {intent} for {subject}. The move must preserve this condition: {constraint}. Its result is acceptable if {_lower_first(outcome)}. If that remains unclear, {_lower_first(fallback)}.",
         f"{opening}. The answer can {intent} for {subject} by naming facts, action, and verification. It must keep this boundary intact: {constraint}. Verification succeeds when {_lower_first(outcome)}. Otherwise, {_lower_first(fallback)}.",
     )
-    selected = structures[
-        _stable_index(f"structure:{row['scenario_id']}:{variant}", len(structures))
-    ]
+    if len(structures) != _RESPONSE_STRUCTURE_COUNT:
+        raise RuntimeError("response structure registry is inconsistent")
+    selected = structures[structure_index]
     return correct_indefinite_articles(selected)
 
 
@@ -189,6 +202,8 @@ def _conversation_rows(
         for variant in range(variants_per_scenario):
             messages = _render_messages(scenario, variant)
             rendered = _render_transcript(messages)
+            mode = "instruct" if len(messages) == 2 else "chat"
+            opening_index, structure_index = _surface_selection(scenario, variant)
             suffix = hashlib.sha256(
                 f"{scenario['scenario_id']}:{variant}:{rendered}".encode()
             ).hexdigest()[:20]
@@ -198,16 +213,24 @@ def _conversation_rows(
                 "domain": scenario["domain"],
                 "intent": scenario["intent"],
                 "risk_level": scenario["risk_level"],
+                "split": scenario["split"],
                 "state": scenario["state"],
                 "constraint": scenario["constraint"],
                 "response_contract": scenario["response_contract"],
+                "variant": variant,
+                "mode": mode,
+                "response_opening_id": f"opening-{opening_index:02d}",
+                "response_structure_id": f"structure-{structure_index:02d}",
+                "response_surface_pattern_id": (
+                    f"opening-{opening_index:02d}:structure-{structure_index:02d}"
+                ),
                 "model_generated_dialogue": False,
             }
             rows.append(
                 {
                     "example_id": f"post-training:{suffix}",
                     "task": scenario["family"],
-                    "mode": "instruct" if len(messages) == 2 else "chat",
+                    "mode": mode,
                     "difficulty": (
                         "hard" if scenario["risk_level"] == "high" else "medium"
                     ),
@@ -231,132 +254,315 @@ def _conversation_rows(
     return sorted(rows, key=lambda row: row["example_id"])
 
 
+def _tokens(value: str) -> list[str]:
+    return [match.group(0).lower() for match in _WORD.finditer(value)]
+
+
+def _p95(values: list[int]) -> float:
+    ordered = sorted(values)
+    index = min(len(ordered) - 1, round((len(ordered) - 1) * 0.95))
+    return float(ordered[index])
+
+
+def _length_statistics(values: list[str]) -> dict[str, float | int]:
+    lengths = [len(_tokens(value)) for value in values]
+    return {
+        "items": len(lengths),
+        "minimum_tokens": min(lengths),
+        "mean_tokens": round(statistics.fmean(lengths), 3),
+        "median_tokens": round(statistics.median(lengths), 3),
+        "p95_tokens": _p95(lengths),
+        "maximum_tokens": max(lengths),
+    }
+
+
+def _mattr(tokens: list[str], window: int = 100) -> float:
+    """Return moving-average type-token ratio over fixed lexical windows."""
+    if not tokens:
+        return 0.0
+    if len(tokens) <= window:
+        return len(set(tokens)) / len(tokens)
+    counts = Counter(tokens[:window])
+    total = len(counts) / window
+    windows = 1
+    for index in range(window, len(tokens)):
+        outgoing = tokens[index - window]
+        counts[outgoing] -= 1
+        if counts[outgoing] == 0:
+            del counts[outgoing]
+        counts[tokens[index]] += 1
+        total += len(counts) / window
+        windows += 1
+    return total / windows
+
+
+def _ngram_statistics(messages: list[str], size: int) -> dict[str, Any]:
+    counts: Counter[tuple[str, ...]] = Counter()
+    message_counts: Counter[tuple[str, ...]] = Counter()
+    for message in messages:
+        tokens = _tokens(message)
+        grams = [
+            tuple(tokens[index : index + size])
+            for index in range(len(tokens) - size + 1)
+        ]
+        counts.update(grams)
+        message_counts.update(set(grams))
+    windows = sum(counts.values())
+    distinct = len(counts)
+    singleton_ngrams = sum(value == 1 for value in counts.values())
+    most_common = counts.most_common(10)
+    return {
+        "window_tokens": size,
+        "windows": windows,
+        "distinct_ngrams": distinct,
+        "distinct_ngram_ratio": round(distinct / windows, 6),
+        "singleton_ngrams": singleton_ngrams,
+        "singleton_distinct_ratio": round(singleton_ngrams / distinct, 6),
+        "singleton_window_ratio": round(singleton_ngrams / windows, 6),
+        "maximum_occurrences": max(counts.values(), default=0),
+        "maximum_message_coverage": round(
+            max(message_counts.values(), default=0) / len(messages), 6
+        ),
+        "top_repeated_ngrams": [
+            {
+                "text": " ".join(gram),
+                "occurrences": occurrences,
+                "message_count": message_counts[gram],
+                "message_rate": round(message_counts[gram] / len(messages), 6),
+            }
+            for gram, occurrences in most_common
+        ],
+    }
+
+
 def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
     rendered = [row["rendered_text"] for row in rows]
     responses = [row["response"] for row in rows]
+    messages = [message["content"] for row in rows for message in row["messages"]]
     train_cards: set[str] = set()
     validation_cards: set[str] = set()
+    split_groups: dict[str, set[tuple[str, str, str]]] = defaultdict(set)
     exact_anchor_rows = 0
+    answers: list[dict[str, Any]] = []
     for row in rows:
         answer = json.loads(row["answer_json"])
+        answers.append(answer)
         target = validation_cards if row["split"] == "validation" else train_cards
         target.add(answer["scenario_id"])
+        split_groups[row["split"]].add(
+            (answer["family"], answer["domain"], answer["intent"])
+        )
         normalized = row["rendered_text"].lower()
         if all(
             normalized.count(answer[field].rstrip(".").lower()) == 1
             for field in ("state", "constraint")
         ):
             exact_anchor_rows += 1
-    overlap = train_cards & validation_cards
-    if overlap:
+    card_overlap = train_cards & validation_cards
+    group_overlap = split_groups["train"] & split_groups["validation"]
+    if card_overlap:
         raise ValueError("source scenarios leak across post-training splits")
+    if group_overlap:
+        raise ValueError("family/domain/intent groups leak across post-training splits")
     if len(set(rendered)) != len(rendered):
         raise ValueError("duplicate post-training conversations")
     if any(row["license"] != DATASET_LICENSE for row in rows):
         raise ValueError("post-training license mismatch")
     if exact_anchor_rows != len(rows):
         raise ValueError("state and constraint must each appear exactly once")
+
     unique_final_response_ratio = len(set(responses)) / len(responses)
     if unique_final_response_ratio < 0.95:
         raise ValueError(
             "post-training final responses are not sufficiently individualized: "
             f"{unique_final_response_ratio:.3f}"
         )
-    messages = [message["content"] for row in rows for message in row["messages"]]
-    ngram_stats: dict[int, dict[str, float | int]] = {}
-    for size in (4, 8):
-        counts: Counter[tuple[str, ...]] = Counter()
-        windows = 0
-        for message in messages:
-            tokens = [match.group(0).lower() for match in _WORD.finditer(message)]
-            grams = [
-                tuple(tokens[index : index + size])
-                for index in range(len(tokens) - size + 1)
-            ]
-            counts.update(grams)
-            windows += len(grams)
-        ngram_stats[size] = {
-            "windows": windows,
-            "unique": len(counts),
-            "unique_rate": round(len(counts) / windows, 6),
-            "maximum_repetitions": max(counts.values(), default=0),
+
+    surface_patterns = Counter(
+        answer["response_surface_pattern_id"] for answer in answers
+    )
+    structures = Counter(answer["response_structure_id"] for answer in answers)
+    openings = Counter(answer["response_opening_id"] for answer in answers)
+    all_message_tokens = [token for message in messages for token in _tokens(message)]
+    vocabulary = set(all_message_tokens)
+    family_metrics: dict[str, dict[str, Any]] = {}
+    for family in sorted({row["task"] for row in rows}):
+        family_rows = [row for row in rows if row["task"] == family]
+        family_answers = [
+            json.loads(row["answer_json"])["scenario_id"] for row in family_rows
+        ]
+        family_responses = [row["response"] for row in family_rows]
+        family_metrics[family] = {
+            "examples": len(family_rows),
+            "source_scenarios": len(set(family_answers)),
+            "unique_final_response_ratio": round(
+                len(set(family_responses)) / len(family_responses), 6
+            ),
+            "mean_response_tokens": _length_statistics(family_responses)[
+                "mean_tokens"
+            ],
         }
+    family_source_scenarios: dict[str, set[str]] = defaultdict(set)
+    for answer in answers:
+        family_source_scenarios[answer["family"]].add(answer["scenario_id"])
+
     return {
         "rows": len(rows),
-        "source_cards": len(train_cards | validation_cards),
-        "split_holdout_unit": "scenario_id",
-        "source_card_split_overlap": len(overlap),
-        "split_counts": dict(sorted(Counter(row["split"] for row in rows).items())),
-        "family_counts": dict(sorted(Counter(row["task"] for row in rows).items())),
-        "mode_counts": dict(sorted(Counter(row["mode"] for row in rows).items())),
-        "unique_rendered_ratio": len(set(rendered)) / len(rendered),
-        "unique_final_response_ratio": unique_final_response_ratio,
-        "model_generated_dialogue_rows": 0,
+        "source_scenarios": len(train_cards | validation_cards),
+        "split_holdout_units": ["scenario_id", "family+domain+intent"],
+        "source_scenario_split_overlap": len(card_overlap),
+        "semantic_group_split_overlap": len(group_overlap),
+        "train_semantic_groups": len(split_groups["train"]),
+        "validation_semantic_groups": len(split_groups["validation"]),
+        "split_example_counts": dict(
+            sorted(Counter(row["split"] for row in rows).items())
+        ),
+        "family_example_counts": dict(
+            sorted(Counter(row["task"] for row in rows).items())
+        ),
+        "family_source_scenario_counts": dict(
+            sorted(
+                (family, len(scenarios))
+                for family, scenarios in family_source_scenarios.items()
+            )
+        ),
+        "mode_example_counts": dict(
+            sorted(Counter(row["mode"] for row in rows).items())
+        ),
+        "exact_conversation_uniqueness_ratio": len(set(rendered)) / len(rendered),
+        "exact_final_response_uniqueness_ratio": unique_final_response_ratio,
+        "duplicate_final_response_rows": len(responses) - len(set(responses)),
+        "model_generated_dialogue_rows": sum(
+            bool(answer["model_generated_dialogue"]) for answer in answers
+        ),
         "single_state_and_constraint_ratio": exact_anchor_rows / len(rows),
-        "four_gram_stats": ngram_stats[4],
-        "eight_gram_stats": ngram_stats[8],
+        "surface_pattern_stats": {
+            "possible_opening_structure_pairs": (
+                len(_OPENINGS) * _RESPONSE_STRUCTURE_COUNT
+            ),
+            "observed_opening_structure_pairs": len(surface_patterns),
+            "maximum_examples_per_pair": max(surface_patterns.values()),
+            "maximum_pair_share": round(
+                max(surface_patterns.values()) / len(rows), 6
+            ),
+            "opening_counts": dict(sorted(openings.items())),
+            "structure_counts": dict(sorted(structures.items())),
+        },
+        "message_length_stats": _length_statistics(messages),
+        "response_length_stats": _length_statistics(responses),
+        "lexical_stats": {
+            "word_occurrences": len(all_message_tokens),
+            "observed_vocabulary": len(vocabulary),
+            "raw_type_token_ratio": round(
+                len(vocabulary) / len(all_message_tokens), 6
+            ),
+            "mattr_100": round(_mattr(all_message_tokens, 100), 6),
+        },
+        "four_gram_stats": _ngram_statistics(messages, 4),
+        "eight_gram_stats": _ngram_statistics(messages, 8),
+        "family_metrics": family_metrics,
     }
 
 
 def _review_sample(
-    rows: list[dict[str, Any]], *, review_rows: int, seed: int
+    rows: list[dict[str, Any]], *, review_scenarios: int, seed: int
 ) -> list[dict[str, str]]:
     families = sorted({row["task"] for row in rows})
-    if review_rows < len(families) or review_rows % len(families):
-        raise ValueError("review_rows must be a positive multiple of family count")
-    quota = review_rows // len(families)
-    grouped: dict[str, dict[tuple[str, str], list[dict[str, Any]]]] = defaultdict(
+    if review_scenarios < len(families) or review_scenarios % len(families):
+        raise ValueError(
+            "review_scenarios must be a positive multiple of family count"
+        )
+    quota = review_scenarios // len(families)
+    scenario_rows: dict[str, dict[str, list[dict[str, Any]]]] = defaultdict(
         lambda: defaultdict(list)
+    )
+    scenario_answers: dict[str, dict[str, Any]] = {}
+    grouped: dict[
+        str, dict[tuple[str, str], dict[str, list[str]]]
+    ] = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(list))
     )
     for row in rows:
         answer = json.loads(row["answer_json"])
-        grouped[row["task"]][(answer["risk_level"], row["split"])].append(row)
+        scenario_id = answer["scenario_id"]
+        scenario_rows[scenario_id][row["mode"]].append(row)
+        scenario_answers[scenario_id] = answer
+    for scenario_id, modes in scenario_rows.items():
+        answer = scenario_answers[scenario_id]
+        if set(modes) != {"chat", "instruct"}:
+            raise ValueError(
+                f"review scenario {scenario_id} does not provide both chat and instruct"
+            )
+        grouped[answer["family"]][
+            (answer["risk_level"], answer["split"])
+        ][answer["domain"]].append(scenario_id)
 
     selected: list[dict[str, str]] = []
     for family in families:
-        strata = grouped[family]
+        domain_strata = grouped[family]
+        strata: dict[tuple[str, str], list[str]] = {}
+        for stratum, domains in domain_strata.items():
+            for values in domains.values():
+                values.sort(
+                    key=lambda scenario_id: hashlib.sha256(
+                        f"review:{seed}:{scenario_id}".encode()
+                    ).digest()
+                )
+            domain_order = sorted(domains)
+            strata[stratum] = [
+                domains[domain][position]
+                for position in range(max(len(values) for values in domains.values()))
+                for domain in domain_order
+                if position < len(domains[domain])
+            ]
         ordered_strata = sorted(strata)
-        for values in strata.values():
-            values.sort(
-                key=lambda row: hashlib.sha256(
-                    f"review:{seed}:{row['example_id']}".encode()
-                ).digest()
-            )
         positions = Counter()
-        family_rows: list[dict[str, Any]] = []
-        while len(family_rows) < quota:
+        family_scenarios: list[str] = []
+        while len(family_scenarios) < quota:
             made_progress = False
             for stratum in ordered_strata:
                 position = positions[stratum]
                 if position < len(strata[stratum]):
-                    family_rows.append(strata[stratum][position])
+                    family_scenarios.append(strata[stratum][position])
                     positions[stratum] += 1
                     made_progress = True
-                    if len(family_rows) == quota:
+                    if len(family_scenarios) == quota:
                         break
             if not made_progress:
                 raise ValueError(f"insufficient review candidates for {family}")
-        for row in family_rows:
-            answer = json.loads(row["answer_json"])
-            selected.append(
-                {
-                    "example_id": row["example_id"],
-                    "scenario_id": answer["scenario_id"],
-                    "family": row["task"],
-                    "domain": row["domain"],
-                    "risk_level": answer["risk_level"],
-                    "split": row["split"],
-                    "prompt": row["prompt"],
-                    "response": row["response"],
-                    "review_status": "pending",
-                    "semantic_accuracy": "",
-                    "constraint_following": "",
-                    "language_quality": "",
-                    "individualization": "",
-                    "safety": "",
-                    "reviewer_notes": "",
-                }
-            )
+        for scenario_id in family_scenarios:
+            answer = scenario_answers[scenario_id]
+            for mode in ("instruct", "chat"):
+                candidates = sorted(
+                    scenario_rows[scenario_id][mode],
+                    key=lambda row: hashlib.sha256(
+                        f"review-mode:{seed}:{row['example_id']}".encode()
+                    ).digest(),
+                )
+                row = candidates[0]
+                selected.append(
+                    {
+                        "review_unit_id": scenario_id,
+                        "example_id": row["example_id"],
+                        "scenario_id": scenario_id,
+                        "mode": mode,
+                        "family": row["task"],
+                        "domain": row["domain"],
+                        "risk_level": answer["risk_level"],
+                        "split": row["split"],
+                        "prompt": row["prompt"],
+                        "response": row["response"],
+                        "review_status": "pending",
+                        "semantic_accuracy": "",
+                        "constraint_following": "",
+                        "language_quality": "",
+                        "individualization": "",
+                        "safety": "",
+                        "reviewer": "",
+                        "reviewed_at_utc": "",
+                        "reviewer_notes": "",
+                    }
+                )
     return selected
 
 
@@ -365,7 +571,7 @@ def build_post_training_corpus(
     output_root: Path,
     *,
     variants_per_scenario: int = 2,
-    review_rows: int = 70,
+    review_scenarios: int = 70,
     seed: int = 42,
 ) -> dict[str, Any]:
     if variants_per_scenario < 1:
@@ -373,7 +579,9 @@ def build_post_training_corpus(
     scenarios = pq.read_table(scenarios_path).to_pylist()
     rows = _conversation_rows(scenarios, variants_per_scenario)
     audit = _audit(rows)
-    review = _review_sample(rows, review_rows=review_rows, seed=seed)
+    review = _review_sample(
+        rows, review_scenarios=review_scenarios, seed=seed
+    )
 
     temporary = output_root.with_name(f"{output_root.name}.partial")
     if temporary.exists():
@@ -405,8 +613,19 @@ def build_post_training_corpus(
         "audit": audit,
         "human_review": {
             "rows": len(review),
+            "source_scenarios": len({row["scenario_id"] for row in review}),
+            "sample_fraction_of_source_scenarios": round(
+                len({row["scenario_id"] for row in review})
+                / audit["source_scenarios"],
+                6,
+            ),
+            "modes_per_source_scenario": ["instruct", "chat"],
             "status": "pending",
-            "strata": ["family", "risk_level", "split"],
+            "strata": ["family", "risk_level", "split", "domain"],
+            "sampling_scope": (
+                "deterministic stratified quality-control sample; not a simple "
+                "random estimate of corpus-wide defect prevalence"
+            ),
             "required_before_training": True,
         },
         "training_ready": False,
@@ -438,37 +657,155 @@ def audit_human_review(review_path: Path) -> dict[str, Any]:
     if not rows:
         raise ValueError("human review sheet is empty")
     required = {
+        "review_unit_id",
         "example_id",
         "scenario_id",
+        "mode",
         "family",
+        "domain",
         "risk_level",
         "split",
         "review_status",
         *REVIEW_GRADES,
+        "reviewer",
+        "reviewed_at_utc",
         "reviewer_notes",
     }
     missing = required - set(rows[0])
     if missing:
         raise ValueError(f"human review sheet is missing columns: {sorted(missing)}")
-    status_counts = Counter(row["review_status"].strip().lower() for row in rows)
+    statuses = [row["review_status"].strip().lower() for row in rows]
+    invalid_statuses = sorted(set(statuses) - _REVIEW_STATUSES)
+    if invalid_statuses:
+        raise ValueError(f"invalid review statuses: {invalid_statuses}")
+    for grade in REVIEW_GRADES:
+        values = {row[grade].strip().lower() for row in rows}
+        invalid_grades = sorted(values - _REVIEW_GRADE_VALUES)
+        if invalid_grades:
+            raise ValueError(f"invalid {grade} grades: {invalid_grades}")
+    if len({row["example_id"] for row in rows}) != len(rows):
+        raise ValueError("human review contains duplicate example_id values")
+
+    scenario_rows: dict[str, list[dict[str, str]]] = defaultdict(list)
+    for row in rows:
+        if row["review_unit_id"] != row["scenario_id"]:
+            raise ValueError("review_unit_id must equal scenario_id")
+        scenario_rows[row["scenario_id"]].append(row)
+    incomplete_modes = {
+        scenario_id: sorted(row["mode"] for row in values)
+        for scenario_id, values in scenario_rows.items()
+        if Counter(row["mode"] for row in values)
+        != Counter({"instruct": 1, "chat": 1})
+    }
+    if incomplete_modes:
+        raise ValueError(
+            "each reviewed scenario must contain one instruct and one chat row: "
+            f"{incomplete_modes}"
+        )
+
+    status_counts = Counter(statuses)
     grade_counts = {
         grade: dict(
             sorted(Counter(row[grade].strip().lower() for row in rows).items())
         )
         for grade in REVIEW_GRADES
     }
-    approved = all(row["review_status"].strip().lower() == "approved" for row in rows)
+    approved = all(status == "approved" for status in statuses)
     grades_pass = all(
         row[grade].strip().lower() == "pass"
         for row in rows
         for grade in REVIEW_GRADES
     )
+    provenance_complete = all(status != "pending" for status in statuses)
+    for row in rows:
+        status = row["review_status"].strip().lower()
+        if status == "pending":
+            continue
+        reviewer = row["reviewer"].strip()
+        reviewed_at = row["reviewed_at_utc"].strip()
+        if not reviewer or not reviewed_at:
+            provenance_complete = False
+            continue
+        try:
+            timestamp = datetime.fromisoformat(reviewed_at.replace("Z", "+00:00"))
+        except ValueError:
+            provenance_complete = False
+            continue
+        if timestamp.tzinfo is None:
+            provenance_complete = False
+
+    def scenario_axis_counts(field: str) -> dict[str, int]:
+        return dict(
+            sorted(
+                Counter(
+                    values[0][field]
+                    for values in scenario_rows.values()
+                ).items()
+            )
+        )
+
+    def row_failed(row: dict[str, str]) -> bool:
+        return row["review_status"].strip().lower() == "rejected" or any(
+            row[grade].strip().lower() == "fail" for grade in REVIEW_GRADES
+        )
+
+    failed_rows = [row for row in rows if row_failed(row)]
+    failed_scenarios = {
+        row["scenario_id"] for row in failed_rows
+    }
+    ready = approved and grades_pass and provenance_complete
+    zero_failure_bound = None
+    if ready:
+        sample_size = len(scenario_rows)
+        zero_failure_bound = {
+            "confidence": 0.95,
+            "scenario_sample_size": sample_size,
+            "upper_defect_rate_if_iid_random": round(
+                1 - math.pow(0.05, 1 / sample_size), 6
+            ),
+            "caveat": (
+                "descriptive sensitivity bound only; this review is stratified "
+                "rather than a simple iid random sample"
+            ),
+        }
     return {
         "rows": len(rows),
+        "source_scenarios": len(scenario_rows),
         "status_counts": dict(sorted(status_counts.items())),
         "grade_counts": grade_counts,
-        "families": sorted({row["family"] for row in rows}),
-        "risk_levels": sorted({row["risk_level"] for row in rows}),
-        "splits": sorted({row["split"] for row in rows}),
-        "training_ready": approved and grades_pass,
+        "coverage": {
+            "family_source_scenarios": scenario_axis_counts("family"),
+            "risk_source_scenarios": scenario_axis_counts("risk_level"),
+            "split_source_scenarios": scenario_axis_counts("split"),
+            "domain_source_scenarios": scenario_axis_counts("domain"),
+            "mode_rows": dict(sorted(Counter(row["mode"] for row in rows).items())),
+        },
+        "failed_rows": len(failed_rows),
+        "failed_scenarios": len(failed_scenarios),
+        "failure_counts": {
+            "family_rows": dict(
+                sorted(Counter(row["family"] for row in failed_rows).items())
+            ),
+            "risk_rows": dict(
+                sorted(Counter(row["risk_level"] for row in failed_rows).items())
+            ),
+            "split_rows": dict(
+                sorted(Counter(row["split"] for row in failed_rows).items())
+            ),
+            "mode_rows": dict(
+                sorted(Counter(row["mode"] for row in failed_rows).items())
+            ),
+        },
+        "reviewer_counts": dict(
+            sorted(
+                Counter(
+                    row["reviewer"].strip()
+                    for row in rows
+                    if row["reviewer"].strip()
+                ).items()
+            )
+        ),
+        "review_provenance_complete": provenance_complete,
+        "zero_failure_bound": zero_failure_bound,
+        "training_ready": ready,
     }

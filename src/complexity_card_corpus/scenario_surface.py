@@ -31,6 +31,25 @@ def _normalized(text: str) -> str:
     return " ".join(_tokens(text))
 
 
+def _mattr(tokens: list[str], window: int = 100) -> float:
+    if not tokens:
+        return 0.0
+    if len(tokens) <= window:
+        return len(set(tokens)) / len(tokens)
+    counts = Counter(tokens[:window])
+    total = len(counts) / window
+    windows = 1
+    for index in range(window, len(tokens)):
+        outgoing = tokens[index - window]
+        counts[outgoing] -= 1
+        if counts[outgoing] == 0:
+            del counts[outgoing]
+        counts[tokens[index]] += 1
+        total += len(counts) / window
+        windows += 1
+    return total / windows
+
+
 def scenario_surface_stats(rows: list[dict[str, Any]]) -> dict[str, Any]:
     texts = [str(row["situation"]) for row in rows]
     tokenized = [_tokens(text) for text in texts]
@@ -51,6 +70,7 @@ def scenario_surface_stats(rows: list[dict[str, Any]]) -> dict[str, Any]:
                     hashlib.sha256(" ".join(tokens).encode()).digest()
                 )
     occurrences = sum(lengths)
+    all_tokens = [token for tokens in tokenized for token in tokens]
     ordered = sorted(lengths)
     p95_index = min(len(ordered) - 1, round((len(ordered) - 1) * 0.95))
     return {
@@ -63,7 +83,8 @@ def scenario_surface_stats(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "question_rate": round(
             sum(text.rstrip().endswith("?") for text in texts) / len(texts), 6
         ),
-        "type_token_ratio": round(len(vocabulary) / occurrences, 6),
+        "raw_type_token_ratio": round(len(vocabulary) / occurrences, 6),
+        "mattr_100": round(_mattr(all_tokens, 100), 6),
         "unique_document_rate": round(len(set(texts)) / len(texts), 6),
         "unique_sentence_rate": round(len(sentence_hashes) / sentence_count, 6),
         "mean_sentence_words": round(statistics.fmean(sentence_lengths), 6),
