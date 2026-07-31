@@ -152,9 +152,10 @@ choice, sequence and fallback. The build validates these contracts before an
 example can enter the corpus.
 
 The modes share the same `scenario_id`, state, constraint and desired outcome,
-but they do not copy the same user opening. The build rejects an exact first
-message match or a chat opener that is a literal prefix of its paired instruct
-prompt.
+but they do not copy the same user opening. Eight instruct-opening cards and
+eight chat-opening cards are dealt independently. The build rejects an exact
+first-message match or a chat opener that is a literal prefix of its paired
+instruct prompt.
 
 The current generated set contains:
 
@@ -166,18 +167,23 @@ The current generated set contains:
 | Instruct / chat | 15,000 / 15,000 |
 | Exact conversation uniqueness | 100% |
 | Exact final-response uniqueness | 100% |
-| Exact masked-skeleton uniqueness | 100% |
+| Distinct masked response skeletons | 1,377 |
+| Exact masked-skeleton uniqueness | 4.59% |
+| Largest exact masked-skeleton share | 0.83% |
 | Families with validated completion contracts | 14 / 14 |
-| Largest masked eight-token coverage | 4.00% |
-| Observed conversation vocabulary | 2,464 |
+| Largest masked eight-token coverage | 3.12% |
+| Largest family-level masked-template share | 8.33% |
+| Observed conversation vocabulary | 2,730 |
 | Conversations mapped to vocabulary metadata | 8,194 |
 | Statistical vocabulary terms mapped | 4,097 |
 | Arbitrary vocabulary labels surfaced in conversations | 0 |
 
 These are anti-template diagnostics, not a claim that every answer is correct
-or naturally written. Raw source anchors remain visible in unmasked statistics;
-subjects, intents, states, constraints, outcomes and fallbacks are masked only
-when measuring response-template repetition.
+or naturally written. The masked figures intentionally report the reusable
+language structures more honestly than identifier-driven exact uniqueness. Raw
+source anchors remain visible in unmasked statistics; subjects, intents,
+states, constraints, outcomes, fallbacks, IDs, dates, amounts, times and numeric
+slots are masked only when measuring response-template repetition.
 
 ## Human review
 
@@ -187,6 +193,10 @@ The post-training build creates `human_review.csv` with 280 pending rows:
 - both modes for each selected scenario;
 - 20 rows from each assistant family;
 - stratification across family, risk, split and domain.
+
+Each review row contains the complete transcript—including both turns of a
+chat example—rather than only its opening prompt. This keeps the rule, goal,
+assistant response and conversational transition visible during review.
 
 Reviewers grade:
 

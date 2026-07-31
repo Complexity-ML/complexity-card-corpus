@@ -17,10 +17,114 @@ from complexity_card_corpus.post_training import (
     build_post_training_corpus,
 )
 from complexity_card_corpus.scenario_forge import build_scenario_forge
+from complexity_card_corpus.task_cards import deal_task_hand
 
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "data/scenario-forge/scenario-forge-v1.json"
+
+
+def _task_row(
+    family: str,
+    domain: str,
+    *,
+    scenario: str = "abcdef123456",
+    constraint: str = "Keep the action bounded.",
+) -> dict:
+    return {
+        "scenario_id": f"scenario:{scenario}",
+        "family": family,
+        "domain": domain,
+        "intent": "verify",
+        "constraint": constraint,
+        "semantic_payload": json.dumps(
+            {
+                "subject": domain.replace("_", " "),
+                "domain_context": f"Context for {domain}.",
+            }
+        ),
+    }
+
+
+def test_task_cards_do_not_invent_missing_trial_outcomes() -> None:
+    hand = deal_task_hand(_task_row("critique_revision", "argument"), 0)
+    assert "three of five" in hand.data.lower()
+    assert "unrecorded" not in hand.answer.lower()
+    assert "does not establish" in hand.answer.lower()
+
+
+def test_planning_card_states_the_failed_requirement_explicitly() -> None:
+    hand = deal_task_hand(_task_row("planning_comparison", "learning_plan"), 0)
+    assert "misses one non-negotiable requirement" in hand.data
+    assert "non-negotiable requirement" in hand.answer
+    assert "C fails" in hand.answer or "Reject C" in hand.answer
+    assert "Availability of Option A has not yet been confirmed" in hand.data
+    assert "confirm" in hand.answer.lower()
+
+
+def test_practical_card_uses_a_domain_specific_action() -> None:
+    account = deal_task_hand(_task_row("practical_action", "account_access"), 0)
+    flight = deal_task_hand(_task_row("practical_action", "air_travel"), 0)
+    assert "booking" not in account.answer.lower()
+    assert "account" in account.answer.lower()
+    assert "flight" in flight.answer.lower() or "itinerary" in flight.answer.lower()
+
+
+def test_practical_card_materializes_cost_and_accessibility_constraints() -> None:
+    cost = deal_task_hand(
+        _task_row(
+            "practical_action",
+            "subscriptions",
+            constraint="The total cost cannot exceed a stated budget.",
+        ),
+        0,
+    )
+    accessible = deal_task_hand(
+        _task_row(
+            "practical_action",
+            "public_transit",
+            constraint="The result must preserve a stated accessibility need.",
+        ),
+        0,
+    )
+    assert "authorized maximum" in cost.data
+    assert "accessibility support" in accessible.data
+    assert "accessibility support" in accessible.answer
+
+
+def test_missing_reference_uses_a_grounded_situation_card() -> None:
+    hand = deal_task_hand(_task_row("context_clarification", "missing_reference"), 0)
+    assert hand.situation_title == "Missing reference — request the absent report"
+    assert "report is absent" in (hand.situation or "")
+    assert "settings" not in hand.answer.lower()
+    assert "two interpretations" not in hand.data.lower()
+    assert "to do not" not in hand.answer.lower()
+
+
+def test_masked_response_removes_identifiers_and_numeric_slots() -> None:
+    answer = {
+        "subject": "an account",
+        "surface_intent": "resolve access",
+        "state": "pending",
+        "constraint": "confirm first",
+        "desired_outcome": "access restored",
+        "fallback": "pause",
+        "fallback_surface": "pause",
+        "domain_context": "official support",
+    }
+    left = post_training._masked_response(
+        "Hand A1B2C3 — Ask support to reconcile A1B2C3-A and A1B2C3-B "
+        "before 14:00 on day 17 for $42.",
+        answer,
+    )
+    right = post_training._masked_response(
+        "Hand D4E5F6 — Ask support to reconcile D4E5F6-A and D4E5F6-B "
+        "before 09:00 on day 24 for $88.",
+        answer,
+    )
+    assert left == right
+    assert "a1b2c3" not in left
+    assert "17" not in left
 
 
 def test_indefinite_articles_follow_common_english_sound_rules() -> None:
@@ -37,15 +141,24 @@ def test_indefinite_articles_follow_common_english_sound_rules() -> None:
 
 
 def test_intent_subject_composition_places_prepositional_complements_last() -> None:
-    assert post_training._intent_for_subject(
-        "restructure for action", "a set of meeting notes"
-    ) == "restructure a set of meeting notes for action"
-    assert post_training._intent_for_subject(
-        "clarify the immediate need", "a tense conversation"
-    ) == "clarify the immediate need in a tense conversation"
-    assert post_training._intent_for_subject(
-        "adapt tone for the audience", "a project update"
-    ) == "adapt the tone of a project update for the audience"
+    assert (
+        post_training._intent_for_subject(
+            "restructure for action", "a set of meeting notes"
+        )
+        == "restructure a set of meeting notes for action"
+    )
+    assert (
+        post_training._intent_for_subject(
+            "clarify the immediate need", "a tense conversation"
+        )
+        == "clarify the immediate need in a tense conversation"
+    )
+    assert (
+        post_training._intent_for_subject(
+            "adapt tone for the audience", "a project update"
+        )
+        == "adapt the tone of a project update for the audience"
+    )
 
 
 def test_post_training_corpus_groups_splits_and_builds_review_queue(
@@ -85,6 +198,14 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
         )
     for response in family_responses["context_clarification"]:
         assert response.count("?") == 1
+    assert all(
+        "retain existing settings" not in response
+        for response in family_responses["context_clarification"]
+    )
+    assert all(
+        "until caption review" not in response.lower()
+        for response in family_responses["writing_transformation"]
+    )
     for response in family_responses["extraction_classification"]:
         assert isinstance(json.loads(response), dict)
     for response in family_responses["reasoning_verification"]:
@@ -94,7 +215,10 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
     for response in family_responses["brainstorming_creativity"]:
         assert all(label in response for label in ("1.", "2.", "3.", "Select"))
     for response in family_responses["safety_uncertainty"]:
-        assert all(label in response for label in ("Immediate action:", "Boundary:", "Escalate"))
+        assert all(
+            label in response
+            for label in ("Immediate action:", "Boundary:", "Escalate")
+        )
     assert result["audit"]["source_scenario_split_overlap"] == 0
     assert result["audit"]["semantic_group_split_overlap"] == 0
     paired_prompts = result["audit"]["paired_prompt_surface_stats"]
@@ -115,9 +239,7 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
         "forbidden_assistant_phrases": list(
             post_training._FORBIDDEN_ASSISTANT_META_PHRASES
         ),
-        "forbidden_user_phrases": list(
-            post_training._FORBIDDEN_USER_META_PHRASES
-        ),
+        "forbidden_user_phrases": list(post_training._FORBIDDEN_USER_META_PHRASES),
     }
     role_stats = result["audit"]["role_text_stats"]
     assert role_stats["user_prompts"]["length"]["items"] == 45_000
@@ -136,6 +258,14 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
         "fallback_surface",
         "domain_context",
     ]
+    assert masked["masked_surface_variables"] == [
+        "scenario_code",
+        "reference_suffix",
+        "date",
+        "amount",
+        "time",
+        "number",
+    ]
     assert masked["maximum_skeleton_share"] < 0.05
     assert 0 < masked["exact_skeleton_uniqueness_ratio"] <= 1
     assert masked["eight_gram_stats"]["distinct_ngrams"] > 0
@@ -150,6 +280,10 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
     repetition_gate = result["audit"]["response_repetition_gate"]
     assert repetition_gate["measured_from_rendered_responses"] is True
     assert repetition_gate["maximum_masked_eight_token_message_coverage"] < 0.05
+    assert all(
+        metrics["maximum_masked_template_share"] < 0.20
+        for metrics in result["audit"]["family_metrics"].values()
+    )
 
     source_splits: dict[str, set[str]] = {}
     for row in rows:
@@ -183,6 +317,10 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
     }
     assert {row["review_status"] for row in review_rows} == {"pending"}
     assert all(row["reviewer_notes"] == "" for row in review_rows)
+    assert all("SITUATION CARD" in row["transcript"] for row in review_rows)
+    assert all("RULE CARD" in row["transcript"] for row in review_rows)
+    assert all("GOAL CARD" in row["transcript"] for row in review_rows)
+    assert all(row["response"] in row["transcript"] for row in review_rows)
     pending = audit_human_review(output / "human_review.csv")
     assert pending["training_ready"] is False
     assert pending["source_scenarios"] == 140

@@ -35,6 +35,7 @@ _WORD = re.compile(r"[A-Za-z]+(?:['’][A-Za-z]+)?")
 _REVIEW_STATUSES = frozenset({"pending", "approved", "rejected"})
 _REVIEW_GRADE_VALUES = frozenset({"", "pass", "fail"})
 _MAX_SURFACE_FORMULATION_SHARE = 0.05
+_MAX_FAMILY_SKELETON_SHARE = 0.20
 _FORBIDDEN_ASSISTANT_META_PHRASES = (
     "the response should",
     "the response must",
@@ -93,6 +94,29 @@ _ACKNOWLEDGEMENTS = (
     "Got it. I will use the confirmed facts and leave unsupported details open.",
     "That gives us a clear scope: one objective, one limit, and one check at the end.",
 )
+
+_INSTRUCT_OPENINGS = (
+    "Please solve this hand.",
+    "Work through the following card hand.",
+    "Use these cards to produce the requested result.",
+    "Resolve this case from the supplied cards.",
+    "Complete the task described by this hand.",
+    "Apply the rule and goal to the data below.",
+    "Handle this card hand using only its stated facts.",
+    "Produce a bounded answer for the following case.",
+)
+
+_CHAT_OPENINGS = (
+    "I want to work through this hand.",
+    "Can we resolve this case together?",
+    "I need help with the following card hand.",
+    "Let's work from these situation and data cards.",
+    "Could you help me reason through this case?",
+    "I have a bounded task to work through.",
+    "Let's start with the situation and known facts.",
+    "I would like to handle this case carefully.",
+)
+
 
 def _stable_index(value: str, size: int) -> int:
     return int.from_bytes(hashlib.sha256(value.encode()).digest()[:8], "big") % size
@@ -188,7 +212,9 @@ def _render_card_prompt(
 ) -> str:
     cards: list[str] = []
     if include_situation:
-        cards.append(f"SITUATION CARD\n{row['title']}\n{row['trigger']}")
+        situation_title = hand.situation_title or row["title"]
+        situation = hand.situation or row["trigger"]
+        cards.append(f"SITUATION CARD\n{situation_title}\n{situation}")
     cards.extend(
         (
             f"DATA CARD\n{hand.data}",
@@ -200,15 +226,22 @@ def _render_card_prompt(
 
 
 def _render_messages(
-    row: dict[str, Any], variant: int
+    row: dict[str, Any], variant: int, hand: TaskHand | None = None
 ) -> list[dict[str, str]]:
-    hand = deal_task_hand(row, variant)
+    hand = hand or deal_task_hand(row, variant)
     if variant % 2 == 0:
+        opening = _INSTRUCT_OPENINGS[
+            _stable_index(
+                f"instruct-opening:{row['scenario_id']}:{variant}",
+                len(_INSTRUCT_OPENINGS),
+            )
+        ]
         return [
             {
                 "role": "user",
                 "content": correct_indefinite_articles(
-                    "Please solve this hand.\n\n"
+                    opening
+                    + "\n\n"
                     + _render_card_prompt(row, hand, include_situation=True)
                 ),
             },
@@ -221,14 +254,19 @@ def _render_messages(
     acknowledgement = _ACKNOWLEDGEMENTS[
         _stable_index(f"ack:{row['scenario_id']}:{variant}", len(_ACKNOWLEDGEMENTS))
     ]
+    opening = _CHAT_OPENINGS[
+        _stable_index(
+            f"chat-opening:{row['scenario_id']}:{variant}", len(_CHAT_OPENINGS)
+        )
+    ]
+    situation_title = hand.situation_title or row["title"]
+    situation = hand.situation or row["trigger"]
     chat_opening = (
-        f"I want to work through this hand.\n\n"
-        f"SITUATION CARD\n{row['title']}\n{row['trigger']}"
+        f"{opening}\n\n"
+        f"SITUATION CARD\n{situation_title}\n{situation}"
         f"\n\nDATA CARD\n{hand.data}"
     )
-    follow_up = (
-        f"RULE CARD\n{row['constraint']}\n\nGOAL CARD\n{hand.goal}"
-    )
+    follow_up = f"RULE CARD\n{row['constraint']}\n\nGOAL CARD\n{hand.goal}"
     return [
         {
             "role": "user",
@@ -257,7 +295,8 @@ def _conversation_rows(
         scenarios = _apply_vocabulary_placements(scenarios, vocabulary_placements)
     for scenario in scenarios:
         for variant in range(variants_per_scenario):
-            messages = _render_messages(scenario, variant)
+            hand = deal_task_hand(scenario, variant)
+            messages = _render_messages(scenario, variant, hand)
             rendered = _render_transcript(messages)
             mode = "instruct" if len(messages) == 2 else "chat"
             payload = json.loads(scenario["semantic_payload"])
@@ -271,7 +310,8 @@ def _conversation_rows(
                 "intent": scenario["intent"],
                 "risk_level": scenario["risk_level"],
                 "split": scenario["split"],
-                "state": scenario["state"],
+                "state": hand.situation or scenario["state"],
+                "source_state": scenario["state"],
                 "constraint": scenario["constraint"],
                 "desired_outcome": scenario["desired_outcome"],
                 "fallback": scenario["fallback"],
@@ -284,9 +324,7 @@ def _conversation_rows(
                 "mode": mode,
                 "card_hand": {
                     "cards": ["situation", "data", "rule", "goal"],
-                    "completion_contract": list(
-                        deal_task_hand(scenario, variant).contract
-                    ),
+                    "completion_contract": list(hand.contract),
                 },
                 "model_generated_dialogue": False,
                 "lexical_focus": scenario.get("lexical_focus", ""),
@@ -330,7 +368,9 @@ def _load_vocabulary_placements(path: Path) -> list[dict[str, str]]:
     tokens = [row["token"] for row in rows]
     if len(tokens) != len(set(tokens)):
         raise ValueError("vocabulary placement contains duplicate tokens")
-    if any(_WORD.fullmatch(token) is None or token != token.lower() for token in tokens):
+    if any(
+        _WORD.fullmatch(token) is None or token != token.lower() for token in tokens
+    ):
         raise ValueError("vocabulary placement tokens must be normalized words")
     if any(row["family"] not in _INTENT_FIELD for row in rows):
         raise ValueError("vocabulary placement contains an unknown family")
@@ -349,9 +389,7 @@ def _apply_vocabulary_placements(
     for scenario in scenarios:
         scenarios_by_cell[(scenario["family"], scenario["domain"])].append(scenario)
     for placement in placements:
-        placements_by_cell[(placement["family"], placement["domain"])].append(
-            placement
-        )
+        placements_by_cell[(placement["family"], placement["domain"])].append(placement)
 
     assigned: dict[str, dict[str, str]] = {}
     for cell, cell_placements in placements_by_cell.items():
@@ -379,9 +417,7 @@ def _apply_vocabulary_placements(
         enriched = dict(scenario)
         if placement := assigned.get(scenario["scenario_id"]):
             enriched["lexical_focus"] = placement["token"]
-            enriched["lexical_assignment_method"] = placement[
-                "assignment_method"
-            ]
+            enriched["lexical_assignment_method"] = placement["assignment_method"]
         result.append(enriched)
     return result
 
@@ -514,6 +550,22 @@ def _masked_response(response: str, answer: dict[str, Any]) -> str:
     masked = response
     for value, placeholder in sorted(replacements, key=lambda item: -len(item[0])):
         masked = re.sub(re.escape(value), placeholder, masked, flags=re.IGNORECASE)
+    scenario_id = str(answer.get("scenario_id", ""))
+    codes = {scenario_id.split(":")[-1][:6] if scenario_id else ""}
+    prefix = re.match(r"^(?:for\s+)?hand\s+([0-9a-f]{6})\s*[:—-]", masked, re.I)
+    if prefix:
+        codes.add(prefix.group(1))
+    for code in sorted(filter(None, codes), key=len, reverse=True):
+        masked = re.sub(
+            rf"\b{re.escape(code)}(?:-[ab])?\b",
+            "<id>",
+            masked,
+            flags=re.IGNORECASE,
+        )
+    masked = re.sub(r"\b\d{4}-\d{2}-\d{2}\b", "<date>", masked)
+    masked = re.sub(r"\$\d+(?:\.\d+)?", "<amount>", masked)
+    masked = re.sub(r"\b\d{1,2}:\d{2}\b", "<time>", masked)
+    masked = re.sub(r"\b\d+(?:\.\d+)?\b", "<number>", masked)
     return re.sub(r"\s+", " ", masked).strip().lower()
 
 
@@ -534,11 +586,17 @@ def _masked_diversity(
         )
     return {
         "masked_fields": [target for _, target in _MASKED_RESPONSE_FIELDS],
+        "masked_surface_variables": [
+            "scenario_code",
+            "reference_suffix",
+            "date",
+            "amount",
+            "time",
+            "number",
+        ],
         "skeletons": len(skeletons),
         "distinct_skeletons": len(counts),
-        "exact_skeleton_uniqueness_ratio": round(
-            len(counts) / len(skeletons), 6
-        )
+        "exact_skeleton_uniqueness_ratio": round(len(counts) / len(skeletons), 6)
         if skeletons
         else 0.0,
         "maximum_examples_per_skeleton": maximum,
@@ -638,8 +696,7 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
         modes["instruct"] == modes["chat"] for modes in paired_prompt_surfaces
     )
     chat_opener_prefix_matches = sum(
-        modes["instruct"].startswith(modes["chat"])
-        for modes in paired_prompt_surfaces
+        modes["instruct"].startswith(modes["chat"]) for modes in paired_prompt_surfaces
     )
     if exact_first_user_matches or chat_opener_prefix_matches:
         raise ValueError(
@@ -687,15 +744,32 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
             json.loads(row["answer_json"])["scenario_id"] for row in family_rows
         ]
         family_responses = [row["response"] for row in family_rows]
+        family_answer_json = [json.loads(row["answer_json"]) for row in family_rows]
+        family_skeletons = [
+            _masked_response(response, answer)
+            for response, answer in zip(
+                family_responses, family_answer_json, strict=True
+            )
+        ]
+        family_skeleton_counts = Counter(family_skeletons)
+        maximum_family_skeleton_share = max(
+            family_skeleton_counts.values(), default=0
+        ) / len(family_skeletons)
+        if maximum_family_skeleton_share >= _MAX_FAMILY_SKELETON_SHARE:
+            raise ValueError(
+                f"{family} response skeleton reaches the family repetition ceiling: "
+                f"{maximum_family_skeleton_share:.3%}"
+            )
         family_metrics[family] = {
             "examples": len(family_rows),
             "source_scenarios": len(set(family_answers)),
             "unique_final_response_ratio": round(
                 len(set(family_responses)) / len(family_responses), 6
             ),
-            "mean_response_tokens": _length_statistics(family_responses)[
-                "mean_tokens"
-            ],
+            "mean_response_tokens": _length_statistics(family_responses)["mean_tokens"],
+            "masked_response_templates": len(family_skeleton_counts),
+            "maximum_masked_template_share": round(maximum_family_skeleton_share, 6),
+            "strict_masked_template_share_limit": _MAX_FAMILY_SKELETON_SHARE,
         }
     family_source_scenarios: dict[str, set[str]] = defaultdict(set)
     for answer in answers:
@@ -765,9 +839,7 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "natural_language_gate": {
             "assistant_meta_instruction_hits": len(assistant_meta_hits),
             "user_meta_request_hits": len(user_meta_hits),
-            "forbidden_assistant_phrases": list(
-                _FORBIDDEN_ASSISTANT_META_PHRASES
-            ),
+            "forbidden_assistant_phrases": list(_FORBIDDEN_ASSISTANT_META_PHRASES),
             "forbidden_user_phrases": list(_FORBIDDEN_USER_META_PHRASES),
         },
         "message_length_stats": _length_statistics(messages),
@@ -775,9 +847,7 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "lexical_stats": {
             "word_occurrences": len(all_message_tokens),
             "observed_vocabulary": len(vocabulary),
-            "raw_type_token_ratio": round(
-                len(vocabulary) / len(all_message_tokens), 6
-            ),
+            "raw_type_token_ratio": round(len(vocabulary) / len(all_message_tokens), 6),
             "mattr_100": round(_mattr(all_message_tokens, 100), 6),
         },
         "four_gram_stats": _ngram_statistics(messages, 4),
@@ -791,17 +861,13 @@ def _review_sample(
 ) -> list[dict[str, str]]:
     families = sorted({row["task"] for row in rows})
     if review_scenarios < len(families) or review_scenarios % len(families):
-        raise ValueError(
-            "review_scenarios must be a positive multiple of family count"
-        )
+        raise ValueError("review_scenarios must be a positive multiple of family count")
     quota = review_scenarios // len(families)
     scenario_rows: dict[str, dict[str, list[dict[str, Any]]]] = defaultdict(
         lambda: defaultdict(list)
     )
     scenario_answers: dict[str, dict[str, Any]] = {}
-    grouped: dict[
-        str, dict[tuple[str, str], dict[str, list[str]]]
-    ] = defaultdict(
+    grouped: dict[str, dict[tuple[str, str], dict[str, list[str]]]] = defaultdict(
         lambda: defaultdict(lambda: defaultdict(list))
     )
     for row in rows:
@@ -815,9 +881,9 @@ def _review_sample(
             raise ValueError(
                 f"review scenario {scenario_id} does not provide both chat and instruct"
             )
-        grouped[answer["family"]][
-            (answer["risk_level"], answer["split"])
-        ][answer["domain"]].append(scenario_id)
+        grouped[answer["family"]][(answer["risk_level"], answer["split"])][
+            answer["domain"]
+        ].append(scenario_id)
 
     selected: list[dict[str, str]] = []
     for family in families:
@@ -873,6 +939,7 @@ def _review_sample(
                         "risk_level": answer["risk_level"],
                         "split": row["split"],
                         "prompt": row["prompt"],
+                        "transcript": row["rendered_text"],
                         "response": row["response"],
                         "review_status": "pending",
                         "semantic_accuracy": "",
@@ -927,8 +994,7 @@ def build_post_training_corpus(
         "observed_tokens": len(observed_lexical_focus),
         "coverage_ratio": 1.0 if placements else None,
         "mapped_conversation_rows": sum(
-            bool(json.loads(row["answer_json"])["lexical_focus"])
-            for row in rows
+            bool(json.loads(row["answer_json"])["lexical_focus"]) for row in rows
         ),
         "surfaced_conversation_rows": 0,
         "assignment_methods": dict(sorted(lexical_methods.items())),
@@ -936,9 +1002,7 @@ def build_post_training_corpus(
         "surface_policy": "metadata_only" if placements else None,
         "automatic_definition_generation": False,
     }
-    review = _review_sample(
-        rows, review_scenarios=review_scenarios, seed=seed
-    )
+    review = _review_sample(rows, review_scenarios=review_scenarios, seed=seed)
 
     temporary = output_root.with_name(f"{output_root.name}.partial")
     if temporary.exists():
@@ -980,8 +1044,7 @@ def build_post_training_corpus(
             "rows": len(review),
             "source_scenarios": len({row["scenario_id"] for row in review}),
             "sample_fraction_of_source_scenarios": round(
-                len({row["scenario_id"] for row in review})
-                / audit["source_scenarios"],
+                len({row["scenario_id"] for row in review}) / audit["source_scenarios"],
                 6,
             ),
             "modes_per_source_scenario": ["instruct", "chat"],
@@ -1030,6 +1093,7 @@ def audit_human_review(review_path: Path) -> dict[str, Any]:
         "domain",
         "risk_level",
         "split",
+        "transcript",
         "review_status",
         *REVIEW_GRADES,
         "reviewer",
@@ -1059,8 +1123,7 @@ def audit_human_review(review_path: Path) -> dict[str, Any]:
     incomplete_modes = {
         scenario_id: sorted(row["mode"] for row in values)
         for scenario_id, values in scenario_rows.items()
-        if Counter(row["mode"] for row in values)
-        != Counter({"instruct": 1, "chat": 1})
+        if Counter(row["mode"] for row in values) != Counter({"instruct": 1, "chat": 1})
     }
     if incomplete_modes:
         raise ValueError(
@@ -1070,16 +1133,12 @@ def audit_human_review(review_path: Path) -> dict[str, Any]:
 
     status_counts = Counter(statuses)
     grade_counts = {
-        grade: dict(
-            sorted(Counter(row[grade].strip().lower() for row in rows).items())
-        )
+        grade: dict(sorted(Counter(row[grade].strip().lower() for row in rows).items()))
         for grade in REVIEW_GRADES
     }
     approved = all(status == "approved" for status in statuses)
     grades_pass = all(
-        row[grade].strip().lower() == "pass"
-        for row in rows
-        for grade in REVIEW_GRADES
+        row[grade].strip().lower() == "pass" for row in rows for grade in REVIEW_GRADES
     )
     provenance_complete = all(status != "pending" for status in statuses)
     for row in rows:
@@ -1102,10 +1161,7 @@ def audit_human_review(review_path: Path) -> dict[str, Any]:
     def scenario_axis_counts(field: str) -> dict[str, int]:
         return dict(
             sorted(
-                Counter(
-                    values[0][field]
-                    for values in scenario_rows.values()
-                ).items()
+                Counter(values[0][field] for values in scenario_rows.values()).items()
             )
         )
 
@@ -1115,9 +1171,7 @@ def audit_human_review(review_path: Path) -> dict[str, Any]:
         )
 
     failed_rows = [row for row in rows if row_failed(row)]
-    failed_scenarios = {
-        row["scenario_id"] for row in failed_rows
-    }
+    failed_scenarios = {row["scenario_id"] for row in failed_rows}
     ready = approved and grades_pass and provenance_complete
     zero_failure_bound = None
     if ready:
@@ -1164,9 +1218,7 @@ def audit_human_review(review_path: Path) -> dict[str, Any]:
         "reviewer_counts": dict(
             sorted(
                 Counter(
-                    row["reviewer"].strip()
-                    for row in rows
-                    if row["reviewer"].strip()
+                    row["reviewer"].strip() for row in rows if row["reviewer"].strip()
                 ).items()
             )
         ),
