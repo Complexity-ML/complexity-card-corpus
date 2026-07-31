@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 from pathlib import Path
 
 import pyarrow.parquet as pq
@@ -62,6 +63,33 @@ def test_email_critique_does_not_invent_revision_details() -> None:
     assert "two review files" not in hand.answer
 
 
+def test_every_critique_provides_a_faithful_two_sentence_revision() -> None:
+    domains = (
+        "email_draft",
+        "argument",
+        "project_plan",
+        "explanation",
+        "instructions",
+        "summary",
+        "claim_evidence",
+        "interface_copy",
+    )
+    for domain in domains:
+        for variant in range(4):
+            hand = deal_task_hand(_task_row("critique_revision", domain), variant)
+            revision = hand.answer.split("Revision:", 1)[1].strip()
+            sentences = re.findall(r"[^.!?]+[.!?](?:\s|$)", revision)
+            assert len(sentences) == 2, (domain, variant, revision)
+    combined = " ".join(
+        deal_task_hand(_task_row("critique_revision", domain), 0).answer
+        for domain in domains
+    )
+    assert "Mara" not in combined
+    assert "Tuesday" not in combined
+    assert "Nia" not in combined
+    assert "connection ended" not in combined
+
+
 def test_grounded_qa_situation_matches_the_supplied_source() -> None:
     hand = deal_task_hand(_task_row("grounded_qa", "historical_note"), 3)
     assert "supplied source" in (hand.situation_title or "").lower()
@@ -87,9 +115,26 @@ def test_troubleshooting_honors_missing_administrator_access() -> None:
         ),
         0,
     )
-    assert "user-level test profile" in hand.data
-    assert "without changing the system configuration" in hand.answer
-    assert "discard the test profile" in hand.answer
+    assert "system-level change is out of scope" in hand.data
+    assert "user-level test profile" in hand.answer
+    assert "previous install directory" in hand.answer
+    assert "original installer settings unchanged" in hand.answer
+
+
+def test_troubleshooting_uses_a_concrete_reversible_step_for_each_domain() -> None:
+    expected = {
+        "software_install": "previous install directory",
+        "network_connection": "previous resolver",
+        "file_sync": "former folder name",
+        "peripheral": "connect the keyboard directly",
+        "web_form": "duplicate the draft",
+        "data_pipeline": "previous column type",
+    }
+    for domain, phrase in expected.items():
+        hand = deal_task_hand(_task_row("troubleshooting", domain), 0)
+        assert phrase in hand.answer.lower()
+        assert "Reverse only the recorded change" not in hand.answer
+        assert "If either check fails" in hand.answer
 
 
 def test_clarification_uses_the_hand_code_once() -> None:

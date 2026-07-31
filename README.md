@@ -167,13 +167,13 @@ The current generated set contains:
 | Instruct / chat | 15,000 / 15,000 |
 | Exact conversation uniqueness | 100% |
 | Exact final-response uniqueness | 100% |
-| Distinct masked response skeletons | 1,387 |
-| Exact masked-skeleton uniqueness | 4.62% |
+| Distinct masked response skeletons | 1,383 |
+| Exact masked-skeleton uniqueness | 4.61% |
 | Largest exact masked-skeleton share | 0.83% |
 | Families with validated completion contracts | 14 / 14 |
 | Largest masked eight-token coverage | 3.12% |
 | Largest family-level masked-template share | 8.33% |
-| Observed conversation vocabulary | 2,720 |
+| Observed conversation vocabulary | 2,724 |
 | Conversations mapped to vocabulary metadata | 8,194 |
 | Statistical vocabulary terms mapped | 4,097 |
 | Arbitrary vocabulary labels surfaced in conversations | 0 |

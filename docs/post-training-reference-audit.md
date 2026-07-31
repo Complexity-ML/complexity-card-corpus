@@ -134,7 +134,7 @@ The next language layer should be accepted only when it:
 
 In the current 30,000-example build, all final responses are exactly unique.
 After semantic fields, identifiers, dates, amounts, times and numbers are
-masked, 1,387 distinct response skeletons remain (4.62% exact
+masked, 1,383 distinct response skeletons remain (4.61% exact
 masked-skeleton uniqueness). The largest exact masked-skeleton share is 0.83%,
 the largest masked eight-token message coverage is 3.12%, and the largest
 within-family masked-template share is 8.33%. These are automated anti-template

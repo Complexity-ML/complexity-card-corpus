@@ -253,42 +253,71 @@ _ERRORS = {
         "macOS 15",
         "installer exits with code 73",
         "the install directory was changed",
+        (
+            "Compare the installer settings with control run {code}. If the previous "
+            "install directory is documented, select it in {scope}; otherwise stop and "
+            "request that value"
+        ),
+        "discard the test configuration and leave the original installer settings unchanged",
     ),
     "network_connection": (
         "a laptop on Wi-Fi",
         "requests time out after DNS lookup",
         "a custom DNS server was enabled",
+        (
+            "Compare the DNS settings with control run {code}. If the previous resolver "
+            "is documented, select it in {scope}; otherwise stop and request that value"
+        ),
+        "discard the test profile and leave the original network settings unchanged",
     ),
     "file_sync": (
         "a desktop sync client",
         "local changes remain queued",
         "the remote folder was renamed",
+        (
+            "Read the remote folder listing without modifying it. If the former folder "
+            "name is still present, point a disposable sync profile at it; otherwise stop "
+            "and preserve the queue"
+        ),
+        "discard the disposable sync profile and leave the queued changes untouched",
     ),
     "peripheral": (
         "a USB keyboard",
         "the device powers on but sends no input",
         "it was moved through a hub",
+        "Bypass the hub and connect the keyboard directly for one test",
+        "restore the original hub arrangement and stop with both observations intact",
     ),
     "web_form": (
         "a current browser",
         "submission returns HTTP 422",
         "a required profile field was removed",
+        (
+            "Duplicate the draft in {scope}. If the required field's previous value is "
+            "documented, restore it only in the duplicate; otherwise stop and request the value"
+        ),
+        "discard the duplicate draft and leave the original form unchanged",
     ),
     "data_pipeline": (
         "a nightly ETL job",
         "the transform stage reports a schema mismatch",
         "a source column changed type",
+        (
+            "Use {scope} with a read-only input copy. If control run {code} documents the "
+            "previous column type, cast only the copy to that type; otherwise stop and "
+            "request the schema"
+        ),
+        "discard the isolated pipeline copy and leave the source data unchanged",
     ),
 }
 
 
 def _troubleshooting(row: dict[str, Any], variant: int) -> TaskHand:
-    env, error, change = _ERRORS[row["domain"]]
+    env, error, change, diagnostic_template, rollback = _ERRORS[row["domain"]]
     code = _code(row)
     no_admin = "administrator access is unavailable" in row["constraint"].lower()
     access_note = (
-        " A user-level test profile can reproduce the previous setting without "
-        "administrator access."
+        " Any test that requires a system-level change is out of scope."
         if no_admin
         else ""
     )
@@ -298,22 +327,15 @@ def _troubleshooting(row: dict[str, Any], variant: int) -> TaskHand:
         f"{access_note}"
     )
     goal = "Give a reversible diagnostic sequence, a direct fix check, and a regression check."
-    restore_step = (
-        "In the user-level test profile, recreate the last known-good configuration without "
-        f"changing the system configuration; reverse only this recorded change: {change}."
-        if no_admin
-        else f"Reverse only the recorded change: {change}."
-    )
-    failure_step = (
-        "discard the test profile and stop with both logs intact"
-        if no_admin
-        else "restore the setting and stop with both logs intact"
-    )
+    scope = "a user-level test profile" if no_admin else "an isolated test environment"
+    diagnostic_step = diagnostic_template.format(code=code, scope=scope)
     answer = (
-        f"1. Preserve log {code} and reproduce once without changing data. 2. {restore_step} "
-        f"3. Repeat the failing operation and compare the new "
+        f"1. Preserve log {code} and reproduce once without changing data. "
+        f"2. {diagnostic_step}. 3. Repeat the failing operation in the same test setup and "
+        f"compare the new "
         f"log with {code}. Direct check: confirm that '{error}' no longer appears. Regression "
-        f"check: repeat the last known-good operation. If either check fails, {failure_step}."
+        f"check: repeat the last known-good operation in the test setup. If either check "
+        f"fails, {rollback}."
     )
     return TaskHand(data, goal, answer, ("steps", "direct_check", "regression_check"))
 
@@ -907,37 +929,37 @@ def _critique(row: dict[str, Any], variant: int) -> TaskHand:
         "argument": (
             "Our trial proves the workflow is always faster because three of five testers finished sooner.",
             "a universal claim is not supported by three successes among five testers",
-            "Three of five testers finished sooner in this trial; that result does not establish that the workflow is always faster.",
+            "Three of five testers finished sooner in this trial. That result does not establish that the workflow is always faster.",
         ),
         "project_plan": (
             "Build the prototype, test it, and launch next week.",
             "the plan gives no owner, dependency, or completion criterion",
-            "Mara builds the prototype by Tuesday; testing begins after acceptance checks pass, and launch remains conditional on those results.",
+            "Build and test the prototype before launch. Assign an owner, dependencies, completion criteria, and a launch date before execution.",
         ),
         "explanation": (
             "Encryption makes data safe by turning it into random text.",
             "the explanation omits keys and overstates safety",
-            "Encryption transforms readable data using a key; authorized holders can reverse it, while security still depends on key protection and implementation.",
+            "Encryption transforms readable data using a key. Authorized holders can reverse it, while security still depends on key protection and implementation.",
         ),
         "instructions": (
             "Install the update, delete the old folder, and check whether it works.",
             "the destructive deletion comes before verification or backup",
-            "Back up the old folder, install the update separately, verify the application, and delete nothing until rollback is no longer needed.",
+            "Back up the old folder and install the update separately. Verify the application before deleting anything, and retain rollback until the checks pass.",
         ),
         "summary": (
             "The meeting discussed many topics and everyone agreed the project was important.",
             "the summary omits the actual decision and action",
-            "The team approved the prototype review. Nia will complete the two remaining checks before a launch date is chosen.",
+            "The notes record only that the project was considered important. Add the actual decision and assigned action before using this as a complete summary.",
         ),
         "claim_evidence": (
             "Users prefer the redesign; two positive comments prove it.",
             "two comments cannot support a general preference claim",
-            "Two respondents commented positively on the redesign; broader user preference remains unmeasured.",
+            "Two respondents commented positively on the redesign. Broader user preference remains unmeasured.",
         ),
         "interface_copy": (
             "Error. Something went wrong. Try again.",
             "the message gives neither the failed action nor a useful next step",
-            "Upload failed because the connection ended. Check the network, then select Retry; the local file remains unchanged.",
+            "The requested action could not be completed. Review the available error details before trying again.",
         ),
     }
     draft, weakness, revision = cases[row["domain"]]
@@ -947,7 +969,7 @@ def _critique(row: dict[str, Any], variant: int) -> TaskHand:
     answer_cards = (
         f"Weakness: {weakness}. Revision: {revision}",
         f"Weakness: {weakness}; the wording exceeds the supplied evidence. Revision: {revision}",
-        f"Weakness: {weakness}. Revision: {revision} This version stays within the recorded facts.",
+        f"Weakness: {weakness}. The revision must stay within the recorded facts. Revision: {revision}",
         f"Weakness: {weakness}, which makes the original difficult to verify. Revision: {revision}",
     )
     answer = _card_pick(row, variant, "critique-answer", answer_cards)
