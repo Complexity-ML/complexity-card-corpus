@@ -474,6 +474,25 @@ def _encode_messages(
     eos_id: int,
     chat_template: dict[str, Any],
 ) -> tuple[list[int], list[int]]:
+    """Project a card conversation into one direct SFT exchange.
+
+    The authored parquet keeps its complete two- or four-message conversation.
+    For model training, every user card fragment is joined into one prompt and
+    only the final assistant answer is supervised.  Intermediate acknowledgements
+    are deliberately omitted so the model does not learn to answer a complete
+    card hand with a generic "Understood" turn.
+    """
+
+    user_content = "\n\n".join(
+        message["content"].strip()
+        for message in messages
+        if message["role"] == "user"
+    )
+    final_assistant = next(
+        message["content"].strip()
+        for message in reversed(messages)
+        if message["role"] == "assistant"
+    )
     full_ids: list[int] = []
     target_labels: list[int] = []
     system_tokens = encoding.encode(
@@ -482,26 +501,21 @@ def _encode_messages(
     )
     full_ids.extend(system_tokens)
     target_labels.extend([IGNORE_INDEX] * len(system_tokens))
-    for index, message in enumerate(messages):
-        if message["role"] == "user":
-            segment = render_user_turn(message["content"], chat_template)
-            tokens = encoding.encode(segment, disallowed_special=())
-            full_ids.extend(tokens)
-            target_labels.extend([IGNORE_INDEX] * len(tokens))
-        else:
-            prefix = encoding.encode(
-                chat_template["assistant_prefix"],
-                disallowed_special=(),
-            )
-            suffix = chat_template["turn_separator"] if index < len(messages) - 1 else ""
-            response = encoding.encode(
-                f"{message['content'].strip()}{suffix}",
-                disallowed_special=(),
-            )
-            full_ids.extend(prefix)
-            target_labels.extend([IGNORE_INDEX] * len(prefix))
-            full_ids.extend(response)
-            target_labels.extend(response)
+    user_tokens = encoding.encode(
+        render_user_turn(user_content, chat_template),
+        disallowed_special=(),
+    )
+    full_ids.extend(user_tokens)
+    target_labels.extend([IGNORE_INDEX] * len(user_tokens))
+    prefix = encoding.encode(
+        chat_template["assistant_prefix"],
+        disallowed_special=(),
+    )
+    response = encoding.encode(final_assistant, disallowed_special=())
+    full_ids.extend(prefix)
+    target_labels.extend([IGNORE_INDEX] * len(prefix))
+    full_ids.extend(response)
+    target_labels.extend(response)
     full_ids.append(eos_id)
     target_labels.append(eos_id)
     # Causal alignment: logits at position t predict token t+1. Supervision is
@@ -604,9 +618,10 @@ def tokenize_instruction_dataset(
         "chat_template_id": CHAT_TEMPLATE_ID,
         "chat_template_sha256": file_sha256(chat_template_path),
         "serialization": (
-            "System:\\n<system>\\n\\nUser:\\n<content>\\n\\n"
-            "Assistant:\\n<content><eos>"
+            "System:\\n<system>\\n\\nUser:\\n<all user card fragments>\\n\\n"
+            "Assistant:\\n<final assistant answer><eos>"
         ),
+        "training_projection": chat_template["training_projection"],
         "partitions": manifests,
         "total_examples": sum(item["examples"] for item in manifests.values()),
         "total_tokens": sum(item["num_tokens"] for item in manifests.values()),

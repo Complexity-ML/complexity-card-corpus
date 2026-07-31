@@ -156,6 +156,9 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
     template = json.loads(template_path.read_text())
     assert template["id"] == CHAT_TEMPLATE_ID
     assert template["assistant_only_loss"] is True
+    assert template["training_projection"] == (
+        "merge_user_turns_target_final_assistant"
+    )
     for partition, metadata in manifest["partitions"].items():
         input_ids = np.fromfile(
             tmp_path / "tokenized" / partition / "input_ids.bin",
@@ -189,8 +192,21 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
             )
             decoded = load_encoding(tokenizer)[0].decode(local_inputs.tolist())
             source = source_rows[example["example_id"]]
+            merged_user_content = "\n\n".join(
+                message["content"]
+                for message in source["messages"]
+                if message["role"] == "user"
+            )
             assert decoded.startswith(
-                render_inference_prompt(source["messages"][0]["content"], template)
+                render_inference_prompt(merged_user_content, template)
+            )
+            intermediate_assistant_messages = [
+                message["content"]
+                for message in source["messages"][:-1]
+                if message["role"] == "assistant"
+            ]
+            assert not any(
+                message in decoded for message in intermediate_assistant_messages
             )
         assert int(supervised.sum()) == metadata["supervised_tokens"]
 

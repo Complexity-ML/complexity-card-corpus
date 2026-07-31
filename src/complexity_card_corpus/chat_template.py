@@ -23,6 +23,7 @@ def chat_template_contract() -> dict[str, Any]:
         "turn_separator": "\n\n",
         "eos_token": "<|endoftext|>",
         "assistant_only_loss": True,
+        "training_projection": "merge_user_turns_target_final_assistant",
     }
 
 

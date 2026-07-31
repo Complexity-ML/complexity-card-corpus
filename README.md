@@ -341,9 +341,12 @@ not fit in `uint16`. Causal-SFT labels use `-100` for user prefixes and padding;
 only assistant tokens and the terminating EOS token contribute to the loss.
 The tokenized release also carries `chat_template.json`. Its
 `complexity-chat-v1` contract serializes the fixed system instruction, cards or
-other user content, prior turns, the assistant prefix, and EOS identically for
-training, evaluation, export, and inference. Cards remain part of the user
-content; the template is the envelope around them.
+other user content, the assistant prefix, and EOS identically for training,
+evaluation, export, and inference. The authored two- and four-message records
+remain unchanged in Parquet. During tokenization, their user card fragments are
+merged into one complete prompt and only the final assistant answer is
+supervised; intermediate acknowledgement turns are omitted. Cards therefore
+remain part of the user content while the template provides the model envelope.
 
 ## Repository layout
 
