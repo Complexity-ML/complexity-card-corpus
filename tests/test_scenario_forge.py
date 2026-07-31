@@ -15,6 +15,7 @@ from complexity_card_corpus.scenario_forge import (
     compile_scenarios,
     load_scenario_registry,
 )
+from complexity_card_corpus.scenario_language import DynamicNarrativeComposer
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -237,3 +238,26 @@ def test_fallback_selection_uses_registry_priority() -> None:
     assert {row["fallback"] for row in high_active} == {
         "Direct the user to an official or qualified support channel."
     }
+
+
+def test_dynamic_language_is_seeded_and_balances_frame_usage() -> None:
+    registry = load_scenario_registry(REGISTRY)
+    family = registry.families[0]
+    domain = family.domains[0]
+    intent = family.intents[0]
+    constraint = family.constraints[0]
+    state = family.states[0]
+    outcome = family.outcomes[0]
+
+    def sequence(seed: int) -> list[str]:
+        composer = DynamicNarrativeComposer(seed)
+        return [
+            composer.compose(domain, intent, constraint, state, outcome)[2]
+            for _ in range(24)
+        ]
+
+    first = sequence(42)
+    assert first == sequence(42)
+    assert first != sequence(43)
+    assert set(first) == {f"frame_{index:02d}" for index in range(1, 13)}
+    assert {first.count(frame) for frame in set(first)} == {2}

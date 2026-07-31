@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import shutil
 from collections import Counter, defaultdict
@@ -13,6 +12,17 @@ import pyarrow.parquet as pq
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .build import file_sha256
+from .scenario_integrity import (
+    creation_hash as _creation_hash,
+    deterministic_order as _permuted,
+    stable_digest as _digest,
+    verification_hash as _verification_hash,
+)
+from .scenario_language import (
+    NARRATIVE_FRAME_IDS,
+    DynamicNarrativeComposer,
+    compose_title as _title,
+)
 
 
 SCENARIO_FORGE_VERSION = "scenario-forge-v1"
@@ -20,8 +30,6 @@ SCENARIO_PROVENANCE = (
     "Complexity original authored semantic taxonomy and narrative frames; "
     "no third-party source utterances and no model-generated dialogue."
 )
-
-NARRATIVE_FRAME_IDS = tuple(f"frame_{index:02d}" for index in range(1, 13))
 
 SCENARIO_SCHEMA = pa.schema(
     [
@@ -320,34 +328,6 @@ class ScenarioForgeRegistry(BaseModel):
         return self
 
 
-def _digest(value: str) -> bytes:
-    return hashlib.sha256(value.encode()).digest()
-
-
-def _stable_index(value: str, size: int) -> int:
-    return int.from_bytes(_digest(value)[:8], "big") % size
-
-
-def _creation_hash(signature: str) -> str:
-    return hashlib.sha256(signature.encode()).hexdigest()
-
-
-def _verification_hash(row: dict[str, Any]) -> str:
-    excluded = {"verification_hash"}
-    canonical = {key: value for key, value in row.items() if key not in excluded}
-    encoded = json.dumps(
-        canonical,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
-    return hashlib.sha256(encoded.encode()).hexdigest()
-
-
-def _permuted(values: list[Any], key: str) -> list[Any]:
-    return sorted(values, key=lambda value: _digest(f"{key}:{value.atom_id}"))
-
-
 def _domain_quotas(family: ScenarioFamilySpec, seed: int) -> dict[str, int]:
     base, remainder = divmod(family.target, len(family.domains))
     order = sorted(
@@ -463,130 +443,6 @@ def _select_fallback(
     )
 
 
-def _lower_first(value: str) -> str:
-    value = value.strip()
-    if not value:
-        return value
-    return value[:1].lower() + value[1:]
-
-
-def _narrative(
-    domain: DomainSpec,
-    intent: IntentSpec,
-    constraint: SemanticAtom,
-    state: SemanticAtom,
-    outcome: SemanticAtom,
-    creation_hash: str,
-) -> tuple[str, str, str]:
-    subject = domain.subject
-    context_text = domain.context.rstrip(".")
-    state_text = state.label.rstrip(".")
-    constraint_text = constraint.label.rstrip(".")
-    outcome_text = outcome.label.rstrip(".")
-    frame_index = int(creation_hash[:8], 16) % len(NARRATIVE_FRAME_IDS)
-    frame_id = NARRATIVE_FRAME_IDS[frame_index]
-    frames = (
-        (
-            f"A routine step involving {subject} reaches a decision point when "
-            f"{_lower_first(state_text)}.",
-            f"{context_text}. The person needs to {intent.label}, while respecting "
-            f"this boundary: {constraint_text}. A satisfactory resolution is one "
-            f"where {_lower_first(outcome_text)}.",
-        ),
-        (
-            f"The situation around {subject} changes because {_lower_first(state_text)}.",
-            f"The relevant setting is clear: {_lower_first(context_text)}. The immediate "
-            f"objective is to {intent.label}. The governing condition is: "
-            f"{constraint_text}. Success requires that {_lower_first(outcome_text)}.",
-        ),
-        (
-            f"A new obstacle appears while handling {subject}: {state_text}.",
-            f"In this case, {_lower_first(context_text)}. The next response must "
-            f"{intent.label}. It must preserve this boundary: {constraint_text}. "
-            f"The target result is that {_lower_first(outcome_text)}.",
-        ),
-        (
-            f"Work on {subject} can no longer continue unchanged after this update: "
-            f"{state_text}.",
-            f"{context_text}. The person therefore needs to {intent.label}. The plan "
-            f"must account for this condition: {constraint_text}. It should end in a "
-            f"state where {_lower_first(outcome_text)}.",
-        ),
-        (
-            f"The decisive signal in this {domain.label.lower()} case is that "
-            f"{_lower_first(state_text)}.",
-            f"The case concerns {subject}. {context_text}. The useful task is to "
-            f"{intent.label}, subject to this limit: {constraint_text}. Completion "
-            f"means that {_lower_first(outcome_text)}.",
-        ),
-        (
-            f"An otherwise ordinary request about {subject} becomes non-routine when "
-            f"{_lower_first(state_text)}.",
-            f"{context_text}. The person needs to {intent.label}. "
-            f"The response must preserve this rule: {constraint_text}. "
-            f"The intended endpoint is one where {_lower_first(outcome_text)}.",
-        ),
-        (
-            f"Before the next step for {subject}, one fact changes the shape of the "
-            f"request: {state_text}.",
-            f"{context_text}. The person is trying to {intent.label}. Any proposal "
-            f"must honor this condition: {constraint_text}. It succeeds only if "
-            f"{_lower_first(outcome_text)}.",
-        ),
-        (
-            f"The immediate trigger for this {domain.label.lower()} scenario is simple: "
-            f"{state_text}.",
-            f"The subject is {subject}. {context_text}. The requested help "
-            f"is to {intent.label}. The hard boundary is: "
-            f"{constraint_text}. The desired result is that "
-            f"{_lower_first(outcome_text)}.",
-        ),
-        (
-            f"A checkpoint is reached for {subject} once {_lower_first(state_text)}.",
-            f"{context_text}. The task is to {intent.label}. "
-            f"The answer must observe this condition: {constraint_text}. It should "
-            f"lead to a state where {_lower_first(outcome_text)}.",
-        ),
-        (
-            f"The next decision about {subject} is prompted by one concrete condition: "
-            f"{state_text}.",
-            f"{context_text}. The person now wants to {intent.label}. The response is "
-            f"bounded by this requirement: {constraint_text}. The finish line is that "
-            f"{_lower_first(outcome_text)}.",
-        ),
-        (
-            f"A request involving {subject} becomes actionable at the moment when "
-            f"{_lower_first(state_text)}.",
-            f"The surrounding context is this: {_lower_first(context_text)}. The person "
-            f"needs to {intent.label}. The solution must respect this condition: "
-            f"{constraint_text}. It must establish that {_lower_first(outcome_text)}.",
-        ),
-        (
-            f"This {domain.label.lower()} case begins from a specific turning point: "
-            f"{state_text}.",
-            f"It concerns {subject}. {context_text}. The next useful move is to "
-            f"{intent.label}, under this constraint: {constraint_text}. "
-            f"The case is resolved when {_lower_first(outcome_text)}.",
-        ),
-    )
-    trigger, situation = frames[frame_index]
-    return trigger, f"{trigger} {situation}", frame_id
-
-
-def _title(
-    domain: DomainSpec,
-    intent: IntentSpec,
-    constraint: SemanticAtom,
-    state: SemanticAtom,
-    outcome: SemanticAtom,
-) -> str:
-    return (
-        f"{domain.label} — {intent.label}: "
-        f"{state.atom_id.replace('_', ' ')} / {constraint.atom_id.replace('_', ' ')} "
-        f"→ {outcome.atom_id.replace('_', ' ')}"
-    )
-
-
 def _payload(
     family: ScenarioFamilySpec,
     domain: DomainSpec,
@@ -648,13 +504,14 @@ def _payload(
 
 def compile_scenarios(registry: ScenarioForgeRegistry) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
+    language = DynamicNarrativeComposer(seed=registry.seed)
     for family in registry.families:
         quotas = _domain_quotas(family, registry.seed)
         for domain in family.domains:
             combinations = _semantic_combinations(family, domain, seed=registry.seed)
-            for rank, (intent, constraint, state, outcome) in enumerate(
-                combinations[: quotas[domain.domain_id]]
-            ):
+            for intent, constraint, state, outcome in combinations[
+                : quotas[domain.domain_id]
+            ]:
                 signature = "|".join(
                     (
                         family.family_id,
@@ -668,13 +525,12 @@ def compile_scenarios(registry: ScenarioForgeRegistry) -> list[dict[str, Any]]:
                 creation_hash = _creation_hash(signature)
                 scenario_id = f"scenario:{creation_hash[:24]}"
                 fallback = _select_fallback(family, domain, state)
-                trigger, situation, narrative_frame = _narrative(
+                trigger, situation, narrative_frame = language.compose(
                     domain,
                     intent,
                     constraint,
                     state,
                     outcome,
-                    creation_hash,
                 )
                 base_goal = intent.goal_template.format(
                     subject=domain.subject,
@@ -986,6 +842,7 @@ def build_scenario_forge(
         "generation": {
             "model_generated_dialogue": False,
             "third_party_utterances_accessed": False,
+            "language_selection": "seeded_dynamic_least_used",
             "narrative_frames": len(NARRATIVE_FRAME_IDS),
             "provenance": SCENARIO_PROVENANCE,
         },

@@ -98,65 +98,6 @@ deterministic derivatives of that material. Third-party corpora are excluded.
 No warranty is provided.
 """
 
-POSTTRAIN_DATASET_CARD = """---
-language:
-- en
-license: apache-2.0
-pretty_name: Complexity Atlas Posttrain
-task_categories:
-- text-generation
-source_datasets:
-- OpenAssistant/oasst1
-configs:
-- config_name: instruct
-  data_files:
-  - split: train
-    path: instruct/train.parquet
-  - split: validation
-    path: instruct/validation.parquet
-- config_name: chat
-  data_files:
-  - split: train
-    path: chat/train.parquet
-  - split: validation
-    path: chat/validation.parquet
----
-
-# Complexity Atlas Posttrain
-
-English instruction and multi-turn conversation cards derived from the
-human-authored OpenAssistant OASST1 conversation trees.
-
-## Configurations
-
-- `instruct`: one-turn user/assistant pairs using the highest-ranked accepted
-  response to each root prompt.
-- `chat`: one quality-selected multi-turn path per accepted conversation tree.
-
-Rows preserve structured messages, deterministic `User:`/`Assistant:` text,
-quality scores, source tree and message IDs, the pinned source revision and
-license provenance.
-
-## Filtering
-
-The importer retains reviewed, non-synthetic English messages and applies
-quality, helpfulness, task-failure, PII, spam, language-mismatch, content and
-toxicity filters. This is a reproducible filtered view, not a claim that every
-remaining response is factually correct.
-
-## Intended use
-
-Use these Parquet files for supervised post-training after base pretraining.
-An SFT loader should calculate loss on assistant responses while masking user
-tokens. The inference prompt format must match the training serialization.
-
-## Source and license
-
-Source: <https://huggingface.co/datasets/OpenAssistant/oasst1>
-
-The derived alignment cards retain the source dataset's Apache-2.0 license.
-"""
-
 INSTRUCT_DATASET_CARD = """---
 language:
 - en
@@ -343,50 +284,6 @@ def package_for_hugging_face(
         "format": "complexity-atlas-pretrain-hf-package-v1",
         "corpus": corpus_manifest,
         "tokenized": tokenized_manifest,
-        "files": files,
-    }
-    (temporary / "manifest.json").write_text(
-        json.dumps(package_manifest, indent=2, sort_keys=True) + "\n"
-    )
-
-    if output_root.exists():
-        shutil.rmtree(output_root)
-    temporary.replace(output_root)
-    return package_manifest
-
-
-def package_alignment_for_hugging_face(
-    alignment_root: Path,
-    output_root: Path,
-) -> dict[str, Any]:
-    alignment_manifest = json.loads((alignment_root / "manifest.json").read_text())
-    alignment_table = pq.read_table(alignment_root / "alignment.parquet")
-
-    temporary = output_root.with_name(f"{output_root.name}.partial")
-    if temporary.exists():
-        shutil.rmtree(temporary)
-    temporary.mkdir(parents=True)
-
-    for mode in ("instruct", "chat"):
-        mode_root = temporary / mode
-        mode_root.mkdir()
-        mode_table = alignment_table.filter(pc.equal(alignment_table["mode"], mode))
-        for split in ("train", "validation"):
-            split_table = mode_table.filter(pc.equal(mode_table["split"], split))
-            if len(split_table):
-                pq.write_table(
-                    split_table,
-                    mode_root / f"{split}.parquet",
-                    compression="zstd",
-                    use_dictionary=True,
-                    write_statistics=True,
-                )
-
-    (temporary / "README.md").write_text(POSTTRAIN_DATASET_CARD)
-    files = _package_files(temporary)
-    package_manifest = {
-        "format": "complexity-atlas-posttrain-hf-package-v1",
-        "alignment": alignment_manifest,
         "files": files,
     }
     (temporary / "manifest.json").write_text(

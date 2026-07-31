@@ -109,10 +109,23 @@ family + domain-compatible intent
 
 Compatibility is explicit in the registry. Domain constrains both intent and
 constraint, intent and state jointly constrain the outcome, and state priority
-intersected with risk determines the fallback. Hashing is applied only after
-those semantic rules: it distributes compatible combinations, selects one of
-12 authored narrative frames, assigns stable identities and verifies final
-content. It does not decide safety or semantic compatibility.
+intersected with risk determines the fallback. A seeded dynamic composer favors
+the least-used compatible narrative frames and changes the wording when the
+dataset seed changes. Hashing assigns stable semantic identities and verifies
+final content; it does not select language, safety rules, or compatibility.
+
+The implementation is split into explicit layers:
+
+```text
+data/scenario-forge/                 editable dataset registry
+scenario_language.py                dynamic language composition
+scenario_integrity.py               identity and verification hashes
+scenario_forge.py                   Python build/audit API
+cli.py                              command-line adapter
+```
+
+The CLI calls the same Python API used by tests and other applications. Dataset
+definitions do not import the CLI or persistence code.
 
 The current registry compiles exactly 2,000 unique semantic signatures:
 
