@@ -9,11 +9,10 @@ is the canonical dataset format, and o200k binary streams are optional derived
 training artifacts. No third-party dataset is included in the public corpus.
 
 > **Current status:** the knowledge-card and grounded-instruction collections
-> are buildable. The four-surface Scenario Forge build produces 36,449 readable
+> are buildable. The four-surface Scenario Forge build produces 43,199 readable
 > conversations after exact transcript/response cleanup and family capping.
-> Its current SFT projection contains 27,637 training conversations and 3.14
-> million supervised training tokens. Every automated SFT release check passes;
-> the separate stratified human-review gate remains required before release.
+> The automated release gate remains false; the 100K training-example target
+> and separate stratified human review have not yet been satisfied.
 
 ## Why cards?
 
@@ -126,6 +125,8 @@ The scenario audit requires:
 - complete family allocation and compatible semantic payloads;
 - one creation hash over the semantic signature and one verification hash over
   the canonical rendered record;
+- eight source cards joined by 12 verified semantic links, with no orphan card
+  and one connected graph per scenario;
 - surface linting for punctuation, morphology, suspicious verb chains and
   required semantic anchors.
 
@@ -134,7 +135,7 @@ inspection.
 
 ### Post-training conversations
 
-Every scenario produces two paired but independently worded examples:
+Each source scenario can produce paired but independently worded examples:
 
 - one two-message instruction;
 - one four-message chat.
@@ -145,6 +146,38 @@ Each example is dealt as a four-card hand:
 - **Data** supplies the facts that may be used;
 - **Rule** states the operative constraint;
 - **Goal** defines the required result.
+
+Every data, goal and answer card is itself assembled from a linked deck of
+named subcard reservoirs. A reservoir contains interchangeable fragments with
+one semantic role, such as evidence, diagnostic, action, verification or
+fallback. Explicit edges determine which fragments may follow one another;
+dealing a card walks that graph instead of independently concatenating random
+phrases. All 14 task families use this mechanism. Most answers also contain a
+nested family deck inside a small surface deck, so wording can vary without
+changing the family contract.
+
+Every semantic answer reservoir currently contains at least three authored
+subcards. Exact source records may remain single-valued at the input layer, but
+the answer layer cannot rely on a singleton formulation. A regression test
+checks this depth across every registered family and domain.
+
+```mermaid
+flowchart LR
+    S["Semantic scenario"] --> D["Data deck"]
+    S --> G["Goal deck"]
+    S --> A["Family answer deck"]
+    A --> P1["Reservoir 1"]
+    P1 -->|"compatible links"| P2["Reservoir 2"]
+    P2 -->|"compatible links"| P3["Reservoir 3"]
+    P3 --> R["Rendered answer card"]
+    O["Surface deck"] --> R
+```
+
+The compact topology of every dealt card is retained in
+`answer_json.card_hand.deck_topology`. It records deck lineage, pool names and
+pool sizes plus adjacent link counts without duplicating the full edge graph in
+every row. The post-training registry does not include the separate Aethoria or
+Prismwilds card collections; those exist only in the knowledge-corpus build.
 
 All 14 families have their own completion contract. A grounded-QA hand must
 separate supported evidence from unknown information, an extraction hand must
@@ -162,19 +195,22 @@ The current generated set contains:
 
 | Measure | Value |
 | --- | ---: |
-| Readable examples after exact cleanup | 36,449 |
-| Source scenarios represented | 14,655 |
-| Train / generated validation | 34,641 / 1,808 |
-| Instruct / chat | 18,173 / 18,276 |
+| Readable examples after exact cleanup | 43,199 |
+| Source scenarios represented | 14,466 |
+| Train / generated validation | 40,952 / 2,247 |
+| Instruct / chat | 21,577 / 21,622 |
 | Exact conversation uniqueness | 100% |
 | Exact final-response uniqueness | 100% |
-| Distinct masked response skeletons | 3,215 |
-| Largest exact masked-skeleton share | 0.72% |
+| Distinct masked response skeletons | 22,518 |
+| Masked response-skeleton uniqueness | 52.13% |
+| Largest exact masked-skeleton share | 0.30% |
 | Families with validated completion contracts | 14 / 14 |
-| Largest masked eight-token coverage | 3.49% |
-| Largest family-level masked-template share | 8.40% |
-| Observed conversation vocabulary | 2,771 |
-| Conversations mapped to vocabulary metadata | 8,194 |
+| Families with linked data/goal/answer decks | 14 / 14 |
+| Smallest semantic answer reservoir | 3 subcards |
+| Largest masked eight-token coverage | 3.84% |
+| Largest family-level masked-template share | 2.60% |
+| Observed conversation vocabulary | 3,123 |
+| Conversations mapped to vocabulary metadata | 15,912 |
 | Statistical vocabulary terms mapped | 4,097 |
 | Arbitrary vocabulary labels surfaced in conversations | 0 |
 
@@ -184,6 +220,31 @@ language structures more honestly than identifier-driven exact uniqueness. Raw
 source anchors remain visible in unmasked statistics; subjects, intents,
 states, constraints, outcomes, fallbacks, IDs, dates, amounts, times and numeric
 slots are masked only when measuring response-template repetition.
+
+### 100K scale contract
+
+The semantic nucleus contains 15,000 source cards. A 100,000-row release
+therefore requires at least seven genuinely distinct retained surfaces per
+source card. The planned budget is eight, giving a 120,000-row
+pre-deduplication ceiling. This is a capacity calculation, not a claim that
+those rows have already been generated.
+
+Every build records `audit.scale_100k`. It refuses to equate fresh identifiers
+with fresh training data and measures staticity after masking subjects, states,
+constraints, IDs, numbers, dates and other surface variables. The target is
+ready only when all of the following hold on materialized rows:
+
+- exact final-response uniqueness is 100%;
+- masked response-skeleton uniqueness is at least 8%;
+- no masked skeleton covers 1% of the corpus;
+- no masked eight-token span covers 4% of the corpus;
+- no family-local masked template covers 5% of its family;
+- at least 100,000 rows have actually been generated.
+
+The audit reports `static_surface_hotspots`, so a narrow renderer stays visible
+even when every row has a different hash or scenario code. Source-card
+staticity is measured independently across family, domain, intent, constraint,
+state, outcome, fallback and risk axes.
 
 ### Natural SFT projection
 
@@ -212,12 +273,13 @@ identifiers, dates, times, amounts, quoted values and list numbering are then
 normalized into a structural signature, with at most 48 retained examples per
 `(family, signature)` pair. Extraction JSON uses a schema-aware ceiling of 512
 because repeated field order is part of the output contract rather than prose
-duplication. On the current build this yields 27,637 training
-examples plus 700 held-out evaluation examples. The tokenized artifact contains
-3,162,724 supervised tokens in total: 3,139,173 for training and 23,551 for
-evaluation. The retained training set has 100% exact response uniqueness,
-74.93% distinct normalized `(family, structure)` pairs, and a 54.67%
-multi-turn share. It still spans all nine conditioning axes, with 7
+duplication. On the current strict build this yields 12,007 training examples,
+28 separately authored evaluation examples and 672 source-separated
+diagnostics. The tokenized artifact contains 750,116 supervised tokens in
+total, including 726,565 for training. The retained training set has 100% exact
+prompt and response uniqueness, 65.99% distinct normalized
+`(family, structure)` pairs, and a 27.80% multi-turn share. It still spans all
+nine conditioning axes, with 7
 surface, 8 dialogue, 12 output, 14 reasoning, 4 evidence, 13 style, 3 density,
 2 noise and 5 uncertainty values.
 
@@ -378,6 +440,7 @@ uv run card-corpus tokenize \
 
 uv run card-corpus tokenize-instruct \
   --instructions build/post-training/conversations.parquet \
+  --supplement build/conversation-surface-10k/conversations.parquet \
   --tokenizer /path/to/tokenizer-o200k \
   --heldout-evaluation data/evaluation/generalist-heldout-v2.json \
   --output build/post-training-o200k
@@ -389,30 +452,42 @@ only assistant tokens and the terminating EOS token contribute to the loss.
 The tokenized release also carries `chat_template.json`. Its
 `complexity-chat-v1` contract serializes the fixed system instruction, natural
 user content, assistant prefixes, and EOS identically for training, evaluation,
-export, and inference. Two-turn examples remain direct. Four-turn examples stay
-four-turn after their card-storage labels are removed: both assistant responses
-are supervised, so dialogue state is no longer flattened away. Visible card and
-hand identifiers remain audit metadata and do not become model text.
+export, and inference. Two-turn examples remain direct. Synthetic four-turn
+card hands are flattened into one complete request and one direct answer unless
+clarification is itself the task. This prevents the model from learning to ask
+for an outcome and constraint that the user has already supplied. Genuine
+non-card dialogue remains multi-turn. Visible card and hand identifiers remain
+audit metadata and do not become model text.
+`--supplement` is repeatable. Each source path and digest is recorded in the
+manifest, duplicate IDs across sources are rejected, and original conversation
+surfaces are assigned to canonical SFT families from their realized final
+dialogue stage. For example, a practical dialogue that ends by asking for one
+missing fact is classified as context clarification rather than practical
+action merely because it came from the practical source bucket.
 When `--heldout-evaluation` is supplied, generated validation conversations are
-excluded from the binary evaluation shard and replaced by the separately
-authored set. `manifest.json` records structural deduplication counts, target
-diversity by family, the held-out file hash and train/evaluation overlap. The
-same output directory contains `projected.parquet`: the exact retained
-model-facing conversations, compatibility prompt/response columns, and split
-labels after exact-response cleanup, family capping and structural repetition
-control. The v2 evaluation contains 700 examples balanced across all 14
-families: 28 separately authored gold exchanges and 672 deterministic,
-source-separated diagnostic cases. The manifest reports the two provenances
-separately and exposes a release gate for exact uniqueness, family balance,
-multi-turn share, evaluation size, and the 3–10 million supervised-token target.
+excluded. The binary `eval` shard contains only the 28 separately authored gold
+exchanges. The 672 deterministic, source-separated cases are emitted as a
+distinct `diagnostic` shard; they can support coverage checks but must not be
+presented as independently authored validation data or used as the sole early
+stopping signal. `manifest.json` records both provenances, structural
+deduplication, target diversity by family, the held-out file hash and
+train/evaluation overlap. The same output directory contains
+`projected.parquet`: the exact retained model-facing conversations after
+exact-response cleanup, family capping and structural repetition control.
 
-The current projection passes every automated release gate: exact response
-uniqueness is 100%, easy examples account for 39.90% of training rows, all four
-response-length bands exceed 5%, 74.93% of normalized `(family, structure)`
-pairs are distinct, and 54.67% of examples are genuine multi-turn exchanges.
-The largest family holds 14.84% of training rows, the smallest 2.66%, and the
-artifact contains 3,139,173 supervised training tokens. These automated checks
-do not replace the required stratified human review.
+The current strict projection is intentionally **not release-ready**. It retains
+9,433 train examples with 508,193 supervised tokens after removing 26,083 exact
+answer duplicates, 787 exact prompt conflicts, and repeated normalized answer
+shapes. It contains 2,637 genuine multi-turn examples (27.96%) and only 34
+synthetic multi-turn card hands. Exact train prompt and answer uniqueness are
+both 100%, and recurrent fallback labels no longer create artificial diversity.
+The remaining failures are explicit:
+practical action and conversation empathy are still overrepresented; critique,
+grounded QA and explanation remain underrepresented; only 275 answers exceed
+80 words; and supervised volume remains below the 3–10 million token target.
+These gaps must be addressed by authoring more genuinely distinct answers and
+conversations in the weak families, not by loosening deduplication or restoring
+generic resolution paragraphs.
 
 ## Repository layout
 

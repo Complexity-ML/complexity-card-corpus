@@ -82,11 +82,54 @@ def test_scenario_forge_compiles_fifteen_thousand_semantic_cards() -> None:
         "forms_generated": 350,
         "unique_realized_forms": 281,
     }
+    card_staticity = audit["card_staticity"]
+    assert card_staticity["hands"] == 15_000
+    assert card_staticity["unique_hands"] == 15_000
+    assert card_staticity["exact_hand_uniqueness_ratio"] == 1.0
+    assert card_staticity["static_axes"] == []
+    assert set(card_staticity["axes"]) == {
+        "family",
+        "domain",
+        "intent",
+        "constraint",
+        "state",
+        "outcome",
+        "fallback",
+        "risk",
+    }
+    assert all(
+        metrics["unique_values"] >= 2
+        for metrics in card_staticity["axes"].values()
+    )
 
     assert all(row["provenance"] == SCENARIO_PROVENANCE for row in rows)
     assert all(not row["model_generated_dialogue"] for row in rows)
     assert all(row["response_contract"] for row in rows)
-    assert all(len(row["source_structure_keys"]) == 6 for row in rows)
+    assert all(len(row["source_structure_keys"]) == 8 for row in rows)
+    assert all(len(row["source_structure_links"]) == 12 for row in rows)
+    assert all(
+        set(row["source_structure_keys"])
+        == {
+            card
+            for link in row["source_structure_links"]
+            for card in link.split("->", maxsplit=1)
+        }
+        for row in rows
+    )
+    assert all(
+        f"family:{row['family']}->domain:{row['domain']}"
+        in row["source_structure_links"]
+        for row in rows
+    )
+    assert audit["source_graph"] == {
+        "cards_per_scenario": 8,
+        "links_per_scenario": 12,
+        "orphan_cards": 0,
+        "connected_scenarios": 15_000,
+        "minimum_card_degree": 2,
+        "unique_cards": 456,
+        "unique_links": 3_631,
+    }
     assert all(len(row["creation_hash"]) == 64 for row in rows)
     assert all(len(row["verification_hash"]) == 64 for row in rows)
     assert all(row["situation"] for row in rows)
@@ -134,6 +177,23 @@ def test_scenario_forge_balances_every_family_across_domains() -> None:
             "states": len(family.states),
             "outcomes": len(family.outcomes),
         }
+
+
+def test_weak_generalist_families_have_broad_linked_subject_decks() -> None:
+    registry = load_scenario_registry(REGISTRY)
+    families = {family.family_id: family for family in registry.families}
+
+    for family_id in ("grounded_qa", "explanation_learning", "critique_revision"):
+        family = families[family_id]
+        assert len(family.domains) >= 14
+        assert all(
+            len(family.compatibility.domain_intents[domain.domain_id]) >= 5
+            for domain in family.domains
+        )
+        assert all(
+            len(family.compatibility.domain_constraints[domain.domain_id]) >= 4
+            for domain in family.domains
+        )
 
 
 def test_scenario_registry_rejects_insufficient_semantic_capacity() -> None:
@@ -211,6 +271,23 @@ def test_audit_rejects_tampered_scenario_content() -> None:
         audit_scenarios(rows, registry)
 
 
+def test_audit_rejects_a_well_formed_but_false_source_graph() -> None:
+    registry = load_scenario_registry(REGISTRY)
+    rows = compile_scenarios(registry)
+    row = rows[0]
+    row["source_structure_links"][1] = row["source_structure_links"][1].replace(
+        "->intent:",
+        "->intent:false_",
+    )
+    row["verification_hash"] = _verification_hash(row)
+
+    with pytest.raises(
+        ValueError,
+        match="source graph (mismatch|references an unknown card)",
+    ):
+        audit_scenarios(rows, registry)
+
+
 def test_audit_rejects_semantically_incompatible_outcome() -> None:
     registry = load_scenario_registry(REGISTRY)
     rows = compile_scenarios(registry)
@@ -224,6 +301,17 @@ def test_audit_rejects_semantically_incompatible_outcome() -> None:
     payload["success_condition"] = row["desired_outcome"]
     payload["decision_rule"] = row["desired_outcome"]
     row["semantic_payload"] = json.dumps(payload, sort_keys=True)
+    old_outcome_key = next(
+        key for key in row["source_structure_keys"] if key.startswith("outcome:")
+    )
+    row["source_structure_keys"] = [
+        "outcome:ordered_steps" if key == old_outcome_key else key
+        for key in row["source_structure_keys"]
+    ]
+    row["source_structure_links"] = [
+        link.replace(f"->{old_outcome_key}", "->outcome:ordered_steps")
+        for link in row["source_structure_links"]
+    ]
     row["verification_hash"] = _verification_hash(row)
 
     with pytest.raises(ValueError, match="compatibility violations"):

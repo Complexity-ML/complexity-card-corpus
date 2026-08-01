@@ -174,6 +174,15 @@ def parser() -> argparse.ArgumentParser:
 
     tokenize_instruct = commands.add_parser("tokenize-instruct")
     tokenize_instruct.add_argument("--instructions", type=Path, required=True)
+    tokenize_instruct.add_argument(
+        "--supplement",
+        type=Path,
+        action="append",
+        default=[],
+        help=(
+            "additional original instruction/conversation Parquet; may be repeated"
+        ),
+    )
     tokenize_instruct.add_argument("--tokenizer", type=Path, required=True)
     tokenize_instruct.add_argument("--output", type=Path, required=True)
     tokenize_instruct.add_argument(
@@ -411,6 +420,7 @@ def main() -> None:
             args.tokenizer,
             args.output,
             heldout_evaluation_path=args.heldout_evaluation,
+            supplementary_instruction_paths=args.supplement,
         )
         print(
             json.dumps(

@@ -4,6 +4,7 @@ import json
 from collections import Counter, defaultdict
 from typing import Any
 
+from ..card_staticity import audit_card_staticity
 from ..english_morphology import audit_verb_phrases
 from ..scenario_integrity import (
     creation_hash as _creation_hash,
@@ -44,6 +45,17 @@ def audit_scenarios(
         raise ValueError("Scenario Forge must not contain model-generated dialogue")
     if any(row["provenance"] != SCENARIO_PROVENANCE for row in rows):
         raise ValueError("Scenario Forge provenance mismatch")
+    family_specs = {family.family_id: family for family in registry.families}
+    atom_ids: dict[str, dict[str, dict[str, str]]] = {}
+    for family in registry.families:
+        atom_ids[family.family_id] = {
+            "constraint": {
+                atom.label: atom.atom_id for atom in family.constraints
+            },
+            "state": {atom.label: atom.atom_id for atom in family.states},
+            "outcome": {atom.label: atom.atom_id for atom in family.outcomes},
+            "fallback": {atom.label: atom.atom_id for atom in family.fallbacks},
+        }
     for row in rows:
         expected_creation = _creation_hash(row["semantic_signature"])
         if row["creation_hash"] != expected_creation:
@@ -52,6 +64,71 @@ def audit_scenarios(
             raise ValueError(f"scenario ID mismatch for {row['scenario_id']}")
         if row["verification_hash"] != _verification_hash(row):
             raise ValueError(f"verification hash mismatch for {row['scenario_id']}")
+        if len(row["source_structure_keys"]) != len(set(row["source_structure_keys"])):
+            raise ValueError(f"duplicate source cards for {row['scenario_id']}")
+        if len(row["source_structure_links"]) != len(
+            set(row["source_structure_links"])
+        ):
+            raise ValueError(f"duplicate source links for {row['scenario_id']}")
+        if len(row["source_structure_keys"]) != 8:
+            raise ValueError(f"incomplete source card hand for {row['scenario_id']}")
+        if len(row["source_structure_links"]) != 12:
+            raise ValueError(f"incomplete source graph for {row['scenario_id']}")
+        adjacency = {card: set() for card in row["source_structure_keys"]}
+        for link in row["source_structure_links"]:
+            source, target = link.split("->", maxsplit=1)
+            if source not in adjacency or target not in adjacency:
+                raise ValueError(f"source graph references an unknown card for {row['scenario_id']}")
+            adjacency[source].add(target)
+            adjacency[target].add(source)
+        if any(not neighbours for neighbours in adjacency.values()):
+            raise ValueError(f"orphan source card for {row['scenario_id']}")
+        reached = set()
+        frontier = [row["source_structure_keys"][0]]
+        while frontier:
+            card = frontier.pop()
+            if card in reached:
+                continue
+            reached.add(card)
+            frontier.extend(adjacency[card] - reached)
+        if reached != set(adjacency):
+            raise ValueError(f"disconnected source graph for {row['scenario_id']}")
+        family = family_specs[row["family"]]
+        if row["domain"] not in {domain.domain_id for domain in family.domains}:
+            raise ValueError(f"unknown source domain for {row['scenario_id']}")
+        ids = atom_ids[row["family"]]
+        constraint_id = ids["constraint"][row["constraint"]]
+        state_id = ids["state"][row["state"]]
+        outcome_id = ids["outcome"][row["desired_outcome"]]
+        fallback_id = ids["fallback"][row["fallback"]]
+        expected_keys = [
+            f"family:{row['family']}",
+            f"domain:{row['domain']}",
+            f"intent:{row['intent']}",
+            f"constraint:{constraint_id}",
+            f"state:{state_id}",
+            f"outcome:{outcome_id}",
+            f"fallback:{fallback_id}",
+            f"risk:{row['risk_level']}",
+        ]
+        expected_links = [
+            f"family:{row['family']}->domain:{row['domain']}",
+            f"family:{row['family']}->intent:{row['intent']}",
+            f"domain:{row['domain']}->intent:{row['intent']}",
+            f"domain:{row['domain']}->constraint:{constraint_id}",
+            f"domain:{row['domain']}->state:{state_id}",
+            f"intent:{row['intent']}->outcome:{outcome_id}",
+            f"constraint:{constraint_id}->outcome:{outcome_id}",
+            f"constraint:{constraint_id}->fallback:{fallback_id}",
+            f"state:{state_id}->outcome:{outcome_id}",
+            f"state:{state_id}->fallback:{fallback_id}",
+            f"risk:{row['risk_level']}->state:{state_id}",
+            f"risk:{row['risk_level']}->fallback:{fallback_id}",
+        ]
+        if row["source_structure_keys"] != expected_keys:
+            raise ValueError(f"source card hand mismatch for {row['scenario_id']}")
+        if row["source_structure_links"] != expected_links:
+            raise ValueError(f"source graph mismatch for {row['scenario_id']}")
 
     expected_by_family = {
         family.family_id: family.target for family in registry.families
@@ -279,6 +356,15 @@ def audit_scenarios(
     morphology_audit = audit_verb_phrases(
         [intent.label for family in registry.families for intent in family.intents]
     )
+    source_card_staticity = audit_card_staticity(
+        [
+            {
+                key.split(":", 1)[0]: key.split(":", 1)[1]
+                for key in row["source_structure_keys"]
+            }
+            for row in rows
+        ]
+    )
 
     return {
         "scenarios": len(rows),
@@ -291,6 +377,28 @@ def audit_scenarios(
         "unique_triggers": len({row["trigger"] for row in rows}),
         "unique_creation_hashes": len({row["creation_hash"] for row in rows}),
         "unique_verification_hashes": len({row["verification_hash"] for row in rows}),
+        "source_graph": {
+            "cards_per_scenario": 8,
+            "links_per_scenario": 12,
+            "orphan_cards": 0,
+            "connected_scenarios": len(rows),
+            "minimum_card_degree": 2,
+            "unique_cards": len(
+                {
+                    card
+                    for row in rows
+                    for card in row["source_structure_keys"]
+                }
+            ),
+            "unique_links": len(
+                {
+                    link
+                    for row in rows
+                    for link in row["source_structure_links"]
+                }
+            ),
+        },
+        "card_staticity": source_card_staticity,
         "model_generated_dialogue_rows": 0,
         "family_counts": dict(sorted(actual_by_family.items())),
         "domain_counts": dict(sorted(domain_counts.items())),

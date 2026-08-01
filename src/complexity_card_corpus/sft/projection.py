@@ -62,10 +62,11 @@ def _project_sft_conversation(
 ) -> tuple[list[dict[str, str]], TrainingCards]:
     """Preserve real dialogue turns while removing card-storage syntax.
 
-    Two-message examples remain direct instructions. Four-message card hands
-    become a natural context turn, a scenario-specific assistant clarification,
-    a user constraint/update, and the final answer. This keeps the dialogue
-    state trainable instead of flattening every example into one exchange.
+    Two-message examples remain direct instructions. Synthetic four-message
+    card hands are flattened unless clarification itself is the task. Earlier
+    releases preserved every generated clarification turn, which taught the
+    model to ask for an outcome and constraint even when both were supplied.
+    Non-card conversations remain untouched.
     """
 
     prompt, target, cards = _project_sft_exchange(
@@ -91,7 +92,7 @@ def _project_sft_conversation(
         ]
         natural_messages[-1]["content"] = target
         return natural_messages, cards
-    if len(messages) <= 2 or sections is None:
+    if len(messages) <= 2 or sections is None or task != "context_clarification":
         return [
             {"role": "user", "content": prompt},
             {"role": "assistant", "content": target},

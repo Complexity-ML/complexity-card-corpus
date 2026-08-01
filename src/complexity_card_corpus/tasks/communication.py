@@ -4,8 +4,9 @@ from typing import Any
 
 from .core import (
     TaskHand,
-    _card_pick,
     _code,
+    _compose_subcards,
+    _deal_task_frames,
     _lower_sentence_initial,
     _number,
     _pick,
@@ -58,21 +59,80 @@ _LESSONS = {
         "An original interview is primary evidence, while an article analyzing it is secondary.",
         "Which source should be checked for the speaker's exact words?",
     ),
+    "probability": (
+        "Independent events do not change each other's probabilities; mutually exclusive events cannot occur together.",
+        "Two coin tosses are independent, while one toss cannot be both heads and tails.",
+        "Can two independent events still occur together?",
+    ),
+    "ecology": (
+        "Energy moves through a food web and is partly lost as heat, while matter is recycled through organisms and the environment.",
+        "A plant stores solar energy, an herbivore consumes it, and decomposers return matter to the soil.",
+        "In this food-web sequence, which is recycled: energy, matter, or both?",
+    ),
+    "electrical_energy": (
+        "Power is the rate of energy use, while energy is the accumulated amount used over time.",
+        "A 1-kilowatt device running for two hours uses 2 kilowatt-hours of energy.",
+        "What changes if the same device runs twice as long: its power, its energy use, or both?",
+    ),
+    "language_grammar": (
+        "A subject is the sentence element linked to the main verb's actor or topic; an object receives or completes the verb's action.",
+        "In 'Mira opens the window,' Mira is the subject and the window is the object.",
+        "What is the object in the example sentence?",
+    ),
+    "computer_networks": (
+        "The Domain Name System translates a human-readable host name into an IP address that a network connection can use.",
+        "A browser can ask for example.org, receive its current IP address, and then connect to that address.",
+        "Does DNS carry the whole web page, or does it help locate the destination?",
+    ),
+    "research_methods": (
+        "Correlation shows that two measurements vary together; causation requires evidence that changing one factor changes the other.",
+        "Ice-cream sales and sunburns can rise together because warm weather affects both.",
+        "Does the example show that ice-cream sales cause sunburns?",
+    ),
 }
 
 
 def _explanation(row: dict[str, Any], variant: int) -> TaskHand:
     mechanism, example, check = _LESSONS[row["domain"]]
     embedded_mechanism = _lower_sentence_initial(mechanism)
-    data = f"Concept notes: {mechanism} Example available: {example}"
-    goal = "Explain the mechanism in plain language, apply the example, and end with one check question."
-    answer_cards = (
-        f"Core idea: {mechanism} Example: {example} This applies the distinction directly. Check: {check}",
-        f"Core idea: {mechanism} Example: {example} This turns the definition into a checkable case. Check: {check}",
-        f"Core idea: in plain terms, {embedded_mechanism} Example: {example} Check: {check}",
-        f"Core idea: the key distinction is that {embedded_mechanism} Example: {example} Check: {check}",
+    data, goal = _deal_task_frames(
+        row,
+        variant,
+        "explanation",
+        (
+            f"Concept notes: {mechanism} Example available: {example}",
+            f"Learning card: {mechanism} Worked example: {example}",
+            f"Teach from these supplied notes — mechanism: {mechanism} Example: {example}",
+        ),
+        (
+            "Explain the mechanism in plain language, apply the example, and end with one check question.",
+            "Connect the core idea to the example, then ask one question that checks transfer.",
+            "Give a concise explanation, demonstrate it with the example, and finish with one check question.",
+        ),
     )
-    answer = _card_pick(row, variant, "explanation-answer", answer_cards)
+    answer = _compose_subcards(
+        row,
+        variant,
+        "explanation-answer",
+        (
+            (
+                f"Core idea: {mechanism}",
+                f"Core idea: in plain terms, {embedded_mechanism}",
+                f"Core idea: the key distinction is that {embedded_mechanism}",
+            ),
+            (
+                f"Example: {example} This applies the distinction directly.",
+                f"Example: {example} This turns the definition into a checkable case.",
+                f"Example: {example} The example makes the mechanism visible.",
+            ),
+            (
+                f"Check: {check}",
+                f"Check: As a transfer test, {_lower_sentence_initial(check)}",
+                f"Check: To verify the idea, {_lower_sentence_initial(check)}",
+            ),
+        ),
+        pool_names=("mechanism", "example", "transfer_check"),
+    )
     return TaskHand(data, goal, answer, ("mechanism", "example", "question"))
 
 
@@ -80,7 +140,7 @@ def _writing(row: dict[str, Any], variant: int) -> TaskHand:
     code = _code(row)
     owner = _pick(f"owner:{code}", ("Maya", "Jon", "Ari", "Lea", "Noah", "Iris"))
     day = _number(f"write-day:{code}", 10, 28)
-    variants = {
+    content_cards = {
         "email": (
             f"notes {code}: send team; review complete; two figures need captions; {owner} owns them; target day {day}; release waits",
             f"Subject: Review {code} next steps\n\nThe review is complete. Two figures still need captions, which {owner} owns for day {day}. The release decision remains pending.",
@@ -101,10 +161,76 @@ def _writing(row: dict[str, Any], variant: int) -> TaskHand:
             f"draft {code}: validation complete; two diagrams lack captions; {owner} adds them by day {day}; publication waits",
             f"Technical note {code}: Validation is complete, but two diagrams still lack captions. {owner} will add them by day {day}; publication timing remains undecided until they are reviewed.",
         ),
+        "public_notice": (
+            f"notice {code}: east entrance closed day {day}; inspection; use west entrance; {owner} posts signs; reopening not confirmed",
+            f"Public notice {code}: The east entrance will be closed on day {day} for inspection. Please use the west entrance. {owner} will post directions; the reopening time is not yet confirmed.",
+        ),
+        "handover_note": (
+            f"handover {code}: source review done; two tables pending; {owner} owns checks day {day}; export not started",
+            f"Handover {code}: Source review is complete. {owner} will check the two pending tables by day {day}. The export has not started.",
+        ),
+        "schedule_change": (
+            f"schedule {code}: review moved from day {day - 1} to day {day}; room unchanged; {owner} confirms attendees; reason not provided",
+            f"Schedule change {code}: The review has moved from day {day - 1} to day {day}; the room is unchanged. {owner} will confirm attendance. No reason for the change was provided.",
+        ),
+        "feedback_message": (
+            f"feedback {code}: summary accurate; main decision appears after background; ask {owner} to move it first by day {day}; no content change",
+            f"Feedback {code}: The summary is accurate, but the main decision appears after the background. {owner}, please move the decision to the opening by day {day} without changing the content.",
+        ),
+        "procedure_summary": (
+            f"procedure {code}: preserve original; duplicate file; {owner} validates copy day {day}; publish only after match; fallback unspecified",
+            f"Procedure {code}: Preserve the original, duplicate the file, and have {owner} validate the copy by day {day}. Publish only after both versions match; no fallback is specified.",
+        ),
+        "event_invitation": (
+            f"invite {code}: open review session; team audience; room {day}; 15:00 day {day}; reply to {owner} by day {day - 2}; agenda pending",
+            f"Invitation {code}: Join the team review session in Room {day} at 15:00 on day {day}. Please reply to {owner} by day {day - 2}. The agenda is still pending.",
+        ),
+        "progress_brief": (
+            f"brief {code}: 8 of 10 records checked; two awaiting sources; {owner} requests them day {day}; final count pending",
+            f"Progress brief {code}: Eight of ten records are checked. Two still await source documents, which {owner} will request by day {day}. The final count remains pending.",
+        ),
     }
-    source, answer = variants[row["domain"]]
-    data = f"Source text: {source}. Intended reader: the project team."
-    goal = "Rewrite the source as a short, clear update without adding facts or commitments."
+    source, content = content_cards[row["domain"]]
+    data, goal = _deal_task_frames(
+        row,
+        variant,
+        "writing",
+        (
+            f"Source text: {source}. Intended reader: the project team.",
+            f"Notes to rewrite for the project team: {source}.",
+            f"Project-team input {code}: {source}.",
+        ),
+        (
+            "Rewrite the source as a short, clear update without adding facts or commitments.",
+            "Produce a concise team-ready version that preserves every stated limit.",
+            "Turn the notes into a direct update while leaving unresolved points unresolved.",
+        ),
+    )
+    faithful_cards = (
+        content,
+        f"Here is the revised text: {content}",
+        f"The concise version is: {content}",
+    )
+    answer = _compose_subcards(
+        row,
+        variant,
+        "writing-answer",
+        (
+            ("", "Clear rewrite:", "Short version:", "Team update:"),
+            faithful_cards,
+        ),
+        pool_names=("layout", "faithful_content"),
+        links=(
+            (
+                (0, 0),
+                (0, 1),
+                (0, 2),
+                (1, 0),
+                (2, 0),
+                (3, 0),
+            ),
+        ),
+    )
     return TaskHand(data, goal, answer, ("faithful_rewrite", "owner", "timing"))
 
 
@@ -118,8 +244,21 @@ def _empathy(row: dict[str, Any], variant: int) -> TaskHand:
         "loss_disappointment": "I prepared for this outcome for months, and now I feel both sad and stuck.",
     }
     quote = quotes[row["domain"]]
-    data = f'Person says: "{quote}"'
-    goal = "Respond with acknowledgment, preserve the person's agency, and ask at most one gentle question."
+    data, goal = _deal_task_frames(
+        row,
+        variant,
+        "empathy",
+        (
+            f'Person says: "{quote}"',
+            f'Conversation excerpt: "{quote}"',
+            f'Respond to this message without assuming more context: "{quote}"',
+        ),
+        (
+            "Respond with acknowledgment, preserve the person's agency, and ask at most one gentle question.",
+            "Acknowledge the experience without diagnosing it, leave the next choice with the person, and ask no more than one question.",
+            "Offer a grounded empathetic response that validates the feeling, avoids pressure, and opens one optional next step.",
+        ),
+    )
     acknowledgments = {
         "work_stress": (
             "It makes sense that unfinished work keeps pulling at your attention even while you are trying to rest.",
@@ -164,10 +303,12 @@ def _empathy(row: dict[str, Any], variant: int) -> TaskHand:
         "What part of this do you most want another person to understand?",
         "Is there one part that feels especially present right now?",
     )
-    answer = (
-        f"{_card_pick(row, variant, 'empathy-ack', acknowledgments[row['domain']])} "
-        f"{_card_pick(row, variant, 'empathy-agency', agency_cards)} "
-        f"{_card_pick(row, variant, 'empathy-question', question_cards)}"
+    answer = _compose_subcards(
+        row,
+        variant,
+        "empathy-answer",
+        (acknowledgments[row["domain"]], agency_cards, question_cards),
+        pool_names=("acknowledgment", "agency", "optional_question"),
     )
     return TaskHand(data, goal, answer, ("acknowledgment", "agency", "question"))
 
@@ -245,19 +386,50 @@ def _clarification(row: dict[str, Any], variant: int) -> TaskHand:
         "format_preference": "The comparison results are available, but the requested presentation format is open.",
         "timeline_ambiguity": "The next review is a known dependency, but the completion deadline is undefined.",
     }
-    data = f'Request {code}: "{ambiguous}" {restatement}'
-    goal = "Restate what is understood, ask one decisive question, and give only a reversible provisional interpretation."
-    styles = (
-        f"Understood: {restatement} {question} Until confirmed, {reversible_default}.",
-        f"My current reading: {restatement} {question} For now, {reversible_default}.",
-        f"What is clear: {restatement} {question} Pending that answer, {reversible_default}.",
-        f"The supported interpretation is limited: {restatement} {question} As a reversible default, {reversible_default}.",
-        f"I understand the bounded issue: {restatement} {question} Until it is resolved, {reversible_default}.",
-        f"The available facts establish this much: {restatement} {question} Meanwhile, {reversible_default}.",
-        f"The request can be restated without guessing: {restatement} {question} A reversible choice is simple: {reversible_default}.",
-        f"In short: {restatement} {question} While waiting for the answer, {reversible_default}.",
+    data, goal = _deal_task_frames(
+        row,
+        variant,
+        "clarification",
+        (
+            f'Request {code}: "{ambiguous}" {restatement}',
+            f'Clarification case {code}: "{ambiguous}" Known so far: {restatement}',
+            f'Unresolved request {code} — "{ambiguous}" Supported reading: {restatement}',
+        ),
+        (
+            "Restate what is understood, ask one decisive question, and give only a reversible provisional interpretation.",
+            "Identify the ambiguity, ask exactly one resolving question, and preserve a reversible default.",
+            "State the bounded interpretation, request the missing choice, and avoid irreversible action meanwhile.",
+        ),
     )
-    answer = styles[_number(f"clarify-style:{code}:{variant}", 0, len(styles) - 1)]
+    answer = _compose_subcards(
+        row,
+        variant,
+        "clarification-answer",
+        (
+            (
+                f"Understood: {restatement}",
+                f"My current reading: {restatement}",
+                f"What is clear: {restatement}",
+                f"The supported interpretation is limited: {restatement}",
+            ),
+            (
+                question,
+                f"One point to resolve: {question}",
+                f"Before proceeding: {question}",
+            ),
+            (
+                f"Until confirmed, {reversible_default}.",
+                f"For now, {reversible_default}.",
+                f"Pending that answer, {reversible_default}.",
+                f"As a reversible default, {reversible_default}.",
+            ),
+        ),
+        pool_names=(
+            "restatement",
+            "clarifying_question",
+            "reversible_default",
+        ),
+    )
     return TaskHand(
         data,
         goal,

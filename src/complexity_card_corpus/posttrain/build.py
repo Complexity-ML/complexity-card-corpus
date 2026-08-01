@@ -13,6 +13,7 @@ import pyarrow.parquet as pq
 
 from ..build import file_sha256
 from ..sft.schema import INSTRUCTION_SCHEMA
+from .capacity import post_training_capacity_report
 from .constants import DATASET_ID, DATASET_LICENSE, DATASET_SOURCE
 from .metrics import _audit
 from .rendering import (
@@ -48,6 +49,11 @@ def build_post_training_corpus(
     rows, family_balance = _balance_conversation_families(rows)
     audit = _audit(rows)
     audit["family_balance"] = family_balance
+    audit["scale_100k"] = post_training_capacity_report(
+        source_cards=len(scenarios),
+        configured_variants_per_source_card=variants_per_scenario,
+        audit=audit,
+    )
     observed_lexical_focus = {
         json.loads(row["answer_json"])["lexical_focus"]
         for row in rows

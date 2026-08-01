@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from .core import TaskHand, _card_pick, _code, _number
+from .core import (
+    TaskHand,
+    _code,
+    _compose_subcards,
+    _deal_task_frames,
+    _number,
+)
 
 
 def _reasoning(row: dict[str, Any], variant: int) -> TaskHand:
@@ -62,7 +68,7 @@ def _reasoning(row: dict[str, Any], variant: int) -> TaskHand:
         equation = f"({each} - 1) + {units} = {result}"
         total, check = (
             f"{result}",
-            f"A occupies slot {each - 1}, immediately before B at slot {each}",
+            f"slot {each - 1} is occupied by A, immediately before B at slot {each}",
         )
     elif domain == "work_allocation":
         data = (
@@ -83,14 +89,51 @@ def _reasoning(row: dict[str, Any], variant: int) -> TaskHand:
             f"{units}/{total_outcomes} probability of blue",
             f"the favorable and total counts are {units} and {total_outcomes}",
         )
-    goal = "Calculate the result, show the equation, and verify it with an independent check."
-    answer_cards = (
-        f"Equation: {equation}. Total: {total}. Check: {check}.",
-        f"Total: {total}. Equation: {equation}. Check: independently, {check}.",
-        f"Check: inspect the supplied values, then note that {check}. Equation: {equation}. Total: {total}.",
-        f"Equation: {equation}. Check: use a second view of the values; {check}. Total: {total}.",
+    data, goal = _deal_task_frames(
+        row,
+        variant,
+        "reasoning",
+        (
+            data,
+            f"Calculation card {code}: {data.split(': ', 1)[-1]}",
+            f"Use the supplied values only — {data}",
+        ),
+        (
+            "Calculate the result, show the equation, and verify it with an independent check.",
+            "Give the equation and total, then confirm them through a second calculation.",
+            "Solve the supplied problem and include one independent numerical check.",
+        ),
     )
-    answer = _card_pick(row, variant, "reasoning-answer", answer_cards)
+    answer = _compose_subcards(
+        row,
+        variant,
+        "reasoning-answer",
+        (
+            (
+                f"Equation: {equation}.",
+                f"Equation: using the supplied values, {equation}.",
+                f"Equation: the direct calculation is {equation}.",
+                f"Equation: represent the required operation as {equation}.",
+                f"Equation: evaluating the quantities gives {equation}.",
+                f"Equation: the numerical relation is {equation}.",
+            ),
+            (
+                f"Total: {total}.",
+                f"Total: this gives {total}.",
+                f"Total: the result is {total}.",
+                f"Total: the computed value is {total}.",
+                f"Total: therefore, {total}.",
+                f"Total: the supplied values produce {total}.",
+            ),
+            (
+                f"Check: {check}.",
+                f"Check: independently, {check}.",
+                f"Check: a second view confirms that {check}.",
+                f"Check: verify the result by noting that {check}.",
+            ),
+        ),
+        pool_names=("equation", "result", "verification"),
+    )
     subject = domain.replace("_", " ").title()
     return TaskHand(
         data,
@@ -148,18 +191,78 @@ def _critique(row: dict[str, Any], variant: int) -> TaskHand:
             "the message gives neither the failed action nor a useful next step",
             "The requested action could not be completed. Review the available error details before trying again.",
         ),
+        "status_update": (
+            "Everything is on track, although integration is blocked and the delivery date is no longer known.",
+            "the opening claim conflicts with the stated blocker and missing delivery date",
+            "Core work is progressing, but integration remains blocked. Reassess the delivery date after that blocker is resolved.",
+        ),
+        "survey_report": (
+            "Most users prefer the new layout because six of twelve participants selected it.",
+            "six responses in a twelve-person sample do not establish a majority or a broader user preference",
+            "Six of twelve participants selected the new layout. This sample does not establish a broader user preference.",
+        ),
+        "policy_notice": (
+            "Access after 18:00 is prohibited unless approved, and exceptions may be available.",
+            "the notice gives no approval authority or exception process",
+            "Access after 18:00 requires prior approval. Name the approving authority and exception process before publishing the notice.",
+        ),
+        "data_caption": (
+            "The results improved significantly after the change.",
+            "the caption names no metric, comparator, magnitude, or uncertainty",
+            "The figure compares results before and after the change. Add the metric, magnitude, comparator, and uncertainty before claiming an improvement.",
+        ),
+        "release_note": (
+            "This update fixes all synchronization problems and works on every supported system.",
+            "the universal reliability and compatibility claims exceed the stated evidence",
+            "This update fixes the synchronization cases verified in the release tests. List the tested systems and retain any known limitations.",
+        ),
+        "support_macro": (
+            "We resolved your issue. Please repeat the failed action to confirm that it now works.",
+            "the reply claims resolution before the requested verification is complete",
+            "We applied a possible fix for the reported issue. Please repeat the failed action so we can verify whether it is resolved.",
+        ),
+        "risk_assessment": (
+            "The risk is low because no incident occurred last month.",
+            "one incident-free month does not establish low likelihood or low impact",
+            "No incident was recorded last month. Assess likelihood, impact, exposure, and mitigation evidence before assigning a risk level.",
+        ),
     }
     draft, weakness, revision = cases[row["domain"]]
     draft = f"Draft {code}: {draft}"
-    data = f"Text to review: {draft}"
-    goal = "Identify the highest-impact weakness and provide a faithful two-sentence revision."
-    answer_cards = (
-        f"Weakness: {weakness}. Revision: {revision}",
-        f"Weakness: {weakness}; the wording exceeds the supplied evidence. Revision: {revision}",
-        f"Weakness: {weakness}. The revision must stay within the recorded facts. Revision: {revision}",
-        f"Weakness: {weakness}, which makes the original difficult to verify. Revision: {revision}",
+    data, goal = _deal_task_frames(
+        row,
+        variant,
+        "critique",
+        (
+            f"Text to review: {draft}",
+            f"Review candidate {code}: {draft}",
+            f"Editing input — {draft}",
+        ),
+        (
+            "Identify the highest-impact weakness and provide a faithful two-sentence revision.",
+            "Name the main evidence or clarity problem, then rewrite the text in exactly two sentences.",
+            "Diagnose the most consequential flaw and revise it without inventing any fact.",
+        ),
     )
-    answer = _card_pick(row, variant, "critique-answer", answer_cards)
+    answer = _compose_subcards(
+        row,
+        variant,
+        "critique-answer",
+        (
+            (
+                f"Weakness: {weakness}.",
+                f"Weakness: {weakness}; the wording exceeds the supplied evidence.",
+                f"Weakness: {weakness}. The correction must remain within the recorded facts.",
+                f"Weakness: {weakness}, making the original difficult to verify.",
+            ),
+            (
+                f"Revision: {revision}",
+                f"Faithful Revision: {revision}",
+                f"Bounded Revision: {revision}",
+            ),
+        ),
+        pool_names=("weakness", "revision"),
+    )
     return TaskHand(data, goal, answer, ("weakness", "reason", "revision"))
 
 
@@ -323,19 +426,74 @@ def _brainstorm(row: dict[str, Any], variant: int) -> TaskHand:
             "The candidate options differ in a way that changes how the brief would be carried out."
         ),
     }
-    answer = " ".join(
-        (
-            answer,
-            constraint_checks.get(
-                row.get("constraint", ""),
-                "The options remain bounded by the explicit brief.",
-            ),
-            outcome_checks.get(
-                row.get("desired_outcome", ""),
-                "The selected option is concrete enough to test first.",
-            ),
-        )
+    constraint_check = constraint_checks.get(
+        row.get("constraint", ""),
+        "The options remain bounded by the explicit brief.",
     )
-    data = f"Brief {code}: {brief}."
-    goal = "Generate three meaningfully different options, test them against the brief, and select one."
+    outcome_check = outcome_checks.get(
+        row.get("desired_outcome", ""),
+        "The selected option is concrete enough to test first.",
+    )
+    options, selection = answer.rsplit(" Select ", 1)
+    answer = _compose_subcards(
+        row,
+        variant,
+        "brainstorm-answer",
+        (
+            (
+                options,
+                f"Options: {options}",
+                f"Candidate set: {options}",
+            ),
+            (
+                f"Criteria review: {constraint_check}",
+                f"Constraint review: {constraint_check}",
+                f"Fit with the brief: {constraint_check}",
+            ),
+            (
+                f"Outcome review: {outcome_check}",
+                f"Comparison result: {outcome_check}",
+                f"Practical result: {outcome_check}",
+            ),
+            (
+                f"Select {selection}",
+                f"Select this option: {selection}",
+                f"Select the strongest fit: {selection}",
+            ),
+        ),
+        pool_names=("options", "criteria", "outcome", "selection"),
+    )
+    data = _compose_subcards(
+        row,
+        variant,
+        "brainstorm-input",
+        (
+            (f"Brief {code}:", f"Idea brief {code} —", f"Creative constraint card {code}:"),
+            (f"{brief}.",),
+        ),
+        pool_names=("brief_label", "brief"),
+    )
+    goal = _compose_subcards(
+        row,
+        variant,
+        "brainstorm-objective",
+        (
+            (
+                "Generate three meaningfully different options.",
+                "Propose three distinct approaches.",
+                "Create three feasible alternatives.",
+            ),
+            (
+                "Test each against the brief.",
+                "Compare their fit with the stated limits.",
+                "Check each option against the named criteria.",
+            ),
+            (
+                "Select the strongest one.",
+                "Recommend one option and explain the choice.",
+                "Choose the best bounded proposal to test first.",
+            ),
+        ),
+        pool_names=("generation", "criteria", "selection"),
+    )
     return TaskHand(data, goal, answer, ("three_options", "criteria", "selection"))

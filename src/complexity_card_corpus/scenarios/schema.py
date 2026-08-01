@@ -59,6 +59,7 @@ SCENARIO_SCHEMA = pa.schema(
         ("semantic_payload", pa.string()),
         ("response_contract", pa.list_(pa.string())),
         ("source_structure_keys", pa.list_(pa.string())),
+        ("source_structure_links", pa.list_(pa.string())),
         ("model_generated_dialogue", pa.bool_()),
         ("provenance", pa.string()),
         ("license", pa.string()),

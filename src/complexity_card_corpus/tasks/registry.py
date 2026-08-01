@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import replace
 from typing import Any
 
 from .action import _planning, _practical, _troubleshooting
 from .communication import _clarification, _empathy, _explanation, _writing
-from .core import TaskHand, _code
+from .core import TaskHand, _code, _compose_subcards
 from .knowledge import _extraction, _grounded_qa, _summary
 from .reasoning import _brainstorm, _critique, _reasoning
 from .safety import _safety
@@ -35,26 +36,24 @@ def deal_task_hand(row: dict[str, Any], variant: int) -> TaskHand:
         hand = _RENDERERS[row["family"]](row, variant)
     except KeyError as error:
         raise ValueError(f"no card renderer for {row['family']}") from error
-    code = _code(row)
-    if row["family"] == "extraction_classification":
-        structured = json.loads(hand.answer)
-        answer = json.dumps(
-            structured,
-            separators=(",", ":") if variant % 2 == 0 else (", ", ": "),
+    if row["family"] != "extraction_classification":
+        code = _code(row)
+        answer = _compose_subcards(
+            row,
+            variant,
+            f"{row['family']}-surface",
+            (
+                (
+                    f"Hand {code} —",
+                    f"For hand {code}:",
+                    f"Hand {code} -",
+                ),
+                (hand.answer,),
+            ),
+            pool_names=("hand_reference", "family_answer"),
+            cycle_first_pool=True,
         )
-    elif variant % 2 == 0:
-        answer = f"Hand {code} — {hand.answer}"
-    else:
-        answer = f"For hand {code}: {hand.answer}"
-    hand = TaskHand(
-        hand.data,
-        hand.goal,
-        answer,
-        hand.contract,
-        situation_title=hand.situation_title,
-        situation=hand.situation,
-        rule=hand.rule,
-    )
+        hand = replace(hand, answer=answer)
     validate_task_hand(row["family"], hand)
     return hand
 
@@ -70,11 +69,13 @@ def validate_task_hand(family: str, hand: TaskHand) -> None:
             all(x in hand.answer for x in ("Core idea:", "Example:", "Check:"))
             and "?" in hand.answer
         ),
-        "troubleshooting": lambda: all(
-            x in hand.answer for x in ("1.", "2.", "Direct check:", "Regression check:")
+        "troubleshooting": lambda: (
+            hand.contract == ("steps", "direct_check", "regression_check")
+            and all(x in hand.answer for x in ("1.", "2.", "3."))
         ),
         "writing_transformation": lambda: (
-            "Source text:" in hand.data and len(hand.answer.split()) >= 12
+            hand.contract == ("faithful_rewrite", "owner", "timing")
+            and len(hand.answer.split()) >= 12
         ),
         "planning_comparison": lambda: all(
             x in hand.answer for x in ("Choose", "Sequence:", "Fallback trigger:")
@@ -84,7 +85,8 @@ def validate_task_hand(family: str, hand: TaskHand) -> None:
             x in hand.answer for x in ("Immediate action:", "Boundary:", "Escalate")
         ),
         "grounded_qa": lambda: (
-            "unknown" in hand.answer.lower() and "Source" in hand.data
+            hand.contract == ("direct_answer", "evidence", "unknown")
+            and "unknown" in hand.answer.lower()
         ),
         "summarization_synthesis": lambda: all(
             x in hand.answer for x in ("Decision:", "Action:", "Open point:")

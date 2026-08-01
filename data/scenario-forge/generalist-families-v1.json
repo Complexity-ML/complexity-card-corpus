@@ -14,7 +14,13 @@
         {"id":"travel_information","label":"Travel information","subject":"a travel-information notice","context":"Times, eligibility conditions, and service exceptions are stated in the notice."},
         {"id":"technical_documentation","label":"Technical documentation","subject":"a technical-documentation excerpt","context":"Supported behavior, prerequisites, and failure conditions are described directly."},
         {"id":"comparison_table","label":"Comparison table","subject":"a compact comparison table","context":"Each option is described through the same named attributes and missing values remain visible."},
-        {"id":"conflicting_service_reports","label":"Conflicting service reports","subject":"two service reports with different scopes","context":"Align time, region, scope, and operation before comparison."}
+        {"id":"conflicting_service_reports","label":"Conflicting service reports","subject":"two service reports with different scopes","context":"Align time, region, scope, and operation before comparison."},
+        {"id":"public_event_notice","label":"Public event notice","subject":"a public event notice","context":"Date, venue, access conditions, and registration details must come from the notice."},
+        {"id":"energy_bill","label":"Energy bill","subject":"a household energy statement","context":"Usage, tariff, billing period, and missing adjustments must remain distinct."},
+        {"id":"course_catalog","label":"Course catalog","subject":"a course-catalog entry","context":"Prerequisites, schedule, format, and assessment details are separately documented fields."},
+        {"id":"maintenance_log","label":"Maintenance log","subject":"an equipment maintenance log","context":"Observed symptoms, replaced parts, dates, and causal conclusions carry different evidence status."},
+        {"id":"environmental_report","label":"Environmental report","subject":"a short environmental monitoring report","context":"Measured values, site scope, baseline, and interpretation must not be conflated."},
+        {"id":"software_release_note","label":"Software release note","subject":"a software release note","context":"Added behavior, fixed behavior, compatibility, and future deprecation dates must be read separately."}
       ],
       "intents": [
         {"id":"answer","label":"answer the direct question","goalTemplate":"Answer a direct question about {subject} from the supplied evidence."},
@@ -68,7 +74,13 @@
           "travel_information": ["answer","locate","compare","infer","unknown"],
           "technical_documentation": ["answer","locate","compare","infer","unknown"],
           "comparison_table": ["answer","locate","compare","infer","unknown"],
-          "conflicting_service_reports": ["answer","locate","compare","infer","unknown"]
+          "conflicting_service_reports": ["answer","locate","compare","infer","unknown"],
+          "public_event_notice": ["answer","locate","compare","infer","unknown"],
+          "energy_bill": ["answer","locate","compare","infer","unknown"],
+          "course_catalog": ["answer","locate","compare","infer","unknown"],
+          "maintenance_log": ["answer","locate","compare","infer","unknown"],
+          "environmental_report": ["answer","locate","compare","infer","unknown"],
+          "software_release_note": ["answer","locate","compare","infer","unknown"]
         },
         "domainConstraints": {
           "product_specs": ["source_only","cite_evidence","no_gap_fill","concise","fact_inference","conflict_visible"],
@@ -79,7 +91,13 @@
           "travel_information": ["source_only","cite_evidence","no_gap_fill","concise","fact_inference","conflict_visible"],
           "technical_documentation": ["source_only","cite_evidence","no_gap_fill","concise","fact_inference","conflict_visible"],
           "comparison_table": ["source_only","cite_evidence","no_gap_fill","concise","fact_inference","conflict_visible"],
-          "conflicting_service_reports": ["source_only","cite_evidence","no_gap_fill","concise","fact_inference","conflict_visible"]
+          "conflicting_service_reports": ["source_only","cite_evidence","no_gap_fill","concise","fact_inference","conflict_visible"],
+          "public_event_notice": ["source_only","cite_evidence","no_gap_fill","concise","fact_inference"],
+          "energy_bill": ["source_only","cite_evidence","no_gap_fill","concise","fact_inference"],
+          "course_catalog": ["source_only","cite_evidence","no_gap_fill","concise","fact_inference"],
+          "maintenance_log": ["source_only","cite_evidence","no_gap_fill","concise","fact_inference"],
+          "environmental_report": ["source_only","cite_evidence","no_gap_fill","concise","fact_inference"],
+          "software_release_note": ["source_only","cite_evidence","no_gap_fill","concise","fact_inference"]
         },
         "stateOutcomes": {
           "complete": ["supported_answer","evidence_link","claim_comparison","source_boundary"],
@@ -206,7 +224,15 @@
         {"id":"survey_response","label":"Survey response","subject":"a survey response","context":"The response contains a rating, a topic, free-form feedback, and possible ambiguity."},
         {"id":"inventory_record","label":"Inventory record","subject":"an inventory record","context":"Item identity, quantity, location, condition, and update time require normalization."},
         {"id":"schedule_entry","label":"Schedule entry","subject":"a schedule entry","context":"Time, duration, participants, location, and recurrence need explicit representation."},
-        {"id":"case_note","label":"Case note","subject":"a short case note","context":"Observed facts, reported claims, actions, and pending items must remain distinguishable."}
+        {"id":"case_note","label":"Case note","subject":"a short case note","context":"Observed facts, reported claims, actions, and pending items must remain distinguishable."},
+        {"id":"address_record","label":"Address record","subject":"a postal address record","context":"Recipient, street, locality, postal code, country, and delivery notes need separate fields."},
+        {"id":"booking_record","label":"Booking record","subject":"a booking confirmation","context":"Reference, service, date, time, party size, and cancellation state require normalization."},
+        {"id":"product_record","label":"Product record","subject":"a product listing","context":"Product identity, variant, price, availability, and warranty details appear in mixed text."},
+        {"id":"expense_record","label":"Expense record","subject":"an expense entry","context":"Category, amount, currency, date, payment method, and approval state need consistent types."},
+        {"id":"shipment_record","label":"Shipment record","subject":"a shipment update","context":"Tracking reference, carrier, destination, milestone, timestamp, and exception must remain associated."},
+        {"id":"calendar_record","label":"Calendar record","subject":"a calendar invitation","context":"Organizer, participants, start, end, location, and response status need explicit representation."},
+        {"id":"measurement_record","label":"Measurement record","subject":"a measurement note","context":"Measured value, unit, instrument, timestamp, tolerance, and observer need traceable fields."},
+        {"id":"bibliographic_record","label":"Bibliographic record","subject":"a publication citation","context":"Title, author, year, venue, identifier, and page range require careful separation."}
       ],
       "intents": [
         {"id":"extract","label":"extract the requested fields","goalTemplate":"Extract requested fields from {subject}."},
@@ -259,7 +285,15 @@
           "survey_response": ["extract","normalize","classify","missing","structure"],
           "inventory_record": ["extract","normalize","classify","missing","structure"],
           "schedule_entry": ["extract","normalize","classify","missing","structure"],
-          "case_note": ["extract","normalize","classify","missing","structure"]
+          "case_note": ["extract","normalize","classify","missing","structure"],
+          "address_record": ["extract","normalize","classify","missing","structure"],
+          "booking_record": ["extract","normalize","classify","missing","structure"],
+          "product_record": ["extract","normalize","classify","missing","structure"],
+          "expense_record": ["extract","normalize","classify","missing","structure"],
+          "shipment_record": ["extract","normalize","classify","missing","structure"],
+          "calendar_record": ["extract","normalize","classify","missing","structure"],
+          "measurement_record": ["extract","normalize","classify","missing","structure"],
+          "bibliographic_record": ["extract","normalize","classify","missing","structure"]
         },
         "domainConstraints": {
           "receipt": ["schema_only","null_missing","preserve_value","single_label","traceable","valid_format"],
@@ -269,7 +303,15 @@
           "survey_response": ["schema_only","null_missing","preserve_value","single_label","traceable","valid_format"],
           "inventory_record": ["schema_only","null_missing","preserve_value","single_label","traceable","valid_format"],
           "schedule_entry": ["schema_only","null_missing","preserve_value","single_label","traceable","valid_format"],
-          "case_note": ["schema_only","null_missing","preserve_value","single_label","traceable","valid_format"]
+          "case_note": ["schema_only","null_missing","preserve_value","single_label","traceable","valid_format"],
+          "address_record": ["schema_only","null_missing","preserve_value","single_label","traceable","valid_format"],
+          "booking_record": ["schema_only","null_missing","preserve_value","single_label","traceable","valid_format"],
+          "product_record": ["schema_only","null_missing","preserve_value","single_label","traceable","valid_format"],
+          "expense_record": ["schema_only","null_missing","preserve_value","single_label","traceable","valid_format"],
+          "shipment_record": ["schema_only","null_missing","preserve_value","single_label","traceable","valid_format"],
+          "calendar_record": ["schema_only","null_missing","preserve_value","single_label","traceable","valid_format"],
+          "measurement_record": ["schema_only","null_missing","preserve_value","single_label","traceable","valid_format"],
+          "bibliographic_record": ["schema_only","null_missing","preserve_value","single_label","traceable","valid_format"]
         },
         "stateOutcomes": {
           "complete_unstructured": ["complete_fields","normalized","valid_class","valid_structure","traceable_values"],
@@ -399,7 +441,14 @@
         {"id":"instructions","label":"Instructions","subject":"a set of user instructions","context":"Order, prerequisites, warnings, and verification steps determine whether the instructions are usable."},
         {"id":"summary","label":"Summary","subject":"a draft summary","context":"The summary must preserve the source emphasis without carrying unnecessary detail."},
         {"id":"claim_evidence","label":"Claim and evidence note","subject":"a claim-and-evidence note","context":"Each claim should have proportionate support and unsupported interpretation must remain visible."},
-        {"id":"interface_copy","label":"Interface copy","subject":"a short interface message","context":"The text must orient the user, state the consequence, and offer a clear next action."}
+        {"id":"interface_copy","label":"Interface copy","subject":"a short interface message","context":"The text must orient the user, state the consequence, and offer a clear next action."},
+        {"id":"status_update","label":"Status update","subject":"a project status update","context":"Progress, blockers, dates, and confidence must use mutually consistent language."},
+        {"id":"survey_report","label":"Survey report","subject":"a short survey report","context":"Sample size, observed responses, and population-level claims require proportionate wording."},
+        {"id":"policy_notice","label":"Policy notice","subject":"a draft policy notice","context":"The operative rule, exception path, authority, and effective timing must be usable."},
+        {"id":"data_caption","label":"Data caption","subject":"a figure or table caption","context":"The metric, comparison, scope, and uncertainty must be visible without overstating the figure."},
+        {"id":"release_note","label":"Release note","subject":"a software release note draft","context":"Fixed issues, remaining limits, and compatibility claims require bounded wording."},
+        {"id":"support_macro","label":"Support reply template","subject":"a support reply template","context":"The response must distinguish a proposed check from a verified resolution."},
+        {"id":"risk_assessment","label":"Risk assessment","subject":"a short risk assessment","context":"Likelihood, impact, evidence, and mitigation must remain separate and reviewable."}
       ],
       "intents": [
         {"id":"identify","label":"identify the most important weakness","goalTemplate":"Identify the most important weakness in {subject}."},
@@ -452,7 +501,14 @@
           "instructions": ["identify","revise","consistency","evidence","prioritize"],
           "summary": ["identify","revise","consistency","evidence","prioritize"],
           "claim_evidence": ["identify","revise","consistency","evidence","prioritize"],
-          "interface_copy": ["identify","revise","consistency","evidence","prioritize"]
+          "interface_copy": ["identify","revise","consistency","evidence","prioritize"],
+          "status_update": ["identify","revise","consistency","evidence","prioritize"],
+          "survey_report": ["identify","revise","consistency","evidence","prioritize"],
+          "policy_notice": ["identify","revise","consistency","evidence","prioritize"],
+          "data_caption": ["identify","revise","consistency","evidence","prioritize"],
+          "release_note": ["identify","revise","consistency","evidence","prioritize"],
+          "support_macro": ["identify","revise","consistency","evidence","prioritize"],
+          "risk_assessment": ["identify","revise","consistency","evidence","prioritize"]
         },
         "domainConstraints": {
           "email_draft": ["specific","preserve_intent","no_invention","priority","actionable","proportionate"],
@@ -462,7 +518,14 @@
           "instructions": ["specific","preserve_intent","no_invention","priority","actionable","proportionate"],
           "summary": ["specific","preserve_intent","no_invention","priority","actionable","proportionate"],
           "claim_evidence": ["specific","preserve_intent","no_invention","priority","actionable","proportionate"],
-          "interface_copy": ["specific","preserve_intent","no_invention","priority","actionable","proportionate"]
+          "interface_copy": ["specific","preserve_intent","no_invention","priority","actionable","proportionate"],
+          "status_update": ["specific","preserve_intent","no_invention","priority","actionable","proportionate"],
+          "survey_report": ["specific","preserve_intent","no_invention","priority","actionable","proportionate"],
+          "policy_notice": ["specific","preserve_intent","no_invention","priority","actionable","proportionate"],
+          "data_caption": ["specific","preserve_intent","no_invention","priority","actionable","proportionate"],
+          "release_note": ["specific","preserve_intent","no_invention","priority","actionable","proportionate"],
+          "support_macro": ["specific","preserve_intent","no_invention","priority","actionable","proportionate"],
+          "risk_assessment": ["specific","preserve_intent","no_invention","priority","actionable","proportionate"]
         },
         "stateOutcomes": {
           "unclear": ["key_issue","improved_draft","consistent","ordered_fixes","reviewable_change"],

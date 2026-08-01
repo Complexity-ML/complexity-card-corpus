@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
+import pytest
 
 from complexity_card_corpus.build import CARD_SCHEMA, DOCUMENT_SCHEMA, RELATION_SCHEMA
 from complexity_card_corpus.sft import (
@@ -15,6 +16,8 @@ from complexity_card_corpus.sft import (
     load_heldout_evaluation,
     tokenize_instruction_dataset,
 )
+from complexity_card_corpus.sft.schema import INSTRUCTION_SCHEMA
+from complexity_card_corpus.sft.tokenization import _load_instruction_sources
 from complexity_card_corpus.sft.language import _inline_sentence
 from complexity_card_corpus.sft.projection import (
     _project_sft_conversation,
@@ -22,12 +25,16 @@ from complexity_card_corpus.sft.projection import (
 )
 from complexity_card_corpus.sft.selection import (
     _balance_task_families,
+    _deduplicate_exact_prompts,
     _deduplicate_exact_responses,
     _deduplicate_structural_rows,
     _normalized_structure,
 )
-from complexity_card_corpus.sft.target import _naturalize_assistant_target
-from complexity_card_corpus.training_cards import TrainingCards
+from complexity_card_corpus.sft.target import (
+    _apply_semantic_resolution,
+    _naturalize_assistant_target,
+)
+from complexity_card_corpus.training_cards import TrainingCards, deal_training_cards
 from complexity_card_corpus.chat_template import (
     CHAT_TEMPLATE_ID,
     render_system_prefix,
@@ -160,6 +167,110 @@ def test_original_instructions_are_deterministic_and_deck_split(tmp_path: Path) 
             assert json.loads(row["response"]) == json.loads(row["answer_json"])
 
 
+def test_supplementary_conversation_source_is_aliased_and_audited(
+    tmp_path: Path,
+) -> None:
+    corpus = tmp_path / "corpus"
+    _tiny_corpus(corpus)
+    build_instruction_dataset(corpus, tmp_path / "instructions")
+    primary = tmp_path / "instructions/instructions.parquet"
+    supplement_row = {
+        **pq.read_table(primary).to_pylist()[0],
+        "example_id": "conversation:supplement",
+        "task": "empathetic_dialogue",
+        "mode": "chat",
+        "messages": [
+            {"role": "user", "content": "I feel stuck after this setback."},
+            {"role": "assistant", "content": "That sounds discouraging."},
+            {"role": "user", "content": "I still want to try once more."},
+            {
+                "role": "assistant",
+                "content": "Choose one small next step and give yourself time to reassess.",
+            },
+        ],
+        "prompt": "I feel stuck after this setback.",
+        "response": "Choose one small next step and give yourself time to reassess.",
+        "rendered_text": "supplement dialogue",
+        "answer_json": json.dumps(
+            {"dialogue_stages": ["share_situation", "acknowledge_emotion"]}
+        ),
+    }
+    clarifying_empathy_row = {
+        **supplement_row,
+        "example_id": "conversation:empathetic-clarification",
+        "answer_json": json.dumps(
+            {
+                "dialogue_stages": [
+                    "share_situation",
+                    "acknowledge_emotion",
+                    "expand_feeling",
+                    "invite_detail_without_assumption",
+                ]
+            }
+        ),
+    }
+    planning_row = {
+        **supplement_row,
+        "example_id": "conversation:planning-supplement",
+        "task": "practical_dialogue",
+        "messages": [
+            {"role": "user", "content": "Help me compare the two available routes."},
+            {
+                "role": "assistant",
+                "content": "Compare the direct route with the quieter route before choosing.",
+            },
+        ],
+        "prompt": "Help me compare the two available routes.",
+        "response": "Compare the direct route with the quieter route before choosing.",
+        "rendered_text": "planning supplement dialogue",
+        "answer_json": json.dumps(
+            {"dialogue_stages": ["state_goal", "present_bounded_options"]}
+        ),
+    }
+    supplement = tmp_path / "supplement.parquet"
+    pq.write_table(
+        pa.Table.from_pylist(
+            [supplement_row, clarifying_empathy_row, planning_row],
+            schema=INSTRUCTION_SCHEMA,
+        ),
+        supplement,
+    )
+
+    rows, sources, combined_sha256 = _load_instruction_sources(
+        primary,
+        [supplement],
+    )
+
+    loaded = next(row for row in rows if row["example_id"] == "conversation:supplement")
+    assert loaded["task"] == "conversation_empathy"
+    clarified = next(
+        row
+        for row in rows
+        if row["example_id"] == "conversation:empathetic-clarification"
+    )
+    assert clarified["task"] == "context_clarification"
+    planned = next(
+        row for row in rows if row["example_id"] == "conversation:planning-supplement"
+    )
+    assert planned["task"] == "planning_comparison"
+    assert sources[1]["task_aliases"] == {
+        "empathetic_dialogue->context_clarification": 1,
+        "empathetic_dialogue->conversation_empathy": 1,
+        "practical_dialogue->planning_comparison": 1,
+    }
+    assert len(combined_sha256) == 64
+
+
+def test_instruction_sources_reject_duplicate_ids(tmp_path: Path) -> None:
+    corpus = tmp_path / "corpus"
+    _tiny_corpus(corpus)
+    build_instruction_dataset(corpus, tmp_path / "instructions")
+    primary = tmp_path / "instructions/instructions.parquet"
+
+    with pytest.raises(ValueError, match="duplicate id"):
+        _load_instruction_sources(primary, [primary])
+
+
 def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> None:
     tokenizer = Path("/Users/boris/Dev/complexity-framework/tokenizer-o200k")
     if not tokenizer.exists():
@@ -189,6 +300,14 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
     assert manifest["projected_parquet"]["examples"] == len(projected_rows)
     assert manifest["release_quality"]["checks"]["no_exact_duplicate_train_responses"]
     assert manifest["release_quality"]["exact_train_response_uniqueness_ratio"] == 1.0
+    assert manifest["release_quality"]["target_training_examples"] == 100_000
+    assert (
+        manifest["release_quality"]["checks"]["training_examples_at_least_100k"]
+        is False
+    )
+    assert "at_least_fourteen_training_families" in manifest["release_quality"][
+        "checks"
+    ]
     assert set(manifest["release_quality"]["response_length_bands"]) == {
         "direct_1_25",
         "short_26_45",
@@ -691,6 +810,30 @@ def test_exact_response_deduplication_keeps_one_deterministic_example() -> None:
     assert audit["exact_response_uniqueness_ratio"] == 1.0
 
 
+def test_exact_prompt_deduplication_keeps_one_deterministic_target() -> None:
+    rows = [
+        {
+            "example_id": "b",
+            "_projected_prompt": "Choose a route.",
+            "_projected_target": "Route B is viable.",
+        },
+        {
+            "example_id": "a",
+            "_projected_prompt": "Choose a route.",
+            "_projected_target": "Route A is viable.",
+        },
+        {
+            "example_id": "c",
+            "_projected_prompt": "Explain the route.",
+            "_projected_target": "It is direct.",
+        },
+    ]
+    kept, audit = _deduplicate_exact_prompts(rows)
+    assert [row["example_id"] for row in kept] == ["a", "c"]
+    assert audit["dropped_exact_prompt_duplicates"] == 1
+    assert audit["exact_prompt_uniqueness_ratio"] == 1.0
+
+
 def test_family_balance_caps_only_dominant_families() -> None:
     rows = [{"example_id": f"a-{index}", "task": "a"} for index in range(7)] + [
         {"example_id": f"b-{index}", "task": "b"} for index in range(2)
@@ -700,7 +843,7 @@ def test_family_balance_caps_only_dominant_families() -> None:
     assert audit["dropped_for_family_balance"] == 4
 
 
-def test_sft_projection_preserves_a_real_four_turn_conversation() -> None:
+def test_sft_projection_flattens_synthetic_dialogue_outside_clarification() -> None:
     messages = [
         {
             "role": "user",
@@ -722,6 +865,35 @@ def test_sft_projection_preserves_a_real_four_turn_conversation() -> None:
         task="writing_transformation",
         answer_json="{}",
     )
+    assert [message["role"] for message in projected] == ["user", "assistant"]
+    assert all(" CARD" not in message["content"] for message in projected)
+    assert "Hand " not in projected[-1]["content"]
+    assert "late" in projected[0]["content"].lower()
+    assert "concise follow-up" in projected[0]["content"].lower()
+
+
+def test_sft_projection_preserves_clarification_dialogue() -> None:
+    messages = [
+        {
+            "role": "user",
+            "content": "SITUATION CARD\nThe requested format is unclear.\n\nDATA CARD\nNo earlier example is available.",
+        },
+        {"role": "assistant", "content": "I can clarify it."},
+        {
+            "role": "user",
+            "content": "RULE CARD\nDo not guess the format.\n\nGOAL CARD\nAsk one focused question.",
+        },
+        {
+            "role": "assistant",
+            "content": "Understood: would you prefer a table or a short paragraph?",
+        },
+    ]
+    projected, _cards = _project_sft_conversation(
+        messages,
+        example_id="example:clarification-four-turn",
+        task="context_clarification",
+        answer_json="{}",
+    )
     assert [message["role"] for message in projected] == [
         "user",
         "assistant",
@@ -729,10 +901,28 @@ def test_sft_projection_preserves_a_real_four_turn_conversation() -> None:
         "assistant",
     ]
     assert all(" CARD" not in message["content"] for message in projected)
-    assert "Hand " not in projected[-1]["content"]
 
 
-def test_semantic_projection_uses_authored_cards_without_trace_ids() -> None:
+def test_sft_projection_preserves_genuine_non_card_dialogue() -> None:
+    messages = [
+        {"role": "user", "content": "I am nervous about tomorrow."},
+        {"role": "assistant", "content": "That reaction makes sense."},
+        {"role": "user", "content": "What is one manageable step?"},
+        {
+            "role": "assistant",
+            "content": "Write down the first task and prepare only what it requires.",
+        },
+    ]
+    projected, _cards = _project_sft_conversation(
+        messages,
+        example_id="conversation:genuine",
+        task="conversation_empathy",
+        answer_json="{}",
+    )
+    assert projected == messages
+
+
+def test_semantic_projection_does_not_append_generic_resolution() -> None:
     messages = [
         {"role": "user", "content": "Explain the result."},
         {
@@ -756,11 +946,83 @@ def test_semantic_projection_uses_authored_cards_without_trace_ids() -> None:
         task="reasoning_verification",
         answer_json=json.dumps(metadata),
     )
-    assert "candidate answer" in target.lower()
-    assert "second simple check" in target.lower()
-    assert "second method" in target.lower()
+    assert target == "The total is 12 because three groups of four make 12."
+    assert "candidate answer" not in target.lower()
+    assert "return to a smaller" not in target.lower()
     assert "do-not-surface" not in target
     assert "scenario:" not in target
+
+
+def test_semantic_resolution_is_a_compatibility_noop() -> None:
+    target = "Paris is the capital of France."
+    assert _apply_semantic_resolution(
+        target,
+        task="grounded_qa",
+        metadata={
+            "scenario_id": "scenario:legacy",
+            "subject": "France",
+            "surface_intent": "answer the question",
+            "source_state": "The source is available.",
+            "source_constraint": "Use only the source.",
+            "fallback_surface": "Return to a smaller causal model.",
+            "desired_outcome": "The answer is established.",
+            "variant": 3,
+        },
+        example_id="example:legacy",
+    ) == target
+
+
+def test_practical_surface_projection_removes_internal_control_colons() -> None:
+    messages = [
+        {"role": "user", "content": "Help me organize four coffee orders."},
+        {
+            "role": "assistant",
+            "content": (
+                "Use this choice: use a written list with one name per drink. "
+                "Then complete the concrete next step: read back each order."
+            ),
+        },
+    ]
+    target = _naturalize_assistant_target(
+        messages,
+        task="practical_action",
+        cards=deal_training_cards(
+            task="practical_action",
+            mode="instruct",
+            example_id="conversation:coffee",
+        ),
+        example_id="conversation:coffee",
+    )
+    assert target == (
+        "Use this choice. Use a written list with one name per drink. "
+        "Then read back each order."
+    )
+    assert "next step:" not in target.lower()
+
+
+def test_reasoning_projection_preserves_single_letter_variable_a() -> None:
+    messages = [
+        {"role": "user", "content": "Verify the slot calculation."},
+        {
+            "role": "assistant",
+            "content": (
+                "Equation: (6 - 1) + 4 = 9. Total: 9. "
+                "Check: A occupies slot 5, immediately before B at slot 6."
+            ),
+        },
+    ]
+    target = _naturalize_assistant_target(
+        messages,
+        task="reasoning_verification",
+        cards=deal_training_cards(
+            task="reasoning_verification",
+            mode="instruct",
+            example_id="reasoning:variables",
+        ),
+        example_id="reasoning:variables",
+    )
+    assert "An occupies" not in correct_indefinite_articles(target)
+    assert "slot 5 is occupied by A" in target
 
 
 def test_heldout_evaluation_is_separately_authored() -> None:
@@ -836,17 +1098,27 @@ def test_tokenization_replaces_generated_validation_with_heldout(
         tmp_path / "tokenized",
         heldout_evaluation_path=Path("data/evaluation/generalist-heldout-v2.json"),
     )
-    assert manifest["partitions"]["eval"]["examples"] == 700
+    assert manifest["partitions"]["eval"]["examples"] == 28
     assert manifest["train_eval_structure_overlap"] == 0
-    assert manifest["heldout_evaluation"]["method"] == "mixed_source_separated"
+    assert manifest["heldout_evaluation"]["method"] == (
+        "separately_authored_gold_with_diagnostic_companion"
+    )
     assert manifest["heldout_evaluation"]["provenance_counts"] == {
         "separately_authored": 28,
         "source_separated_diagnostic": 672,
     }
     projected_rows = pq.read_table(tmp_path / "tokenized/projected.parquet").to_pylist()
     validation_rows = [row for row in projected_rows if row["split"] == "validation"]
-    assert len(validation_rows) == 700
+    assert len(validation_rows) == 28
     assert all(row["example_id"].startswith("heldout:") for row in validation_rows)
+    assert all(
+        json.loads(row["answer_json"])["evaluation_source"]
+        == "separately_authored"
+        for row in load_heldout_evaluation(
+            Path("data/evaluation/generalist-heldout-v2.json")
+        )
+        if row["example_id"] in {item["example_id"] for item in validation_rows}
+    )
     eval_ids = {
         json.loads(line)["example_id"]
         for line in (tmp_path / "tokenized/eval/examples.jsonl")

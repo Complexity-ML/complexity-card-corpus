@@ -63,3 +63,17 @@ def test_scenario_forge_registry_is_complexity_original() -> None:
     )
     assert scenario_registry["metadata"]["license"] == "CC BY-NC 4.0"
     assert scenario_registry["metadata"]["source"].startswith("Complexity original")
+
+
+def test_post_training_registry_does_not_include_fantasy_card_collections() -> None:
+    registry = json.loads(
+        (ROOT / "data/scenario-forge/scenario-forge-v1.json").read_text()
+    )
+    serialized = json.dumps(registry).lower()
+    for dataset_id in (
+        "aethoria-v1",
+        "aethoria-grand-archive-v1",
+        "prismwilds-v1",
+        "prismwilds-grand-codex-v1",
+    ):
+        assert dataset_id not in serialized

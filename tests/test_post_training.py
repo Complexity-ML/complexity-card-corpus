@@ -15,6 +15,7 @@ from complexity_card_corpus.posttrain import (
     REVIEW_GRADES,
     audit_human_review,
     build_post_training_corpus,
+    required_distinct_surfaces_per_source_card,
 )
 from complexity_card_corpus.posttrain.constants import (
     _FORBIDDEN_ASSISTANT_META_PHRASES,
@@ -25,12 +26,35 @@ from complexity_card_corpus.posttrain.rendering import (
     _apply_vocabulary_placements,
     _intent_for_subject,
 )
-from complexity_card_corpus.scenarios import build_scenario_forge
+from complexity_card_corpus.scenarios import (
+    build_scenario_forge,
+    compile_scenarios,
+    load_scenario_registry,
+)
 from complexity_card_corpus.tasks import deal_task_hand
+from complexity_card_corpus.tasks.core import DealtCard, LinkedSubcardDeck, SubcardPool
 
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "data/scenario-forge/scenario-forge-v1.json"
+
+
+def test_linked_subcard_deck_never_walks_an_incompatible_edge() -> None:
+    deck = LinkedSubcardDeck(
+        pools=(
+            SubcardPool("input", ("A", "B")),
+            SubcardPool("rule", ("A-rule", "B-rule")),
+            SubcardPool("result", ("A-result", "B-result")),
+        ),
+        links=(((0, 0), (1, 1)), ((0, 0), (1, 1))),
+    )
+    assert deck.pool_names == ("input", "rule", "result")
+    row = {"scenario_id": "scenario:linked-subcards"}
+    paths = {deck.deal(row, variant, "linked-test") for variant in range(64)}
+    assert paths == {
+        ("A", "A-rule", "A-result"),
+        ("B", "B-rule", "B-result"),
+    }
 
 
 def test_vocabulary_overflow_uses_compatible_capacity_without_dropping_words() -> None:
@@ -102,6 +126,102 @@ def test_task_cards_do_not_invent_missing_trial_outcomes() -> None:
     assert "three of five" in hand.data.lower()
     assert "unrecorded" not in hand.answer.lower()
     assert "does not establish" in hand.answer.lower()
+
+
+def test_every_registered_domain_deals_a_valid_task_hand() -> None:
+    registry = load_scenario_registry(REGISTRY)
+    scenarios = compile_scenarios(registry)
+    representatives: dict[tuple[str, str], dict] = {}
+    for scenario in scenarios:
+        representatives.setdefault(
+            (scenario["family"], scenario["domain"]),
+            scenario,
+        )
+
+    expected_pairs = {
+        (family.family_id, domain.domain_id)
+        for family in registry.families
+        for domain in family.domains
+    }
+    assert set(representatives) == expected_pairs
+    assert len(representatives) >= 100
+    for pair, scenario in representatives.items():
+        for variant in range(4):
+            hand = deal_task_hand(scenario, variant)
+            assert hand.data.strip(), pair
+            assert hand.goal.strip(), pair
+            assert hand.answer.strip(), pair
+            assert hand.contract, pair
+            for layer in (hand.data, hand.goal, hand.answer):
+                assert isinstance(layer, DealtCard), (pair, layer)
+                assert layer.deck_name
+                assert layer.deck_lineage[0] == layer.deck_name
+                assert layer.pool_names
+                for topology in layer.deck_topologies:
+                    assert len(topology.pool_sizes) == len(topology.pool_names)
+                    assert all(size >= 1 for size in topology.pool_sizes)
+                assert len(layer.compatibility_links) == len(layer.pool_names) - 1
+            if pair[0] != "extraction_classification":
+                assert len(hand.answer.deck_lineage) >= 2
+
+
+def test_every_family_answer_deck_has_deep_generalist_reservoirs() -> None:
+    registry = load_scenario_registry(REGISTRY)
+    scenarios = compile_scenarios(registry)
+    representatives: dict[tuple[str, str], dict] = {}
+    for scenario in scenarios:
+        representatives.setdefault(
+            (scenario["family"], scenario["domain"]),
+            scenario,
+        )
+
+    covered_families: set[str] = set()
+    for (family, _domain), scenario in representatives.items():
+        answer = deal_task_hand(scenario, 0).answer
+        semantic_decks = tuple(
+            topology
+            for topology in answer.deck_topologies
+            if not topology.name.endswith("-surface")
+        )
+        assert semantic_decks, family
+        for topology in semantic_decks:
+            assert all(size >= 3 for size in topology.pool_sizes), (
+                family,
+                topology.name,
+                dict(zip(topology.pool_names, topology.pool_sizes, strict=True)),
+            )
+        covered_families.add(family)
+
+    assert covered_families == {family.family_id for family in registry.families}
+
+
+def test_every_family_composes_task_hands_from_independent_card_decks() -> None:
+    registry = load_scenario_registry(REGISTRY)
+    for family in registry.families:
+        for domain in family.domains:
+            row = _task_row(family.family_id, domain.domain_id)
+            hands = [deal_task_hand(row, variant) for variant in range(64)]
+            data_cards = {hand.data for hand in hands}
+            goal_cards = {hand.goal for hand in hands}
+            surfaces = {(hand.data, hand.goal, hand.answer) for hand in hands}
+            assert len(data_cards) >= 3, (
+                family.family_id,
+                domain.domain_id,
+                "data",
+                len(data_cards),
+            )
+            assert len(goal_cards) >= 3, (
+                family.family_id,
+                domain.domain_id,
+                "goal",
+                len(goal_cards),
+            )
+            assert len(surfaces) >= 12, (
+                family.family_id,
+                domain.domain_id,
+                "full_hand",
+                len(surfaces),
+            )
 
 
 def test_email_critique_does_not_invent_revision_details() -> None:
@@ -313,7 +433,14 @@ def test_troubleshooting_uses_a_concrete_reversible_step_for_each_domain() -> No
         hand = deal_task_hand(_task_row("troubleshooting", domain), 0)
         assert phrase in hand.answer.lower()
         assert "Reverse only the recorded change" not in hand.answer
-        assert "If either check fails" in hand.answer
+        assert any(
+            marker in hand.answer
+            for marker in (
+                "If either check fails",
+                "If the direct or regression result is negative",
+                "Do not widen the change after a failed check",
+            )
+        )
 
 
 def test_clarification_uses_the_hand_code_once() -> None:
@@ -501,6 +628,10 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
     assert result["audit"]["exact_final_response_uniqueness_ratio"] == 1.0
     assert result["audit"]["model_generated_dialogue_rows"] == 0
     assert result["audit"]["single_state_and_constraint_ratio"] == 1.0
+    card_game = result["audit"]["card_game"]
+    assert card_game["all_hands_have_linked_deck_topology"] is True
+    assert card_game["all_semantic_answer_reservoirs_have_three_subcards"] is True
+    assert card_game["minimum_semantic_answer_pool_size"] >= 3
     assert result["audit"]["natural_language_gate"] == {
         "assistant_meta_instruction_hits": 0,
         "user_meta_request_hits": 0,
@@ -559,6 +690,23 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
         metrics["maximum_masked_template_share"] < 0.20
         for metrics in result["audit"]["family_metrics"].values()
     )
+    scale = result["audit"]["scale_100k"]
+    assert required_distinct_surfaces_per_source_card(15_000) == 7
+    assert scale["target_rows"] == 100_000
+    assert scale["source_cards"] == 15_000
+    assert scale["required_distinct_surfaces_per_source_card"] == 7
+    assert scale["configured_variants_per_source_card"] == 2
+    assert scale["configured_pre_deduplication_ceiling"] == 30_000
+    assert scale["configured_variant_shortfall"] == 5
+    assert scale["planned_distinct_surfaces_per_source_card"] == 8
+    assert scale["planned_pre_deduplication_ceiling"] == 120_000
+    assert scale["planned_capacity_exceeds_target"] is True
+    assert scale["current_configuration_can_reach_target"] is False
+    assert scale["target_generated"] is False
+    assert scale["release_target_ready"] is False
+    assert scale["claim_scope"].startswith("capacity contract only")
+    assert scale["static_surface_hotspots"] == []
+    assert scale["quality_gates"]["family_template_concentration"] is True
 
     source_splits: dict[str, set[str]] = {}
     for row in rows:

@@ -66,6 +66,11 @@ def _naturalize_assistant_target(
                 fields["Check"],
                 flags=re.IGNORECASE,
             )
+            check = re.sub(
+                r"\bA occupies slot (\d+), immediately before B at slot (\d+)",
+                r"slot \1 is occupied by A, immediately before B at slot \2",
+                check,
+            )
             templates = (
                 "{equation}, so the result is {total}. As an independent check, {check}.",
                 "The result is {total}: {equation}. This is consistent because {check}.",
@@ -181,6 +186,28 @@ def _naturalize_assistant_target(
                 owner=owner,
                 timing=timing,
             )
+        direct = re.sub(
+            r"\bKeep the rationale attached to the action:\s*([a-z])",
+            lambda match: (
+                "Keep the rationale attached to this choice. "
+                + match.group(1).upper()
+            ),
+            response,
+            flags=re.IGNORECASE,
+        )
+        direct = re.sub(
+            r"\bUse this choice:\s*([a-z])",
+            lambda match: "Use this choice. " + match.group(1).upper(),
+            direct,
+            flags=re.IGNORECASE,
+        )
+        direct = re.sub(
+            r"\bThen complete the concrete next step:\s*",
+            "Then ",
+            direct,
+            flags=re.IGNORECASE,
+        )
+        return direct
     elif task == "context_clarification":
         fields = _labelled_fields(response, ("Understood",))
         if fields:
@@ -298,83 +325,15 @@ def _apply_semantic_resolution(
     metadata: dict[str, Any],
     example_id: str,
 ) -> str:
-    """Ground a generated answer in the scenario's authored semantic cards.
+    """Retain the direct authored answer without generic resolution prose.
 
-    Scenario Forge deliberately varies intent, state, boundary, fallback and
-    success condition. Earlier SFT projection discarded those distinctions and
-    retained only the domain renderer's answer, which made many otherwise
-    different scenarios collapse to the same target. This projection turns the
-    authored distinctions into ordinary prose. It never uses scenario IDs,
-    hashes or lexical trace labels to manufacture uniqueness.
+    This hook remains for API compatibility with earlier corpus releases.
+    Scenario state, constraints and outcomes already condition the prompt and
+    the family renderer. Appending them again taught the small model a repeated
+    fallback paragraph and sometimes contradicted an answer that was already
+    complete. Metadata remains available for audits, but no longer mutates the
+    model-facing target here.
     """
 
-    strict_output_tasks = {"extraction_classification"}
-    if task in strict_output_tasks or not metadata.get("scenario_id"):
-        return target
-    required = (
-        "subject",
-        "surface_intent",
-        "source_state",
-        "source_constraint",
-        "fallback_surface",
-        "desired_outcome",
-    )
-    if any(not str(metadata.get(name, "")).strip() for name in required):
-        return target
-
-    source_variant = int(metadata.get("variant", 0)) % 4
-    if source_variant == 0:
-        return target
-
-    state = _sentence(str(metadata["source_state"]))
-    constraint = _sentence(str(metadata["source_constraint"]))
-    fallback = _sentence(str(metadata["fallback_surface"]))
-    outcome = _sentence(str(metadata["desired_outcome"]))
-    # These clauses come from authored scenario fields. Keep them as complete
-    # sentences instead of joining noun phrases with generic scaffolding such
-    # as "the result should leave ...". The latter was grammatically fragile
-    # and taught a visible house style rather than natural answers.
-    full_templates = (
-        (
-            "{state} {constraint} {outcome} If the main path remains blocked, "
-            "{inline_fallback}"
-        ),
-        (
-            "{constraint} {state} If the decisive condition is still missing, "
-            "{inline_fallback} {outcome}"
-        ),
-        ("{state} {outcome} {constraint} Otherwise, {inline_fallback}"),
-        (
-            "{constraint} {outcome} If that cannot be justified, "
-            "{inline_fallback} {state}"
-        ),
-    )
-    if source_variant == 1:
-        short_templates = (
-            "{state} If that condition still blocks progress, {inline_fallback}",
-            "{state} If it remains unresolved, {inline_fallback}",
-        )
-        template = short_templates[
-            _stable_index(f"short-resolution:{example_id}", len(short_templates))
-        ]
-    elif source_variant == 2:
-        standard_templates = (
-            "{constraint} {outcome} If that cannot be established, {inline_fallback}",
-            "{outcome} {constraint} If the decisive condition remains unresolved, "
-            "{inline_fallback}",
-        )
-        template = standard_templates[
-            _stable_index(f"standard-resolution:{example_id}", len(standard_templates))
-        ]
-    else:
-        template = full_templates[
-            _stable_index(f"full-resolution:{example_id}", len(full_templates))
-        ]
-    resolution = template.format(
-        state=state,
-        constraint=constraint,
-        fallback=fallback,
-        inline_fallback=_inline_sentence(fallback).rstrip(".!?"),
-        outcome=outcome,
-    )
-    return f"{target.rstrip()}\n\n{_sentence(resolution)}"
+    del task, metadata, example_id
+    return target

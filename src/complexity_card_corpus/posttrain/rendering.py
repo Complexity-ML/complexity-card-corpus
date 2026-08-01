@@ -9,6 +9,7 @@ from typing import Any
 
 from ..english_morphology import correct_indefinite_articles
 from ..tasks import TaskHand, deal_task_hand
+from ..tasks.core import DealtCard
 from .constants import (
     DATASET_ID,
     DATASET_LICENSE,
@@ -120,6 +121,21 @@ def _render_transcript(messages: list[dict[str, str]]) -> str:
     )
 
 
+def _deck_topology(card: str) -> list[dict[str, Any]]:
+    """Expose compact deck provenance without copying every compatibility edge."""
+    if not isinstance(card, DealtCard):
+        raise ValueError("task cards must be dealt from a linked subcard deck")
+    return [
+        {
+            "deck": topology.name,
+            "pools": list(topology.pool_names),
+            "pool_sizes": list(topology.pool_sizes),
+            "link_counts": list(topology.link_counts),
+        }
+        for topology in card.deck_topologies
+    ]
+
+
 def _conversation_rows(
     scenarios: list[dict[str, Any]],
     variants_per_scenario: int,
@@ -161,6 +177,11 @@ def _conversation_rows(
                 "card_hand": {
                     "cards": ["situation", "data", "rule", "goal"],
                     "completion_contract": list(hand.contract),
+                    "deck_topology": {
+                        "data": _deck_topology(hand.data),
+                        "goal": _deck_topology(hand.goal),
+                        "answer": _deck_topology(hand.answer),
+                    },
                 },
                 "model_generated_dialogue": False,
                 "lexical_focus": scenario.get("lexical_focus", ""),

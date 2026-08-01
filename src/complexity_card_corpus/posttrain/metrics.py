@@ -295,6 +295,11 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
         )
 
     card_contracts: dict[str, set[tuple[str, ...]]] = defaultdict(set)
+    answer_deck_graphs: dict[
+        str,
+        set[tuple[str, tuple[str, ...], tuple[int, ...], tuple[int, ...]]],
+    ] = defaultdict(set)
+    semantic_answer_pool_sizes: list[int] = []
     for answer in answers:
         card_hand = answer.get("card_hand")
         if not isinstance(card_hand, dict):
@@ -305,6 +310,40 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
         if not contract:
             raise ValueError("post-training card hand has an empty completion contract")
         card_contracts[answer["family"]].add(contract)
+        topology = card_hand.get("deck_topology")
+        if not isinstance(topology, dict) or set(topology) != {
+            "data",
+            "goal",
+            "answer",
+        }:
+            raise ValueError("post-training card hand is missing linked-deck topology")
+        for layer, graphs in topology.items():
+            if not isinstance(graphs, list) or not graphs:
+                raise ValueError(f"{layer} must retain at least one deck graph")
+            for graph in graphs:
+                pools = tuple(graph.get("pools", ()))
+                pool_sizes = tuple(graph.get("pool_sizes", ()))
+                link_counts = tuple(graph.get("link_counts", ()))
+                if not graph.get("deck") or not pools:
+                    raise ValueError(f"{layer} deck graph is incomplete")
+                if len(pool_sizes) != len(pools) or any(
+                    size < 1 for size in pool_sizes
+                ):
+                    raise ValueError(f"{layer} deck graph has an empty or unsized pool")
+                if len(link_counts) != len(pools) - 1 or any(
+                    count <= 0 for count in link_counts
+                ):
+                    raise ValueError(f"{layer} deck graph has broken pool links")
+                if layer == "answer":
+                    if not graph["deck"].endswith("-surface"):
+                        if any(size < 3 for size in pool_sizes):
+                            raise ValueError(
+                                f"{graph['deck']} has a shallow semantic reservoir"
+                            )
+                        semantic_answer_pool_sizes.extend(pool_sizes)
+                    answer_deck_graphs[answer["family"]].add(
+                        (graph["deck"], pools, pool_sizes, link_counts)
+                    )
     if set(card_contracts) != set(_INTENT_FIELD):
         raise ValueError("post-training card hands do not cover all task families")
 
@@ -387,12 +426,28 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "duplicate_final_response_rows": len(responses) - len(set(responses)),
         "card_game": {
             "cards_per_hand": ["situation", "data", "rule", "goal"],
+            "linked_deck_layers": ["data", "goal", "answer"],
             "families": len(card_contracts),
             "family_completion_contracts": {
                 family: [list(contract) for contract in sorted(contracts)]
                 for family, contracts in sorted(card_contracts.items())
             },
             "all_hands_have_non_empty_contract": True,
+            "all_hands_have_linked_deck_topology": True,
+            "all_semantic_answer_reservoirs_have_three_subcards": True,
+            "minimum_semantic_answer_pool_size": min(semantic_answer_pool_sizes),
+            "family_answer_deck_graphs": {
+                family: [
+                    {
+                        "deck": deck,
+                        "pools": list(pools),
+                        "pool_sizes": list(pool_sizes),
+                        "link_counts": list(link_counts),
+                    }
+                    for deck, pools, pool_sizes, link_counts in sorted(graphs)
+                ]
+                for family, graphs in sorted(answer_deck_graphs.items())
+            },
         },
         "model_generated_dialogue_rows": sum(
             bool(answer["model_generated_dialogue"]) for answer in answers

@@ -1,4 +1,26 @@
+from complexity_card_corpus.card_staticity import audit_card_staticity
+from complexity_card_corpus.posttrain import (
+    required_distinct_surfaces_per_source_card,
+)
 from complexity_card_corpus.training_cards import deal_training_cards
+
+
+TASKS = (
+    "brainstorming_creativity",
+    "context_clarification",
+    "conversation_empathy",
+    "critique_revision",
+    "explanation_learning",
+    "extraction_classification",
+    "grounded_qa",
+    "planning_comparison",
+    "practical_action",
+    "reasoning_verification",
+    "safety_uncertainty",
+    "summarization_synthesis",
+    "troubleshooting",
+    "writing_transformation",
+)
 
 
 def test_training_cards_are_deterministic_and_complete() -> None:
@@ -85,3 +107,40 @@ def test_chat_and_instruct_use_different_dialogue_decks() -> None:
         "continued_request",
     }
     assert instruct.isdisjoint(chat)
+
+
+def test_each_family_has_far_more_than_the_seven_surfaces_needed_for_100k() -> None:
+    assert required_distinct_surfaces_per_source_card(15_000) == 7
+    for task in TASKS:
+        hands = {
+            tuple(
+                deal_training_cards(
+                    task=task,
+                    mode="instruct" if index % 2 == 0 else "chat",
+                    example_id=f"scale:{task}:{index}",
+                    metadata={"risk_level": "low"},
+                ).as_dict().items()
+            )
+            for index in range(256)
+        }
+        assert len(hands) >= 100, (task, len(hands))
+
+
+def test_training_card_staticity_is_measured_without_ids_or_rendered_text() -> None:
+    hands = [
+        deal_training_cards(
+            task=TASKS[index % len(TASKS)],
+            mode="instruct" if index % 2 == 0 else "chat",
+            example_id=f"scenario:{index:05d}",
+            metadata={"risk_level": ("low", "medium", "high")[index % 3]},
+        ).as_dict()
+        for index in range(15_000)
+    ]
+    audit = audit_card_staticity(hands)
+
+    assert audit["hands"] == 15_000
+    assert audit["unique_hands"] >= 1_000
+    assert audit["maximum_hand_share"] < 0.005
+    for axis in ("surface", "dialogue_state", "style", "context_density", "noise"):
+        assert audit["axes"][axis]["unique_values"] >= 2
+        assert audit["axes"][axis]["normalized_entropy"] > 0.45

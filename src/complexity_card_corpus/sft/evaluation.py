@@ -88,6 +88,8 @@ _FORBIDDEN_SFT_TARGET_PHRASES = (
     "the response should",
     "the final review should",
     "treat the task as complete",
+    "if that cannot be established",
+    "return to a smaller causal model",
 )
 
 

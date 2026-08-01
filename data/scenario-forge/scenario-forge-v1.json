@@ -131,7 +131,13 @@
         {"id":"mathematics","label":"Mathematics","subject":"a mathematical relationship","context":"The explanation should connect notation, intuition, and one worked example."},
         {"id":"personal_finance","label":"Personal finance literacy","subject":"a personal-finance concept","context":"The material is educational and must not become individualized financial advice.","riskLevel":"medium"},
         {"id":"civics","label":"Civics","subject":"a civic process","context":"Roles, procedure, and jurisdiction need to remain distinct."},
-        {"id":"media_literacy","label":"Media literacy","subject":"a media-verification concept","context":"Evidence quality and uncertainty matter more than a quick verdict."}
+        {"id":"media_literacy","label":"Media literacy","subject":"a media-verification concept","context":"Evidence quality and uncertainty matter more than a quick verdict."},
+        {"id":"probability","label":"Probability","subject":"a basic probability relationship","context":"Possible outcomes, independence, and mutual exclusion need distinct examples."},
+        {"id":"ecology","label":"Ecology","subject":"an ecological energy-flow principle","context":"Matter cycling and energy transfer must not be described as the same process."},
+        {"id":"electrical_energy","label":"Electrical energy","subject":"a power-and-energy relationship","context":"Power is a rate while energy accumulates over time."},
+        {"id":"language_grammar","label":"Language grammar","subject":"a sentence-role distinction","context":"Form, grammatical role, and meaning should be connected through one clear example."},
+        {"id":"computer_networks","label":"Computer networks","subject":"a name-resolution mechanism","context":"Human-readable names and network addresses play different roles in a connection."},
+        {"id":"research_methods","label":"Research methods","subject":"a correlation-and-causation distinction","context":"Association, temporal order, confounding, and intervention evidence must remain separate."}
       ],
       "intents": [
         {"id":"mechanism","label":"explain the core mechanism","goalTemplate":"Explain the core mechanism behind {subject}."},
@@ -182,7 +188,13 @@
           "mathematics": ["mechanism","contrast","worked_example","misconception","application"],
           "personal_finance": ["mechanism","contrast","worked_example","misconception","application"],
           "civics": ["mechanism","contrast","worked_example","misconception","application"],
-          "media_literacy": ["mechanism","contrast","worked_example","misconception","application"]
+          "media_literacy": ["mechanism","contrast","worked_example","misconception","application"],
+          "probability": ["mechanism","contrast","worked_example","misconception","application"],
+          "ecology": ["mechanism","contrast","worked_example","misconception","application"],
+          "electrical_energy": ["mechanism","contrast","worked_example","misconception","application"],
+          "language_grammar": ["mechanism","contrast","worked_example","misconception","application"],
+          "computer_networks": ["mechanism","contrast","worked_example","misconception","application"],
+          "research_methods": ["mechanism","contrast","worked_example","misconception","application"]
         },
         "domainConstraints": {
           "computing": ["beginner","concise","verified","example"],
@@ -193,7 +205,13 @@
           "mathematics": ["beginner","concise","verified","example"],
           "personal_finance": ["beginner","concise","verified","example","fact_inference"],
           "civics": ["beginner","concise","verified","example","fact_inference"],
-          "media_literacy": ["beginner","concise","verified","example","fact_inference"]
+          "media_literacy": ["beginner","concise","verified","example","fact_inference"],
+          "probability": ["beginner","concise","verified","example"],
+          "ecology": ["beginner","concise","verified","example","fact_inference"],
+          "electrical_energy": ["beginner","concise","verified","example"],
+          "language_grammar": ["beginner","concise","verified","example"],
+          "computer_networks": ["beginner","concise","verified","example"],
+          "research_methods": ["beginner","concise","verified","example","fact_inference"]
         },
         "stateOutcomes": {
           "unfamiliar": ["mental_model","distinguish","predict"],
@@ -224,7 +242,15 @@
         {"id":"file_sync","label":"File synchronization","subject":"a file synchronization mismatch","context":"Local and remote copies may diverge, so destructive overwrite is unsafe."},
         {"id":"peripheral","label":"Device peripheral","subject":"an unresponsive peripheral","context":"Power, physical connection, permissions, and driver state are distinct checks."},
         {"id":"web_form","label":"Web form","subject":"a web-form submission failure","context":"Validation, session state, browser behavior, and server response can fail independently."},
-        {"id":"data_pipeline","label":"Data pipeline","subject":"a data-pipeline failure","context":"Inputs, schema, transformation, and destination must be checked at explicit boundaries."}
+        {"id":"data_pipeline","label":"Data pipeline","subject":"a data-pipeline failure","context":"Inputs, schema, transformation, and destination must be checked at explicit boundaries."},
+        {"id":"audio_output","label":"Audio output","subject":"a silent audio output","context":"Application volume, selected output, physical connection, and device state are separate checks."},
+        {"id":"printer_queue","label":"Printer queue","subject":"a stalled print job","context":"Document rendering, queue state, connectivity, and printer status should be isolated without losing the document."},
+        {"id":"account_login","label":"Account login","subject":"an account login failure","context":"Identifier, credential state, second-factor delivery, and service availability can fail independently."},
+        {"id":"storage_space","label":"Storage space","subject":"an unexpected low-storage warning","context":"Temporary files, user files, snapshots, and reported free space require non-destructive inspection."},
+        {"id":"battery_charging","label":"Battery charging","subject":"a device that is not charging","context":"Power source, cable, connector, temperature, and battery state form separate diagnostic boundaries."},
+        {"id":"browser_session","label":"Browser session","subject":"a browser session failure","context":"Cached state, extensions, profile data, and the remote service should be tested separately."},
+        {"id":"email_delivery","label":"Email delivery","subject":"a delayed email message","context":"Outbox state, recipient address, server acceptance, and downstream delivery are distinct stages."},
+        {"id":"spreadsheet_formula","label":"Spreadsheet formula","subject":"an incorrect spreadsheet result","context":"Inputs, cell references, formula logic, and formatting must be checked without overwriting source values."}
       ],
       "intents": [
         {"id":"diagnose","label":"isolate the failing boundary","goalTemplate":"Isolate the failing boundary in {subject}."},
@@ -272,7 +298,15 @@
           "file_sync": ["diagnose","reproduce","recover","verify_fix","prevent"],
           "peripheral": ["diagnose","reproduce","recover","verify_fix","prevent"],
           "web_form": ["diagnose","reproduce","recover","verify_fix","prevent"],
-          "data_pipeline": ["diagnose","reproduce","recover","verify_fix","prevent"]
+          "data_pipeline": ["diagnose","reproduce","recover","verify_fix","prevent"],
+          "audio_output": ["diagnose","reproduce","recover","verify_fix","prevent"],
+          "printer_queue": ["diagnose","reproduce","recover","verify_fix","prevent"],
+          "account_login": ["diagnose","reproduce","recover","verify_fix","prevent"],
+          "storage_space": ["diagnose","reproduce","recover","verify_fix","prevent"],
+          "battery_charging": ["diagnose","reproduce","recover","verify_fix","prevent"],
+          "browser_session": ["diagnose","reproduce","recover","verify_fix","prevent"],
+          "email_delivery": ["diagnose","reproduce","recover","verify_fix","prevent"],
+          "spreadsheet_formula": ["diagnose","reproduce","recover","verify_fix","prevent"]
         },
         "domainConstraints": {
           "software_install": ["one_change","limited_access","short_window","reversible_steps"],
@@ -280,7 +314,15 @@
           "file_sync": ["no_data_loss","one_change","limited_access","reversible_steps"],
           "peripheral": ["one_change","limited_access","short_window","reversible_steps"],
           "web_form": ["no_data_loss","one_change","limited_access","reversible_steps"],
-          "data_pipeline": ["no_data_loss","one_change","short_window","reversible_steps"]
+          "data_pipeline": ["no_data_loss","one_change","short_window","reversible_steps"],
+          "audio_output": ["one_change","limited_access","short_window","reversible_steps"],
+          "printer_queue": ["no_data_loss","one_change","limited_access","reversible_steps"],
+          "account_login": ["no_data_loss","one_change","limited_access","reversible_steps"],
+          "storage_space": ["no_data_loss","one_change","limited_access","reversible_steps"],
+          "battery_charging": ["one_change","limited_access","short_window","reversible_steps"],
+          "browser_session": ["no_data_loss","one_change","limited_access","reversible_steps"],
+          "email_delivery": ["no_data_loss","one_change","short_window","reversible_steps"],
+          "spreadsheet_formula": ["no_data_loss","one_change","limited_access","reversible_steps"]
         },
         "stateOutcomes": {
           "intermittent": ["fault_domain","minimal_repro","validated_fix","runbook"],
@@ -309,7 +351,14 @@
         {"id":"project_update","label":"Project update","subject":"a project status update","context":"Progress, evidence, blockers, and ownership should be easy to scan."},
         {"id":"support_reply","label":"Support reply","subject":"a customer-support response","context":"The issue needs acknowledgment without any claim of an unverified resolution."},
         {"id":"meeting_notes","label":"Meeting notes","subject":"a set of meeting notes","context":"Decisions, open questions, and actions need separation."},
-        {"id":"technical_explanation","label":"Technical explanation","subject":"a short technical explanation","context":"Accuracy and reader orientation matter more than decorative jargon."}
+        {"id":"technical_explanation","label":"Technical explanation","subject":"a short technical explanation","context":"Accuracy and reader orientation matter more than decorative jargon."},
+        {"id":"public_notice","label":"Public notice","subject":"a short public notice","context":"Readers need the change, timing, affected service, and verified alternative immediately."},
+        {"id":"handover_note","label":"Handover note","subject":"a work handover note","context":"Completed work, active work, ownership, and unresolved items must remain distinct."},
+        {"id":"schedule_change","label":"Schedule change","subject":"a schedule-change message","context":"The previous time, new time, reason boundary, and required acknowledgment need clarity."},
+        {"id":"feedback_message","label":"Feedback message","subject":"a constructive feedback message","context":"Observation, impact, and requested adjustment should be separated from personal judgment."},
+        {"id":"procedure_summary","label":"Procedure summary","subject":"a short procedure summary","context":"The ordered steps and stopping condition matter more than background detail."},
+        {"id":"event_invitation","label":"Event invitation","subject":"a concise event invitation","context":"Purpose, audience, time, place, and response deadline need a clear hierarchy."},
+        {"id":"progress_brief","label":"Progress brief","subject":"a one-paragraph progress brief","context":"Completed work, measurable progress, current blocker, and next owner should be easy to scan."}
       ],
       "intents": [
         {"id":"draft","label":"draft from structured facts","goalTemplate":"Draft {subject} from a bounded set of facts."},
@@ -356,14 +405,28 @@
           "project_update": ["draft","revise","summarize","adapt_tone","restructure"],
           "support_reply": ["draft","revise","summarize","adapt_tone","restructure"],
           "meeting_notes": ["draft","revise","summarize","restructure"],
-          "technical_explanation": ["draft","revise","summarize","adapt_tone","restructure"]
+          "technical_explanation": ["draft","revise","summarize","adapt_tone","restructure"],
+          "public_notice": ["draft","revise","summarize","adapt_tone","restructure"],
+          "handover_note": ["draft","revise","summarize","adapt_tone","restructure"],
+          "schedule_change": ["draft","revise","summarize","adapt_tone","restructure"],
+          "feedback_message": ["draft","revise","summarize","adapt_tone","restructure"],
+          "procedure_summary": ["draft","revise","summarize","adapt_tone","restructure"],
+          "event_invitation": ["draft","revise","summarize","adapt_tone","restructure"],
+          "progress_brief": ["draft","revise","summarize","adapt_tone","restructure"]
         },
         "domainConstraints": {
           "email": ["no_new_claims","plain_language","short","tone","actionable"],
           "project_update": ["no_new_claims","plain_language","short","actionable"],
           "support_reply": ["no_new_claims","plain_language","short","tone","actionable"],
           "meeting_notes": ["no_new_claims","plain_language","short","actionable"],
-          "technical_explanation": ["no_new_claims","plain_language","short","tone"]
+          "technical_explanation": ["no_new_claims","plain_language","short","tone"],
+          "public_notice": ["no_new_claims","plain_language","short","tone","actionable"],
+          "handover_note": ["no_new_claims","plain_language","short","actionable"],
+          "schedule_change": ["no_new_claims","plain_language","short","tone","actionable"],
+          "feedback_message": ["no_new_claims","plain_language","short","tone","actionable"],
+          "procedure_summary": ["no_new_claims","plain_language","short","actionable"],
+          "event_invitation": ["no_new_claims","plain_language","short","tone","actionable"],
+          "progress_brief": ["no_new_claims","plain_language","short","actionable"]
         },
         "stateOutcomes": {
           "rough_notes": ["clear_purpose","faithful_summary","scan_actions","open_questions"],
@@ -391,7 +454,13 @@
         {"id":"travel_plan","label":"Travel plan","subject":"a bounded travel plan","context":"Timing, budget, mobility, and cancellation tolerance shape the options."},
         {"id":"learning_plan","label":"Learning plan","subject":"a short learning plan","context":"Available time, prerequisites, and observable practice should drive the sequence."},
         {"id":"small_project","label":"Small project","subject":"a small project plan","context":"Scope, dependencies, owners, and exit criteria need to stay explicit."},
-        {"id":"purchase_decision","label":"Purchase decision","subject":"a purchase comparison","context":"Requirements, total cost, and uncertainty matter more than feature count."}
+        {"id":"purchase_decision","label":"Purchase decision","subject":"a purchase comparison","context":"Requirements, total cost, and uncertainty matter more than feature count."},
+        {"id":"meal_plan","label":"Meal plan","subject":"a bounded weekly meal plan","context":"Budget, available time, dietary requirements, and ingredient reuse constrain the options."},
+        {"id":"household_move","label":"Household move","subject":"a small household move","context":"Packing dependencies, transport capacity, deadline, and protected essentials need sequencing."},
+        {"id":"community_event","label":"Community event","subject":"a small community event plan","context":"Venue, volunteer time, accessibility, and a weather fallback must be explicit."},
+        {"id":"appointment_schedule","label":"Appointment schedule","subject":"a multi-appointment schedule","context":"Travel time, fixed windows, preparation, and one uncertain confirmation constrain the order."},
+        {"id":"maintenance_plan","label":"Maintenance plan","subject":"a routine maintenance plan","context":"Dependencies, service window, spare materials, and rollback points shape the sequence."},
+        {"id":"reading_plan","label":"Reading plan","subject":"a short reading plan","context":"Available sessions, prerequisites, review checkpoints, and the reading deadline limit the scope."}
       ],
       "intents": [
         {"id":"define_options","label":"define viable options","goalTemplate":"Define the viable options for {subject}."},
@@ -437,13 +506,25 @@
           "travel_plan": ["define_options","compare","sequence","allocate","fallback"],
           "learning_plan": ["define_options","compare","sequence","allocate","fallback"],
           "small_project": ["define_options","compare","sequence","allocate","fallback"],
-          "purchase_decision": ["define_options","compare","allocate","fallback"]
+          "purchase_decision": ["define_options","compare","allocate","fallback"],
+          "meal_plan": ["define_options","compare","sequence","allocate","fallback"],
+          "household_move": ["define_options","compare","sequence","allocate","fallback"],
+          "community_event": ["define_options","compare","sequence","allocate","fallback"],
+          "appointment_schedule": ["define_options","compare","sequence","allocate","fallback"],
+          "maintenance_plan": ["define_options","compare","sequence","allocate","fallback"],
+          "reading_plan": ["define_options","compare","sequence","allocate","fallback"]
         },
         "domainConstraints": {
           "travel_plan": ["budget","time","must_have","uncertain_input","reversible"],
           "learning_plan": ["budget","time","must_have","uncertain_input","reversible"],
           "small_project": ["budget","time","must_have","uncertain_input","reversible"],
-          "purchase_decision": ["budget","time","must_have","uncertain_input","reversible"]
+          "purchase_decision": ["budget","time","must_have","uncertain_input","reversible"],
+          "meal_plan": ["budget","time","must_have","uncertain_input","reversible"],
+          "household_move": ["budget","time","must_have","uncertain_input","reversible"],
+          "community_event": ["budget","time","must_have","uncertain_input","reversible"],
+          "appointment_schedule": ["budget","time","must_have","uncertain_input","reversible"],
+          "maintenance_plan": ["budget","time","must_have","uncertain_input","reversible"],
+          "reading_plan": ["budget","time","must_have","uncertain_input","reversible"]
         },
         "stateOutcomes": {
           "too_many_options": ["shortlist","decision_matrix"],

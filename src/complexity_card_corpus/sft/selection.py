@@ -87,6 +87,34 @@ def _deduplicate_exact_responses(
     }
 
 
+def _deduplicate_exact_prompts(
+    rows: list[dict[str, Any]],
+    *,
+    prompt_key: str = "_projected_prompt",
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Keep one target for each exact model-facing prompt.
+
+    Several individually valid completions for the same prompt create an
+    avoidable one-to-many supervision conflict in a small SFT corpus. Rich
+    response variation belongs behind distinct user contexts instead.
+    """
+
+    kept: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in sorted(rows, key=lambda item: item["example_id"]):
+        prompt = re.sub(r"\s+", " ", row[prompt_key]).strip()
+        if prompt in seen:
+            continue
+        seen.add(prompt)
+        kept.append(row)
+    return kept, {
+        "input_examples": len(rows),
+        "kept_examples": len(kept),
+        "dropped_exact_prompt_duplicates": len(rows) - len(kept),
+        "exact_prompt_uniqueness_ratio": 1.0,
+    }
+
+
 def _balance_task_families(
     rows: list[dict[str, Any]],
     *,

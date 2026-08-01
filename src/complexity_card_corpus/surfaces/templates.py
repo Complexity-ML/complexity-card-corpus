@@ -111,7 +111,7 @@ _TASK_TEMPLATES: dict[str, tuple[str, ...]] = {
         "Choose on the available evidence: {recommendation_lower} Record what would change the decision.",
         "A reviewable decision is possible: {recommendation_lower} Note the priority and supporting fact.",
         "Make the choice explicit: {recommendation_lower} Then record the reason in one sentence.",
-        "Keep the rationale attached to the action: {recommendation_lower} Note the decisive condition.",
+        "Keep the rationale attached to this choice. {recommendation} Note the decisive condition.",
         "Use the stated priority as the record: {recommendation_lower} Write down the decisive constraint.",
     ),
     "give_choice_and_action": (
@@ -120,7 +120,7 @@ _TASK_TEMPLATES: dict[str, tuple[str, ...]] = {
         "Make one decision and act on it: {recommendation_lower} Next, {next_step_lower}",
         "Choose a single path: {recommendation_lower} The immediate action is to {next_step_lower}",
         "The recommendation is to {recommendation_lower} Follow it by taking this step: {next_step_lower}",
-        "Use this choice: {recommendation_lower} Then complete the concrete next step: {next_step_lower}",
+        "Use this choice. {recommendation} Then {next_step_lower}",
         "Keep the result specific: {recommendation_lower} After that, {next_step_lower}",
         "Finish with this choice: {recommendation_lower} Act now by doing the following: {next_step_lower}",
     ),

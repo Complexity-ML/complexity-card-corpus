@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 from collections import Counter, defaultdict
@@ -11,6 +12,7 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from ..release_targets import TARGET_POST_TRAINING_ROWS
 from ..build import file_sha256
 from ..chat_template import (
     CHAT_TEMPLATE_ID,
@@ -27,10 +29,82 @@ from .projection import (
 )
 from .selection import (
     _balance_task_families,
+    _deduplicate_exact_prompts,
     _deduplicate_exact_responses,
     _deduplicate_structural_rows,
 )
 from .schema import IGNORE_INDEX, LABEL_DTYPE, PROJECTED_SFT_SCHEMA, TOKEN_DTYPE
+
+
+TRAIN_MAX_EXAMPLES_PER_FAMILY = 2_500
+TRAIN_MAX_PER_STRUCTURE = 8
+TRAIN_EXTRACTION_MAX_PER_STRUCTURE = 32
+
+SUPPLEMENT_TASK_ALIASES = {
+    "empathetic_dialogue": "conversation_empathy",
+    "practical_dialogue": "practical_action",
+}
+
+_PRACTICAL_STAGE_TASKS = {
+    "ask_for_missing_detail": "context_clarification",
+    "present_bounded_options": "planning_comparison",
+}
+
+
+def _canonical_supplement_task(row: dict[str, Any]) -> str:
+    """Map a conversation surface by its realized behavior, not its source bucket."""
+
+    original_task = row["task"]
+    try:
+        stages = json.loads(row["answer_json"]).get("dialogue_stages", [])
+    except (json.JSONDecodeError, TypeError):
+        stages = []
+    if original_task == "empathetic_dialogue":
+        if stages and stages[-1] == "invite_detail_without_assumption":
+            return "context_clarification"
+        return "conversation_empathy"
+    if original_task != "practical_dialogue":
+        return SUPPLEMENT_TASK_ALIASES.get(original_task, original_task)
+    if stages:
+        return _PRACTICAL_STAGE_TASKS.get(stages[-1], "practical_action")
+    return "practical_action"
+
+
+def _load_instruction_sources(
+    instructions_path: Path,
+    supplementary_instruction_paths: list[Path] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str]:
+    """Load one canonical corpus plus optional original conversation surfaces."""
+
+    paths = [instructions_path, *(supplementary_instruction_paths or [])]
+    rows: list[dict[str, Any]] = []
+    sources: list[dict[str, Any]] = []
+    for index, path in enumerate(paths):
+        digest = file_sha256(path)
+        source_rows = pq.read_table(path).to_pylist()
+        aliases: Counter[str] = Counter()
+        if index:
+            for row in source_rows:
+                original_task = row["task"]
+                row["task"] = _canonical_supplement_task(row)
+                if row["task"] != original_task:
+                    aliases[f"{original_task}->{row['task']}"] += 1
+        rows.extend(source_rows)
+        sources.append(
+            {
+                "path": str(path),
+                "sha256": digest,
+                "examples": len(source_rows),
+                "task_aliases": dict(sorted(aliases.items())),
+            }
+        )
+    example_counts = Counter(row["example_id"] for row in rows)
+    duplicate_ids = [key for key, count in example_counts.items() if count > 1]
+    if duplicate_ids:
+        raise ValueError(f"instruction sources contain duplicate id: {duplicate_ids[0]}")
+    material = "\n".join(source["sha256"] for source in sources)
+    combined_sha256 = hashlib.sha256(material.encode()).hexdigest()
+    return sorted(rows, key=lambda row: row["example_id"]), sources, combined_sha256
 
 
 def _encode_messages(
@@ -93,6 +167,7 @@ def tokenize_instruction_dataset(
     tokenizer_root: Path,
     output_root: Path,
     heldout_evaluation_path: Path | None = None,
+    supplementary_instruction_paths: list[Path] | None = None,
 ) -> dict[str, Any]:
     encoding, tokenizer_config = load_encoding(tokenizer_root)
     eos_token = tokenizer_config.get("eos_token", "<|endoftext|>")
@@ -102,9 +177,11 @@ def tokenize_instruction_dataset(
         eos_id = encoding.eot_token
     chat_template = chat_template_contract()
     chat_template["eos_token"] = eos_token
-    source_rows = sorted(
-        pq.read_table(instructions_path).to_pylist(),
-        key=lambda row: row["example_id"],
+    source_rows, instruction_sources, instruction_sources_sha256 = (
+        _load_instruction_sources(
+            instructions_path,
+            supplementary_instruction_paths,
+        )
     )
     evaluation_sha256: str | None = None
     evaluation_provenance: dict[str, int] = {}
@@ -119,6 +196,10 @@ def tokenize_instruction_dataset(
                 ).items()
             )
         )
+        for row in heldout_rows:
+            provenance = json.loads(row["answer_json"])["evaluation_source"]
+            if provenance != "separately_authored":
+                row["split"] = "diagnostic"
         source_rows.extend(heldout_rows)
         evaluation_sha256 = file_sha256(heldout_evaluation_path)
 
@@ -145,22 +226,40 @@ def tokenize_instruction_dataset(
 
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in projected_rows:
-        partition = {"train": "train", "validation": "eval", "test": "test"}[
-            row["split"]
-        ]
+        partition = {
+            "train": "train",
+            "validation": "eval",
+            "test": "test",
+            "diagnostic": "diagnostic",
+        }[row["split"]]
         grouped[partition].append(row)
 
     exact_deduplication: dict[str, Any] = {}
+    exact_prompt_deduplication: dict[str, Any] = {}
     family_balance: dict[str, Any] = {}
     deduplication: dict[str, Any] = {}
     for partition, partition_rows in list(grouped.items()):
         partition_rows, exact_deduplication[partition] = _deduplicate_exact_responses(
             partition_rows
         )
+        partition_rows, exact_prompt_deduplication[partition] = (
+            _deduplicate_exact_prompts(partition_rows)
+        )
+        structure_limit = TRAIN_MAX_PER_STRUCTURE if partition == "train" else 10_000
+        per_task_limits = (
+            {"extraction_classification": TRAIN_EXTRACTION_MAX_PER_STRUCTURE}
+            if partition == "train"
+            else None
+        )
+        partition_rows, deduplication[partition] = _deduplicate_structural_rows(
+            partition_rows,
+            max_per_structure=structure_limit,
+            per_task_limits=per_task_limits,
+        )
         if partition == "train":
             partition_rows, family_balance[partition] = _balance_task_families(
                 partition_rows,
-                max_examples_per_family=4_100,
+                max_examples_per_family=TRAIN_MAX_EXAMPLES_PER_FAMILY,
             )
         else:
             counts = dict(
@@ -174,13 +273,7 @@ def tokenize_instruction_dataset(
                 "before": counts,
                 "after": counts,
             }
-        grouped[partition], deduplication[partition] = _deduplicate_structural_rows(
-            partition_rows,
-            max_per_structure=48 if partition == "train" else 64,
-            per_task_limits=(
-                {"extraction_classification": 512} if partition == "train" else None
-            ),
-        )
+        grouped[partition] = partition_rows
 
     train_structures = {
         (row["task"], row["_structure_signature"]) for row in grouped.get("train", [])
@@ -321,7 +414,7 @@ def tokenize_instruction_dataset(
             "eos_token_id": eos_id,
             "tokenizer": tokenizer_config["encoding_name"],
             "tokenizer_sha256": directory_sha256(tokenizer_root),
-            "source_sha256": file_sha256(instructions_path),
+            "source_sha256": instruction_sources_sha256,
             "evaluation_source_sha256": evaluation_sha256,
             "input_ids_sha256": file_sha256(inputs_path),
             "labels_sha256": file_sha256(labels_path),
@@ -346,8 +439,11 @@ def tokenize_instruction_dataset(
             "every assistant content span and eos token is supervised"
         ),
         "training_projection": chat_template["training_projection"],
+        "instruction_sources": instruction_sources,
+        "instruction_sources_sha256": instruction_sources_sha256,
         "projection_audit": projection_audit,
         "exact_response_deduplication": exact_deduplication,
+        "exact_prompt_deduplication": exact_prompt_deduplication,
         "family_balance": family_balance,
         "structural_deduplication": deduplication,
         "train_eval_structure_overlap": len(overlap),
@@ -356,9 +452,9 @@ def tokenize_instruction_dataset(
                 "path": str(heldout_evaluation_path),
                 "sha256": evaluation_sha256,
                 "method": (
-                    next(iter(evaluation_provenance))
-                    if len(evaluation_provenance) == 1
-                    else "mixed_source_separated"
+                    "separately_authored_gold_with_diagnostic_companion"
+                    if "source_separated_diagnostic" in evaluation_provenance
+                    else next(iter(evaluation_provenance))
                 ),
                 "provenance_counts": evaluation_provenance,
             }
@@ -391,7 +487,13 @@ def tokenize_instruction_dataset(
         for task, count in train_family_counts.items()
     }
     exact_train_responses = len({row["response"] for row in train_records})
+    exact_train_prompts = len({row["prompt"] for row in train_records})
     multi_turn_count = sum(len(row["messages"]) > 2 for row in train_records)
+    genuine_multi_turn_count = sum(
+        len(row["messages"]) > 2 and row["source_representation"] == "conversation"
+        for row in train_records
+    )
+    synthetic_multi_turn_count = multi_turn_count - genuine_multi_turn_count
     difficulty_counts = dict(
         sorted(Counter(row["difficulty"] for row in train_records).items())
     )
@@ -422,7 +524,11 @@ def tokenize_instruction_dataset(
     )
     quality_checks = {
         "no_exact_duplicate_train_responses": exact_train_responses == train_count,
-        "fourteen_training_families": len(train_family_counts) == 14,
+        "no_exact_duplicate_train_prompts": exact_train_prompts == train_count,
+        "at_least_fourteen_training_families": len(train_family_counts) >= 14,
+        "training_examples_at_least_100k": (
+            train_count >= TARGET_POST_TRAINING_ROWS
+        ),
         "maximum_family_share_at_most_15_percent": max(
             family_shares.values(), default=0.0
         )
@@ -437,10 +543,14 @@ def tokenize_instruction_dataset(
             difficulty_counts.get("easy", 0) / train_count if train_count else 0.0
         )
         >= 0.20,
-        "multi_turn_share_at_least_35_percent": (
-            multi_turn_count / train_count if train_count else 0.0
+        "genuine_multi_turn_share_at_least_10_percent": (
+            genuine_multi_turn_count / train_count if train_count else 0.0
         )
-        >= 0.35,
+        >= 0.10,
+        "synthetic_multi_turn_share_at_most_5_percent": (
+            synthetic_multi_turn_count / train_count if train_count else 1.0
+        )
+        <= 0.05,
         "four_response_length_bands_each_at_least_5_percent": all(
             count / train_count >= 0.05 if train_count else False
             for count in response_length_bands.values()
@@ -449,11 +559,14 @@ def tokenize_instruction_dataset(
             distinct_train_structures / train_count if train_count else 0.0
         )
         >= 0.20,
-        "heldout_evaluation_has_500_to_1000_examples": 500
-        <= manifests.get("eval", {}).get("examples", 0)
+        "heldout_evaluation_has_at_least_28_authored_examples": (
+            manifests.get("eval", {}).get("examples", 0) >= 28
+        ),
+        "diagnostic_companion_has_500_to_1000_examples": 500
+        <= manifests.get("diagnostic", {}).get("examples", 0)
         <= 1_000,
-        "supervised_tokens_between_3m_and_10m": 3_000_000
-        <= manifest["total_supervised_tokens"]
+        "training_supervised_tokens_between_3m_and_10m": 3_000_000
+        <= manifests.get("train", {}).get("supervised_tokens", 0)
         <= 10_000_000,
     }
     manifest["release_quality"] = {
@@ -471,10 +584,22 @@ def tokenize_instruction_dataset(
         "multi_turn_share": round(
             multi_turn_count / train_count if train_count else 0.0, 6
         ),
+        "genuine_multi_turn_examples": genuine_multi_turn_count,
+        "genuine_multi_turn_share": round(
+            genuine_multi_turn_count / train_count if train_count else 0.0, 6
+        ),
+        "synthetic_multi_turn_examples": synthetic_multi_turn_count,
+        "synthetic_multi_turn_share": round(
+            synthetic_multi_turn_count / train_count if train_count else 0.0, 6
+        ),
         "exact_train_response_uniqueness_ratio": round(
             exact_train_responses / train_count if train_count else 0.0, 6
         ),
+        "exact_train_prompt_uniqueness_ratio": round(
+            exact_train_prompts / train_count if train_count else 0.0, 6
+        ),
         "target_supervised_token_range": [3_000_000, 10_000_000],
+        "target_training_examples": TARGET_POST_TRAINING_ROWS,
     }
     (temporary / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n"

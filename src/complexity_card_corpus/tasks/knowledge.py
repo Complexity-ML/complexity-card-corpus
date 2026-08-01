@@ -3,7 +3,14 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from .core import TaskHand, _card_pick, _code, _number, _pick
+from .core import (
+    TaskHand,
+    _code,
+    _compose_subcards,
+    _deal_task_frames,
+    _number,
+    _pick,
+)
 
 
 def _grounded_qa(row: dict[str, Any], variant: int) -> TaskHand:
@@ -41,6 +48,14 @@ def _grounded_qa(row: dict[str, Any], variant: int) -> TaskHand:
         f"failed-operation:{code}",
         ("sign in", "upload a file", "open the dashboard", "submit a request"),
     )
+    event_day = _number(f"event-day:{code}", 3, 27)
+    event_room = _number(f"event-room:{code}", 101, 418)
+    energy_kwh = _number(f"energy-kwh:{code}", 180, 640)
+    energy_rate = _number(f"energy-rate:{code}", 17, 34)
+    course_number = _number(f"course-number:{code}", 110, 480)
+    maintenance_day = _number(f"maintenance-day:{code}", 2, 28)
+    sensor_count = _number(f"sensor-count:{code}", 3, 12)
+    measured_value = _number(f"measured-value:{code}", 18, 86)
     cases = {
         "product_specs": (
             f"The Lumen Mini supports Wi-Fi 6 and USB-C charging. Its rated battery life is {battery_hours} hours. No water-resistance rating is listed.",
@@ -87,16 +102,77 @@ def _grounded_qa(row: dict[str, Any], variant: int) -> TaskHand:
             "Explain what the two reports establish, what remains unknown, and the next direct verification step.",
             f"The reports appear to conflict, but they describe different scopes and therefore do not establish one global service state; that remains unknown. Do not choose either report as universally correct. Compare the same time window, region, account scope, and operation, then reproduce the attempt to {failed_operation} with a direct check.",
         ),
+        "public_event_notice": (
+            f"The Open Methods workshop starts on August {event_day} at 18:30 in Room {event_room}. Step-free access is available. The notice does not say whether advance registration is required.",
+            "State the workshop time and venue, and whether advance registration is required.",
+            f"The workshop starts on August {event_day} at 18:30 in Room {event_room}. Advance registration is unknown because the notice does not state whether it is required.",
+        ),
+        "energy_bill": (
+            f"The statement covers 30 days and records {energy_kwh} kWh at {energy_rate} cents per kWh before fixed charges. It lists no rebate or credit.",
+            "State the recorded usage and unit rate, and whether a rebate is documented.",
+            f"The statement records {energy_kwh} kWh at {energy_rate} cents per kWh before fixed charges. A rebate is unknown because none is documented.",
+        ),
+        "course_catalog": (
+            f"Course CS-{course_number} meets on Tuesdays and requires Introductory Programming. The entry describes weekly labs but does not identify the final assessment format.",
+            "State the prerequisite and whether the final assessment format is documented.",
+            f"The prerequisite for CS-{course_number} is Introductory Programming. The final assessment format is unknown because the entry does not identify it.",
+        ),
+        "maintenance_log": (
+            f"On August {maintenance_day}, a technician replaced the intake filter after recording reduced airflow. A follow-up test restored normal flow. The log does not establish the original cause of the blockage.",
+            "State the maintenance action and test result, and whether the original cause is established.",
+            "The intake filter was replaced and the follow-up test restored normal airflow. The original cause of the blockage is unknown because the log does not establish it.",
+        ),
+        "environmental_report": (
+            f"At the north site, {sensor_count} sensors recorded a median value of {measured_value} units during the survey window. The report provides no pre-survey baseline.",
+            "State the reported measurement and whether change from baseline can be calculated.",
+            f"The north site had a median measurement of {measured_value} units across {sensor_count} sensors. Change from baseline is unknown because no pre-survey baseline is provided.",
+        ),
+        "software_release_note": (
+            f"Release {release_major}.{release_minor} adds export filters and fixes duplicate notifications on Linux. A legacy import option is marked deprecated, but no removal date is given.",
+            "State the added behavior and whether the legacy import removal date is known.",
+            f"Release {release_major}.{release_minor} adds export filters. The legacy import removal date is unknown because the note gives no date.",
+        ),
     }
-    passage, goal, supported = cases[row["domain"]]
-    data = f"Source {code}: {passage}"
-    answer_cards = (
-        f"Based on Source {code}: {supported}",
-        f"Source {code} supports this answer: {supported}",
-        f"The documented answer is: {supported} This is limited to Source {code}.",
-        f"According to Source {code}: {supported}",
+    passage, requested_answer, supported = cases[row["domain"]]
+    data, goal = _deal_task_frames(
+        row,
+        variant,
+        "grounded",
+        (
+            f"Source {code}: {passage}",
+            f"Evidence excerpt {code}: {passage}",
+            f"Use this supplied record only — {code}: {passage}",
+        ),
+        (
+            requested_answer,
+            f"Using only Source {code}, {requested_answer[:1].lower() + requested_answer[1:]}",
+            f"Answer the documented parts of this request and mark the rest unknown: {requested_answer}",
+        ),
     )
-    answer = _card_pick(row, variant, "grounded-answer", answer_cards)
+    answer = _compose_subcards(
+        row,
+        variant,
+        "grounded-answer",
+        (
+            (
+                f"Based on Source {code}:",
+                f"Source {code} supports this answer:",
+                "The documented answer is:",
+                f"According to Source {code}:",
+            ),
+            (
+                supported,
+                f"Supported facts: {supported}",
+                f"The supplied record establishes this: {supported}",
+            ),
+            (
+                f"The answer remains limited to Source {code}.",
+                "No unstated detail is inferred.",
+                "Anything not documented remains unknown.",
+            ),
+        ),
+        pool_names=("evidence_scope", "supported_answer", "unknown_boundary"),
+    )
     subject = row["domain"].replace("_", " ").title()
     return TaskHand(
         data,
@@ -162,14 +238,68 @@ def _summary(row: dict[str, Any], variant: int) -> TaskHand:
         ),
     }
     decision, action, open_point = cases[row["domain"]]
-    data = (
-        f"Source {code}: The recorded decision is to {decision}. {owner} will {action} by day {day}. "
+    source = (
+        f"The recorded decision is to {decision}. {owner} will {action} by day {day}. "
         f"The source leaves {open_point} unresolved."
     )
-    goal = "Summarize the decision, action, owner, timing, and unresolved point in three concise lines."
-    answer = (
-        f"Decision: {decision}. Action: {owner} will {action} by day {day}. "
-        f"Open point: {open_point} remains unresolved."
+    data = _compose_subcards(
+        row,
+        variant,
+        "summary-input",
+        (
+            (f"Source {code}:", f"Notes {code} to condense:", f"Summary input {code} —"),
+            (source,),
+        ),
+        pool_names=("source_label", "source_record"),
+    )
+    goal = _compose_subcards(
+        row,
+        variant,
+        "summary-objective",
+        (
+            (
+                "Summarize the record in three concise parts.",
+                "Extract a compact three-part summary.",
+                "Condense the record without adding context.",
+            ),
+            (
+                "Preserve the decision, assigned action, owner, and timing.",
+                "Name the decision and the owned, timed action.",
+                "Keep ownership and deadline attached to the action.",
+            ),
+            (
+                "Leave the unresolved point explicitly open.",
+                "Do not resolve the uncertainty on the source's behalf.",
+                "Report the open point as unresolved.",
+            ),
+        ),
+        pool_names=("summary_request", "required_fields", "open_point_rule"),
+    )
+    answer = _compose_subcards(
+        row,
+        variant,
+        "summary-answer",
+        (
+            (
+                f"Decision: {decision}.",
+                f"Decision: the record is to {decision}.",
+                f"Decision: proceed by choosing to {decision}.",
+                f"Decision: the agreed direction is to {decision}.",
+            ),
+            (
+                f"Action: {owner} will {action} by day {day}.",
+                f"Action: by day {day}, {owner} will {action}.",
+                f"Action: {action}, owned by {owner}, is due by day {day}.",
+                f"Action: {owner} owns {action} for day {day}.",
+            ),
+            (
+                f"Open point: {open_point} remains unresolved.",
+                f"Open point: the source does not resolve {open_point}.",
+                f"Open point: {open_point} is still unresolved.",
+                f"Open point: no resolution is recorded for {open_point}.",
+            ),
+        ),
+        pool_names=("decision", "owned_action", "open_point"),
     )
     return TaskHand(data, goal, answer, ("decision", "action", "open_point"))
 
@@ -259,12 +389,127 @@ def _extraction(row: dict[str, Any], variant: int) -> TaskHand:
                 "next_owner": None,
             },
         ),
+        "address_record": (
+            f"recipient=Rin Vale; street={amount} Cedar Lane; locality=Westmere; postal_code={day}804; country=GB; delivery_note missing",
+            {
+                "recipient": "Rin Vale",
+                "street": f"{amount} Cedar Lane",
+                "locality": "Westmere",
+                "postal_code": f"{day}804",
+                "country": "GB",
+                "delivery_note": None,
+            },
+        ),
+        "booking_record": (
+            f"reference={code}; service=Harbor tour; date=2026-08-{day:02d}; starts=14:15; party_size=3; cancellation_status missing",
+            {
+                "reference": code,
+                "service": "Harbor tour",
+                "date": f"2026-08-{day:02d}",
+                "starts": "14:15",
+                "party_size": 3,
+                "cancellation_status": None,
+            },
+        ),
+        "product_record": (
+            f"sku={code}; product=Desk lamp; variant=blue; price=${amount}.00; availability=in_stock; warranty missing",
+            {
+                "sku": code,
+                "product": "Desk lamp",
+                "variant": "blue",
+                "price": f"{amount}.00 USD",
+                "availability": "in_stock",
+                "warranty": None,
+            },
+        ),
+        "expense_record": (
+            f"expense={code}; category=local travel; amount={amount}.25 EUR; date=2026-08-{day:02d}; payment_method=card; approval missing",
+            {
+                "expense": code,
+                "category": "local travel",
+                "amount": f"{amount}.25 EUR",
+                "date": f"2026-08-{day:02d}",
+                "payment_method": "card",
+                "approval": None,
+            },
+        ),
+        "shipment_record": (
+            f"tracking={code}; carrier=North Parcel; destination=Westmere; milestone=sorting_center; timestamp=2026-08-{day:02d}T07:30Z; exception missing",
+            {
+                "tracking": code,
+                "carrier": "North Parcel",
+                "destination": "Westmere",
+                "milestone": "sorting_center",
+                "timestamp": f"2026-08-{day:02d}T07:30Z",
+                "exception": None,
+            },
+        ),
+        "calendar_record": (
+            f"event=Planning {code}; organizer=Maya; participants=Jon and Lea; starts=2026-08-{day:02d}T10:00; ends=2026-08-{day:02d}T10:45; location missing; response=tentative",
+            {
+                "event": f"Planning {code}",
+                "organizer": "Maya",
+                "participants": ["Jon", "Lea"],
+                "starts": f"2026-08-{day:02d}T10:00",
+                "ends": f"2026-08-{day:02d}T10:45",
+                "location": None,
+                "response": "tentative",
+            },
+        ),
+        "measurement_record": (
+            f"sample={code}; value={amount}.4; unit=cm; instrument=caliper-2; timestamp=2026-08-{day:02d}T11:20Z; tolerance=0.2 cm; observer missing",
+            {
+                "sample": code,
+                "value": amount + 0.4,
+                "unit": "cm",
+                "instrument": "caliper-2",
+                "timestamp": f"2026-08-{day:02d}T11:20Z",
+                "tolerance": "0.2 cm",
+                "observer": None,
+            },
+        ),
+        "bibliographic_record": (
+            f"title=Bounded Systems; author=I. North; year=2024; venue=Field Notes; identifier={code}; pages missing",
+            {
+                "title": "Bounded Systems",
+                "author": "I. North",
+                "year": 2024,
+                "venue": "Field Notes",
+                "identifier": code,
+                "pages": None,
+            },
+        ),
     }
     raw, fields = cases[row["domain"]]
     record_label = row["domain"].replace("_", " ")
     if not record_label.endswith("record"):
         record_label = f"{record_label} record"
-    data = f"Raw {record_label}: {raw}."
-    goal = f"Extract {', '.join(fields)} as JSON. Use null for an absent value."
-    answer = json.dumps(fields, separators=(",", ":"))
+    requested_fields = ", ".join(fields)
+    data, goal = _deal_task_frames(
+        row,
+        variant,
+        "extraction",
+        (
+            f"Raw {record_label}: {raw}.",
+            f"Unnormalized {record_label}: {raw}.",
+            f"Source fields for this {record_label}: {raw}.",
+        ),
+        (
+            f"Extract {requested_fields} as JSON. Use null for an absent value.",
+            f"Return valid JSON with fields {requested_fields}; represent missing values as null.",
+            f"Structure only these fields as JSON: {requested_fields}. Do not infer an absent value.",
+        ),
+    )
+    answer = _compose_subcards(
+        row,
+        variant,
+        "extraction-json-layout",
+        ((
+            json.dumps(fields, separators=(",", ":")),
+            json.dumps(fields),
+            json.dumps(fields, separators=(",", ": "), sort_keys=True),
+        ),),
+        pool_names=("json_layout",),
+        cycle_first_pool=True,
+    )
     return TaskHand(data, goal, answer, ("json", "requested_fields", "missing_is_null"))

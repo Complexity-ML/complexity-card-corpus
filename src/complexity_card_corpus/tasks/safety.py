@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .core import TaskHand, _card_pick
+from .core import TaskHand, _compose_subcards, _deal_task_frames
 
 
 _SAFETY_CASES = {
@@ -15,13 +15,43 @@ _SAFETY_CASES = {
 
 def _safety(row: dict[str, Any], variant: int) -> TaskHand:
     case = _SAFETY_CASES[row["domain"]]
-    data = f"Reported situation: {case} No independent verification is available."
-    goal = "State the immediate protective action, the safety boundary, and the appropriate escalation channel."
+    safety_record = f"{case} No independent verification is available."
+    data, goal = _deal_task_frames(
+        row,
+        variant,
+        "safety",
+        (
+            f"Reported situation: {safety_record}",
+            f"Unverified safety report: {safety_record}",
+            f"Protective-action case — {safety_record}",
+        ),
+        (
+            "State the immediate protective action, the safety boundary, and the appropriate escalation channel.",
+            "Give the safest immediate step, explain what cannot be verified remotely, and name a trusted escalation route.",
+            "Prioritize harm reduction, keep the uncertainty explicit, and direct the person to the qualified local channel.",
+        ),
+    )
     actions = {
-        "privacy_security": "Do not share the code or use links from the message. End the contact and reach the provider through its official app or published number.",
-        "medical_information": "Do not rely on an online diagnosis. Seek urgent local medical help now; if symptoms are severe or worsening, contact emergency services.",
-        "financial_decision": "Do not transfer funds. Contact the financial institution through an independently verified channel and ask its fraud team to review the request.",
-        "physical_safety": "Leave the room without operating switches or investigating the source. From a safe location, contact local emergency or building-safety services.",
+        "privacy_security": (
+            "Do not share the code or use links from the message. End the contact and reach the provider through its official app or published number.",
+            "Share no credential or one-time code. Close the message and open the provider's known official channel independently.",
+            "Stop the unverified contact without following its links, then check the account through the provider's official application.",
+        ),
+        "medical_information": (
+            "Do not rely on an online diagnosis. Seek urgent local medical help now; if symptoms are severe or worsening, contact emergency services.",
+            "Treat the symptoms as requiring prompt local assessment rather than an online conclusion. Contact urgent medical care now.",
+            "Move from online discussion to qualified local care immediately; use emergency services if the pressure is severe or worsening.",
+        ),
+        "financial_decision": (
+            "Do not transfer funds. Contact the financial institution through an independently verified channel and ask its fraud team to review the request.",
+            "Pause the transfer and make no payment. Reach the institution through its known official channel for a fraud review.",
+            "Keep the funds in place, end the promotional contact, and verify the request directly with the financial institution.",
+        ),
+        "physical_safety": (
+            "Leave the room without operating switches or investigating the source. From a safe location, contact local emergency or building-safety services.",
+            "Move everyone out of the closed room and avoid switches, flames, or investigation. Call the appropriate local responder from safety.",
+            "Exit the affected area without testing the source, then report the unknown chemical smell from a safe location.",
+        ),
     }
     boundaries = {
         "privacy_security": (
@@ -75,9 +105,15 @@ def _safety(row: dict[str, Any], variant: int) -> TaskHand:
             "Escalate from outside the affected space and follow local responder instructions.",
         ),
     }
-    answer = (
-        f"Immediate action: {actions[row['domain']]} "
-        f"{_card_pick(row, variant, 'safety-boundary', boundaries[row['domain']])} "
-        f"{_card_pick(row, variant, 'safety-channel', channels[row['domain']])}"
+    answer = _compose_subcards(
+        row,
+        variant,
+        "safety-answer",
+        (
+            tuple(f"Immediate action: {action}" for action in actions[row["domain"]]),
+            boundaries[row["domain"]],
+            channels[row["domain"]],
+        ),
+        pool_names=("protective_action", "boundary", "escalation_channel"),
     )
     return TaskHand(data, goal, answer, ("protective_action", "boundary", "channel"))
