@@ -7,6 +7,66 @@ from dataclasses import dataclass
 from typing import Any
 
 
+# Newly authored Scenario Forge domains reuse a compatible concrete task deck
+# until they accumulate their own family-specific renderer reservoir. The
+# semantic domain, subject, context, provenance, and source graph remain the
+# authored values; only the concrete exercise frame is inherited here.
+_RENDER_DOMAIN_ALIASES = {
+    "appeal_response": "support_reply",
+    "accessibility_statement": "technical_documentation",
+    "bug_report": "status_update",
+    "caregiving_stress": "work_stress",
+    "causal_claim": "logical_constraints",
+    "child_online_safety": "privacy_security",
+    "community_workshop": "low_cost_activity",
+    "conference_launch": "community_event",
+    "contract_clause": "policy_excerpt",
+    "customer_interviews": "support_thread",
+    "data_memo": "survey_report",
+    "data_request": "missing_reference",
+    "database_query": "data_pipeline",
+    "design_review": "meeting_transcript",
+    "document_renewal": "account_access",
+    "ecological_cycle": "ecology",
+    "electrical_hazard": "physical_safety",
+    "field_observations": "research_notes",
+    "fraud_attempt": "privacy_security",
+    "grant_abstract": "technical_explanation",
+    "grief_update": "loss_disappointment",
+    "lab_report": "science_passage",
+    "landing_page": "interface_copy",
+    "learning_game": "lesson_activity",
+    "legal_procedure": "civics",
+    "lesson_plan": "instructions",
+    "maintenance_window": "maintenance_plan",
+    "medication_question": "medical_information",
+    "mobile_sync": "file_sync",
+    "museum_exhibit": "event_plan",
+    "network_protocol": "computer_networks",
+    "office_relocation": "household_move",
+    "package_build": "software_install",
+    "policy_change_notice": "public_notice",
+    "probability_puzzle": "simple_probability",
+    "procurement_quote": "comparison_table",
+    "purchasing_request": "scope_boundary",
+    "rate_conversion": "unit_conversion",
+    "research_pilot": "small_project",
+    "schedule_constraint": "logical_constraints",
+    "sensor_reading": "peripheral",
+    "statistical_sampling": "research_methods",
+    "sustainability_campaign": "outreach",
+    "team_request": "ambiguous_request",
+    "travel_request": "timeline_ambiguity",
+    "tutorial_step": "technical_explanation",
+    "utility_move": "subscriptions",
+    "vehicle_service": "home_repair",
+    "venue_booking": "event_registration",
+    "work_conflict": "relationship_tension",
+    "creative_rejection": "loss_disappointment",
+    "incident_timeline": "incident_log",
+}
+
+
 @dataclass(frozen=True)
 class TaskHand:
     """A concrete, solvable hand of cards for one training scenario."""
@@ -238,6 +298,12 @@ def _code(row: dict[str, Any]) -> str:
 
 def _payload(row: dict[str, Any]) -> dict[str, str]:
     return json.loads(row["semantic_payload"])
+
+
+def _render_domain(row: dict[str, Any]) -> str:
+    """Return the compatible concrete exercise deck for an authored domain."""
+    domain = row["domain"]
+    return _RENDER_DOMAIN_ALIASES.get(domain, domain)
 
 
 def _lower_sentence_initial(value: str) -> str:

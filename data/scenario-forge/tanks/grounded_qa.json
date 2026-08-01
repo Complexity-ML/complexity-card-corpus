@@ -1,0 +1,735 @@
+{
+  "format": "scenario-family-pack-v1",
+  "tankId": "grounded_qa",
+  "families": [
+    {
+      "id": "grounded_qa",
+      "label": "Grounded question answering",
+      "target": 3660,
+      "domains": [
+        {
+          "id": "product_specs",
+          "label": "Product specifications",
+          "subject": "a product-specification excerpt",
+          "context": "The answer must come only from the stated features, limits, and compatibility notes."
+        },
+        {
+          "id": "policy_excerpt",
+          "label": "Policy excerpt",
+          "subject": "a short policy excerpt",
+          "context": "Defined terms, exceptions, and effective dates determine what the text supports."
+        },
+        {
+          "id": "science_passage",
+          "label": "Science passage",
+          "subject": "a short science passage",
+          "context": "The passage contains an observation, an explanation, and a stated limit."
+        },
+        {
+          "id": "historical_note",
+          "label": "Historical note",
+          "subject": "a historical note",
+          "context": "Dates, actors, and reported events must remain distinct from interpretation."
+        },
+        {
+          "id": "project_brief",
+          "label": "Project brief",
+          "subject": "a project brief",
+          "context": "Goals, deliverables, owners, and unresolved dependencies are explicitly listed."
+        },
+        {
+          "id": "travel_information",
+          "label": "Travel information",
+          "subject": "a travel-information notice",
+          "context": "Times, eligibility conditions, and service exceptions are stated in the notice."
+        },
+        {
+          "id": "technical_documentation",
+          "label": "Technical documentation",
+          "subject": "a technical-documentation excerpt",
+          "context": "Supported behavior, prerequisites, and failure conditions are described directly."
+        },
+        {
+          "id": "comparison_table",
+          "label": "Comparison table",
+          "subject": "a compact comparison table",
+          "context": "Each option is described through the same named attributes and missing values remain visible."
+        },
+        {
+          "id": "conflicting_service_reports",
+          "label": "Conflicting service reports",
+          "subject": "two service reports with different scopes",
+          "context": "Align time, region, scope, and operation before comparison."
+        },
+        {
+          "id": "public_event_notice",
+          "label": "Public event notice",
+          "subject": "a public event notice",
+          "context": "Date, venue, access conditions, and registration details must come from the notice."
+        },
+        {
+          "id": "energy_bill",
+          "label": "Energy bill",
+          "subject": "a household energy statement",
+          "context": "Usage, tariff, billing period, and missing adjustments must remain distinct."
+        },
+        {
+          "id": "course_catalog",
+          "label": "Course catalog",
+          "subject": "a course-catalog entry",
+          "context": "Prerequisites, schedule, format, and assessment details are separately documented fields."
+        },
+        {
+          "id": "maintenance_log",
+          "label": "Maintenance log",
+          "subject": "an equipment maintenance log",
+          "context": "Observed symptoms, replaced parts, dates, and causal conclusions carry different evidence status."
+        },
+        {
+          "id": "environmental_report",
+          "label": "Environmental report",
+          "subject": "a short environmental monitoring report",
+          "context": "Measured values, site scope, baseline, and interpretation must not be conflated."
+        },
+        {
+          "id": "software_release_note",
+          "label": "Software release note",
+          "subject": "a software release note",
+          "context": "Added behavior, fixed behavior, compatibility, and future deprecation dates must be read separately."
+        },
+        {
+          "id": "contract_clause",
+          "label": "Contract clause",
+          "subject": "a supplied contract clause",
+          "context": "Defined terms, obligations, exceptions, and dates bound the answer without providing legal advice."
+        },
+        {
+          "id": "lab_report",
+          "label": "Laboratory report",
+          "subject": "a supplied laboratory report",
+          "context": "Measured values, reference method, uncertainty, and stated interpretation have distinct evidence roles."
+        },
+        {
+          "id": "procurement_quote",
+          "label": "Procurement quote",
+          "subject": "a procurement quotation",
+          "context": "Item scope, quantity, price basis, validity window, and exclusions determine what can be concluded."
+        },
+        {
+          "id": "accessibility_statement",
+          "label": "Accessibility statement",
+          "subject": "an accessibility conformance statement",
+          "context": "Tested scope, standard level, known exceptions, and remediation dates must remain explicit."
+        }
+      ],
+      "intents": [
+        {
+          "id": "answer",
+          "label": "answer the direct question",
+          "goalTemplate": "Answer a direct question about {subject} from the supplied evidence."
+        },
+        {
+          "id": "locate",
+          "label": "locate supporting evidence",
+          "goalTemplate": "Locate the evidence in {subject} that supports a concise answer."
+        },
+        {
+          "id": "compare",
+          "label": "compare two claims",
+          "goalTemplate": "Compare two claims against the evidence in {subject}."
+        },
+        {
+          "id": "infer",
+          "label": "draw a cautious inference",
+          "goalTemplate": "Draw a bounded inference from {subject} without overstating it."
+        },
+        {
+          "id": "unknown",
+          "label": "identify what remains unknown",
+          "goalTemplate": "Identify what {subject} establishes and what remains unknown."
+        },
+        {
+          "id": "reconcile",
+          "label": "reconcile scoped evidence",
+          "goalTemplate": "Reconcile the scoped evidence about {subject} without merging incompatible claims."
+        }
+      ],
+      "constraints": [
+        {
+          "id": "source_only",
+          "label": "Use only information contained in the supplied context."
+        },
+        {
+          "id": "cite_evidence",
+          "label": "Tie every material answer to one visible piece of evidence."
+        },
+        {
+          "id": "no_gap_fill",
+          "label": "Do not fill missing details with outside assumptions."
+        },
+        {
+          "id": "concise",
+          "label": "Keep the answer concise and focused on the question."
+        },
+        {
+          "id": "fact_inference",
+          "label": "Separate stated facts from any inference."
+        },
+        {
+          "id": "conflict_visible",
+          "label": "Keep conflicting source statements visible instead of silently choosing one."
+        },
+        {
+          "id": "scope_alignment",
+          "label": "Align time, population, and measurement scope before combining evidence."
+        },
+        {
+          "id": "citation_granularity",
+          "label": "Link claims to supporting spans."
+        }
+      ],
+      "states": [
+        {
+          "id": "complete",
+          "label": "The context contains a direct answer."
+        },
+        {
+          "id": "distributed",
+          "label": "The answer is distributed across several statements."
+        },
+        {
+          "id": "partial",
+          "label": "The context supports only part of the requested answer."
+        },
+        {
+          "id": "conflicting",
+          "label": "Two statements in the context appear to conflict."
+        },
+        {
+          "id": "implicit",
+          "label": "The answer requires one limited inference from stated facts."
+        },
+        {
+          "id": "mixed_scope",
+          "label": "The statements use different scopes for the same topic."
+        }
+      ],
+      "outcomes": [
+        {
+          "id": "supported_answer",
+          "label": "The answer is fully supported by the supplied context."
+        },
+        {
+          "id": "evidence_link",
+          "label": "The decisive evidence is identified in plain language."
+        },
+        {
+          "id": "claim_comparison",
+          "label": "The two claims are distinguished using the same evidence standard."
+        },
+        {
+          "id": "supported_inference",
+          "label": "The inference is explicit, limited, and traceable to stated facts."
+        },
+        {
+          "id": "uncertainty",
+          "label": "Any unsupported part of the question is marked as unknown."
+        },
+        {
+          "id": "source_boundary",
+          "label": "The boundary of what the source can establish is clear."
+        },
+        {
+          "id": "reconciled_evidence",
+          "label": "Compatible evidence is combined while scope conflicts remain visible."
+        }
+      ],
+      "fallbacks": [
+        {
+          "id": "source_check",
+          "label": "Name the unresolved claim and suggest an authoritative source check."
+        },
+        {
+          "id": "missing_fact",
+          "label": "Request the missing fact instead of inventing a bridge sentence."
+        },
+        {
+          "id": "smaller_model",
+          "label": "Return to a smaller causal model with fewer moving parts."
+        }
+      ],
+      "compatibility": {
+        "intentOutcomes": {
+          "answer": [
+            "supported_answer",
+            "evidence_link",
+            "uncertainty",
+            "reconciled_evidence"
+          ],
+          "locate": [
+            "evidence_link",
+            "source_boundary",
+            "reconciled_evidence"
+          ],
+          "compare": [
+            "claim_comparison",
+            "evidence_link",
+            "source_boundary",
+            "reconciled_evidence"
+          ],
+          "infer": [
+            "supported_inference",
+            "uncertainty",
+            "source_boundary",
+            "reconciled_evidence"
+          ],
+          "unknown": [
+            "uncertainty",
+            "source_boundary",
+            "reconciled_evidence"
+          ],
+          "reconcile": [
+            "claim_comparison",
+            "evidence_link",
+            "reconciled_evidence",
+            "source_boundary",
+            "supported_answer",
+            "supported_inference",
+            "uncertainty"
+          ]
+        },
+        "domainIntents": {
+          "product_specs": [
+            "answer",
+            "locate",
+            "compare",
+            "infer",
+            "unknown",
+            "reconcile"
+          ],
+          "policy_excerpt": [
+            "answer",
+            "locate",
+            "compare",
+            "infer",
+            "unknown",
+            "reconcile"
+          ],
+          "science_passage": [
+            "answer",
+            "locate",
+            "compare",
+            "infer",
+            "unknown",
+            "reconcile"
+          ],
+          "historical_note": [
+            "answer",
+            "locate",
+            "compare",
+            "infer",
+            "unknown",
+            "reconcile"
+          ],
+          "project_brief": [
+            "answer",
+            "locate",
+            "compare",
+            "infer",
+            "unknown",
+            "reconcile"
+          ],
+          "travel_information": [
+            "answer",
+            "locate",
+            "compare",
+            "infer",
+            "unknown",
+            "reconcile"
+          ],
+          "technical_documentation": [
+            "answer",
+            "locate",
+            "compare",
+            "infer",
+            "unknown",
+            "reconcile"
+          ],
+          "comparison_table": [
+            "answer",
+            "locate",
+            "compare",
+            "infer",
+            "unknown",
+            "reconcile"
+          ],
+          "conflicting_service_reports": [
+            "answer",
+            "locate",
+            "compare",
+            "infer",
+            "unknown",
+            "reconcile"
+          ],
+          "public_event_notice": [
+            "answer",
+            "locate",
+            "compare",
+            "infer",
+            "unknown",
+            "reconcile"
+          ],
+          "energy_bill": [
+            "answer",
+            "locate",
+            "compare",
+            "infer",
+            "unknown",
+            "reconcile"
+          ],
+          "course_catalog": [
+            "answer",
+            "locate",
+            "compare",
+            "infer",
+            "unknown",
+            "reconcile"
+          ],
+          "maintenance_log": [
+            "answer",
+            "locate",
+            "compare",
+            "infer",
+            "unknown",
+            "reconcile"
+          ],
+          "environmental_report": [
+            "answer",
+            "locate",
+            "compare",
+            "infer",
+            "unknown",
+            "reconcile"
+          ],
+          "software_release_note": [
+            "answer",
+            "locate",
+            "compare",
+            "infer",
+            "unknown",
+            "reconcile"
+          ],
+          "contract_clause": [
+            "answer",
+            "locate",
+            "compare",
+            "infer",
+            "unknown",
+            "reconcile"
+          ],
+          "lab_report": [
+            "answer",
+            "locate",
+            "compare",
+            "infer",
+            "unknown",
+            "reconcile"
+          ],
+          "procurement_quote": [
+            "answer",
+            "locate",
+            "compare",
+            "infer",
+            "unknown",
+            "reconcile"
+          ],
+          "accessibility_statement": [
+            "answer",
+            "locate",
+            "compare",
+            "infer",
+            "unknown",
+            "reconcile"
+          ]
+        },
+        "domainConstraints": {
+          "product_specs": [
+            "source_only",
+            "cite_evidence",
+            "no_gap_fill",
+            "concise",
+            "fact_inference",
+            "conflict_visible",
+            "scope_alignment",
+            "citation_granularity"
+          ],
+          "policy_excerpt": [
+            "source_only",
+            "cite_evidence",
+            "no_gap_fill",
+            "concise",
+            "fact_inference",
+            "conflict_visible",
+            "scope_alignment",
+            "citation_granularity"
+          ],
+          "science_passage": [
+            "source_only",
+            "cite_evidence",
+            "no_gap_fill",
+            "concise",
+            "fact_inference",
+            "conflict_visible",
+            "scope_alignment",
+            "citation_granularity"
+          ],
+          "historical_note": [
+            "source_only",
+            "cite_evidence",
+            "no_gap_fill",
+            "concise",
+            "fact_inference",
+            "conflict_visible",
+            "scope_alignment",
+            "citation_granularity"
+          ],
+          "project_brief": [
+            "source_only",
+            "cite_evidence",
+            "no_gap_fill",
+            "concise",
+            "fact_inference",
+            "conflict_visible",
+            "scope_alignment",
+            "citation_granularity"
+          ],
+          "travel_information": [
+            "source_only",
+            "cite_evidence",
+            "no_gap_fill",
+            "concise",
+            "fact_inference",
+            "conflict_visible",
+            "scope_alignment",
+            "citation_granularity"
+          ],
+          "technical_documentation": [
+            "source_only",
+            "cite_evidence",
+            "no_gap_fill",
+            "concise",
+            "fact_inference",
+            "conflict_visible",
+            "scope_alignment",
+            "citation_granularity"
+          ],
+          "comparison_table": [
+            "source_only",
+            "cite_evidence",
+            "no_gap_fill",
+            "concise",
+            "fact_inference",
+            "conflict_visible",
+            "scope_alignment",
+            "citation_granularity"
+          ],
+          "conflicting_service_reports": [
+            "source_only",
+            "cite_evidence",
+            "no_gap_fill",
+            "concise",
+            "fact_inference",
+            "conflict_visible",
+            "scope_alignment",
+            "citation_granularity"
+          ],
+          "public_event_notice": [
+            "source_only",
+            "cite_evidence",
+            "no_gap_fill",
+            "concise",
+            "fact_inference",
+            "scope_alignment",
+            "citation_granularity"
+          ],
+          "energy_bill": [
+            "source_only",
+            "cite_evidence",
+            "no_gap_fill",
+            "concise",
+            "fact_inference",
+            "scope_alignment",
+            "citation_granularity"
+          ],
+          "course_catalog": [
+            "source_only",
+            "cite_evidence",
+            "no_gap_fill",
+            "concise",
+            "fact_inference",
+            "scope_alignment",
+            "citation_granularity"
+          ],
+          "maintenance_log": [
+            "source_only",
+            "cite_evidence",
+            "no_gap_fill",
+            "concise",
+            "fact_inference",
+            "scope_alignment",
+            "citation_granularity"
+          ],
+          "environmental_report": [
+            "source_only",
+            "cite_evidence",
+            "no_gap_fill",
+            "concise",
+            "fact_inference",
+            "scope_alignment",
+            "citation_granularity"
+          ],
+          "software_release_note": [
+            "source_only",
+            "cite_evidence",
+            "no_gap_fill",
+            "concise",
+            "fact_inference",
+            "scope_alignment",
+            "citation_granularity"
+          ],
+          "contract_clause": [
+            "source_only",
+            "cite_evidence",
+            "no_gap_fill",
+            "concise",
+            "fact_inference",
+            "conflict_visible",
+            "scope_alignment",
+            "citation_granularity"
+          ],
+          "lab_report": [
+            "source_only",
+            "cite_evidence",
+            "no_gap_fill",
+            "concise",
+            "fact_inference",
+            "conflict_visible",
+            "scope_alignment",
+            "citation_granularity"
+          ],
+          "procurement_quote": [
+            "source_only",
+            "cite_evidence",
+            "no_gap_fill",
+            "concise",
+            "fact_inference",
+            "conflict_visible",
+            "scope_alignment",
+            "citation_granularity"
+          ],
+          "accessibility_statement": [
+            "source_only",
+            "cite_evidence",
+            "no_gap_fill",
+            "concise",
+            "fact_inference",
+            "conflict_visible",
+            "scope_alignment",
+            "citation_granularity"
+          ]
+        },
+        "stateOutcomes": {
+          "complete": [
+            "supported_answer",
+            "evidence_link",
+            "claim_comparison",
+            "source_boundary",
+            "reconciled_evidence"
+          ],
+          "distributed": [
+            "supported_answer",
+            "evidence_link",
+            "claim_comparison",
+            "supported_inference",
+            "source_boundary",
+            "reconciled_evidence"
+          ],
+          "partial": [
+            "evidence_link",
+            "supported_inference",
+            "uncertainty",
+            "source_boundary",
+            "reconciled_evidence"
+          ],
+          "conflicting": [
+            "claim_comparison",
+            "uncertainty",
+            "source_boundary",
+            "reconciled_evidence"
+          ],
+          "implicit": [
+            "evidence_link",
+            "supported_inference",
+            "uncertainty",
+            "source_boundary",
+            "reconciled_evidence"
+          ],
+          "mixed_scope": [
+            "claim_comparison",
+            "evidence_link",
+            "reconciled_evidence",
+            "source_boundary",
+            "supported_answer",
+            "supported_inference",
+            "uncertainty"
+          ]
+        },
+        "stateFallbacks": {
+          "complete": [
+            "source_check",
+            "missing_fact",
+            "smaller_model"
+          ],
+          "distributed": [
+            "smaller_model",
+            "source_check",
+            "missing_fact"
+          ],
+          "partial": [
+            "missing_fact",
+            "source_check",
+            "smaller_model"
+          ],
+          "conflicting": [
+            "source_check",
+            "missing_fact",
+            "smaller_model"
+          ],
+          "implicit": [
+            "smaller_model",
+            "source_check",
+            "missing_fact"
+          ],
+          "mixed_scope": [
+            "missing_fact",
+            "smaller_model",
+            "source_check"
+          ]
+        },
+        "riskFallbacks": {
+          "low": [
+            "source_check",
+            "missing_fact",
+            "smaller_model"
+          ]
+        }
+      },
+      "responseContract": [
+        "Answer from the supplied context only.",
+        "Expose the decisive evidence.",
+        "Separate fact from inference.",
+        "Mark unsupported details as unknown."
+      ]
+    }
+  ]
+}

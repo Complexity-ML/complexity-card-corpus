@@ -242,7 +242,7 @@ def _conversation_rows(
 
 
 def _balance_conversation_families(
-    rows: list[dict[str, Any]], *, max_examples_per_family: int = 5_000
+    rows: list[dict[str, Any]], *, max_examples_per_family: int = 20_000
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Cap dominant families after exact response deduplication."""
 

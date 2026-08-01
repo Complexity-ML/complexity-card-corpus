@@ -37,6 +37,7 @@ from complexity_card_corpus.tasks.core import DealtCard, LinkedSubcardDeck, Subc
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "data/scenario-forge/scenario-forge-v1.json"
+EXPECTED_SCENARIOS = 33_320
 
 
 def test_linked_subcard_deck_never_walks_an_incompatible_edge() -> None:
@@ -567,7 +568,7 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
 
     rows = pq.read_table(output / "conversations.parquet").to_pylist()
     assert result["audit"]["rows"] == len(rows)
-    assert 29_000 <= len(rows) <= 30_000
+    assert 66_000 <= len(rows) <= EXPECTED_SCENARIOS * 2
     assert len({row["response"] for row in rows}) == len(rows)
     family_responses: dict[str, list[str]] = {}
     for row in rows:
@@ -691,15 +692,15 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
         for metrics in result["audit"]["family_metrics"].values()
     )
     scale = result["audit"]["scale_100k"]
-    assert required_distinct_surfaces_per_source_card(15_000) == 7
+    assert required_distinct_surfaces_per_source_card(EXPECTED_SCENARIOS) == 4
     assert scale["target_rows"] == 100_000
-    assert scale["source_cards"] == 15_000
-    assert scale["required_distinct_surfaces_per_source_card"] == 7
+    assert scale["source_cards"] == EXPECTED_SCENARIOS
+    assert scale["required_distinct_surfaces_per_source_card"] == 4
     assert scale["configured_variants_per_source_card"] == 2
-    assert scale["configured_pre_deduplication_ceiling"] == 30_000
-    assert scale["configured_variant_shortfall"] == 5
+    assert scale["configured_pre_deduplication_ceiling"] == 66_640
+    assert scale["configured_variant_shortfall"] == 2
     assert scale["planned_distinct_surfaces_per_source_card"] == 8
-    assert scale["planned_pre_deduplication_ceiling"] == 120_000
+    assert scale["planned_pre_deduplication_ceiling"] == 266_560
     assert scale["planned_capacity_exceeds_target"] is True
     assert scale["current_configuration_can_reach_target"] is False
     assert scale["target_generated"] is False

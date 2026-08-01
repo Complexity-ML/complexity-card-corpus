@@ -10,6 +10,7 @@ from .core import (
     _deal_task_frames,
     _number,
     _pick,
+    _render_domain,
 )
 
 
@@ -133,7 +134,7 @@ def _grounded_qa(row: dict[str, Any], variant: int) -> TaskHand:
             f"Release {release_major}.{release_minor} adds export filters. The legacy import removal date is unknown because the note gives no date.",
         ),
     }
-    passage, requested_answer, supported = cases[row["domain"]]
+    passage, requested_answer, supported = cases[_render_domain(row)]
     data, goal = _deal_task_frames(
         row,
         variant,
@@ -237,7 +238,7 @@ def _summary(row: dict[str, Any], variant: int) -> TaskHand:
             "where the rule stops applying",
         ),
     }
-    decision, action, open_point = cases[row["domain"]]
+    decision, action, open_point = cases[_render_domain(row)]
     source = (
         f"The recorded decision is to {decision}. {owner} will {action} by day {day}. "
         f"The source leaves {open_point} unresolved."
@@ -479,8 +480,53 @@ def _extraction(row: dict[str, Any], variant: int) -> TaskHand:
                 "pages": None,
             },
         ),
+        "shipment_manifest": (
+            f"manifest={code}; carrier=North Freight; origin=Bay 3; destination=Westmere; packages={amount}; seal=verified; customs_note missing",
+            {
+                "manifest": code,
+                "carrier": "North Freight",
+                "origin": "Bay 3",
+                "destination": "Westmere",
+                "packages": amount,
+                "seal": "verified",
+                "customs_note": None,
+            },
+        ),
+        "survey_export": (
+            f"export={code}; responses={amount}; mean_rating=4.2; completion_rate=87%; segment=trial_users; notes missing",
+            {
+                "export": code,
+                "responses": amount,
+                "mean_rating": 4.2,
+                "completion_rate": "87%",
+                "segment": "trial_users",
+                "notes": None,
+            },
+        ),
+        "api_response": (
+            f"request_id={code}; status=200; duration_ms={amount}; records={day}; next_cursor missing; error missing",
+            {
+                "request_id": code,
+                "status": 200,
+                "duration_ms": amount,
+                "records": day,
+                "next_cursor": None,
+                "error": None,
+            },
+        ),
+        "administrative_form": (
+            f"form={code}; applicant=Rin Vale; submitted=2026-08-{day:02d}; department=Permits; status=received; reviewer missing",
+            {
+                "form": code,
+                "applicant": "Rin Vale",
+                "submitted": f"2026-08-{day:02d}",
+                "department": "Permits",
+                "status": "received",
+                "reviewer": None,
+            },
+        ),
     }
-    raw, fields = cases[row["domain"]]
+    raw, fields = cases[_render_domain(row)]
     record_label = row["domain"].replace("_", " ")
     if not record_label.endswith("record"):
         record_label = f"{record_label} record"

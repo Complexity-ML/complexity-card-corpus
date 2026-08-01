@@ -1,0 +1,645 @@
+{
+  "format": "scenario-family-pack-v1",
+  "tankId": "troubleshooting",
+  "families": [
+    {
+      "id": "troubleshooting",
+      "label": "Troubleshooting",
+      "target": 1220,
+      "domains": [
+        {
+          "id": "software_install",
+          "label": "Software installation",
+          "subject": "a software installation failure",
+          "context": "The environment and error boundary must be identified before changing dependencies."
+        },
+        {
+          "id": "network_connection",
+          "label": "Network connection",
+          "subject": "an unreliable network connection",
+          "context": "Local device, router, name resolution, and remote service are separate fault domains."
+        },
+        {
+          "id": "file_sync",
+          "label": "File synchronization",
+          "subject": "a file synchronization mismatch",
+          "context": "Local and remote copies may diverge, so destructive overwrite is unsafe."
+        },
+        {
+          "id": "peripheral",
+          "label": "Device peripheral",
+          "subject": "an unresponsive peripheral",
+          "context": "Power, physical connection, permissions, and driver state are distinct checks."
+        },
+        {
+          "id": "web_form",
+          "label": "Web form",
+          "subject": "a web-form submission failure",
+          "context": "Validation, session state, browser behavior, and server response can fail independently."
+        },
+        {
+          "id": "data_pipeline",
+          "label": "Data pipeline",
+          "subject": "a data-pipeline failure",
+          "context": "Inputs, schema, transformation, and destination must be checked at explicit boundaries."
+        },
+        {
+          "id": "audio_output",
+          "label": "Audio output",
+          "subject": "a silent audio output",
+          "context": "Application volume, selected output, physical connection, and device state are separate checks."
+        },
+        {
+          "id": "printer_queue",
+          "label": "Printer queue",
+          "subject": "a stalled print job",
+          "context": "Document rendering, queue state, connectivity, and printer status should be isolated without losing the document."
+        },
+        {
+          "id": "account_login",
+          "label": "Account login",
+          "subject": "an account login failure",
+          "context": "Identifier, credential state, second-factor delivery, and service availability can fail independently."
+        },
+        {
+          "id": "storage_space",
+          "label": "Storage space",
+          "subject": "an unexpected low-storage warning",
+          "context": "Temporary files, user files, snapshots, and reported free space require non-destructive inspection."
+        },
+        {
+          "id": "battery_charging",
+          "label": "Battery charging",
+          "subject": "a device that is not charging",
+          "context": "Power source, cable, connector, temperature, and battery state form separate diagnostic boundaries."
+        },
+        {
+          "id": "browser_session",
+          "label": "Browser session",
+          "subject": "a browser session failure",
+          "context": "Cached state, extensions, profile data, and the remote service should be tested separately."
+        },
+        {
+          "id": "email_delivery",
+          "label": "Email delivery",
+          "subject": "a delayed email message",
+          "context": "Outbox state, recipient address, server acceptance, and downstream delivery are distinct stages."
+        },
+        {
+          "id": "spreadsheet_formula",
+          "label": "Spreadsheet formula",
+          "subject": "an incorrect spreadsheet result",
+          "context": "Inputs, cell references, formula logic, and formatting must be checked without overwriting source values."
+        },
+        {
+          "id": "mobile_sync",
+          "label": "Mobile synchronization",
+          "subject": "a mobile synchronization failure",
+          "context": "Account state, network reachability, local changes, and server acknowledgement provide separate signals."
+        },
+        {
+          "id": "database_query",
+          "label": "Database query",
+          "subject": "a failing database query",
+          "context": "Schema, parameters, execution plan, permissions, and returned error must be isolated without altering production data."
+        },
+        {
+          "id": "sensor_reading",
+          "label": "Sensor reading",
+          "subject": "an unstable sensor reading",
+          "context": "Calibration, sampling interval, environment, and transport path can each affect the observed value."
+        },
+        {
+          "id": "package_build",
+          "label": "Package build",
+          "subject": "a software package build",
+          "context": "Dependency resolution, toolchain version, generated artifacts, and first failing step define the diagnostic boundary."
+        }
+      ],
+      "intents": [
+        {
+          "id": "diagnose",
+          "label": "isolate the failing boundary",
+          "goalTemplate": "Isolate the failing boundary in {subject}."
+        },
+        {
+          "id": "reproduce",
+          "label": "produce a minimal reproduction",
+          "goalTemplate": "Create a minimal, observable reproduction of {subject}."
+        },
+        {
+          "id": "recover",
+          "label": "recover safely",
+          "goalTemplate": "Recover safely from {subject} without destroying useful state."
+        },
+        {
+          "id": "verify_fix",
+          "label": "verify a proposed fix",
+          "goalTemplate": "Verify that a proposed fix actually resolves {subject}."
+        },
+        {
+          "id": "prevent",
+          "label": "prevent recurrence",
+          "goalTemplate": "Identify a proportionate prevention step after resolving {subject}."
+        },
+        {
+          "id": "trace_transition",
+          "label": "trace the transition into failure",
+          "goalTemplate": "Trace the observable transition that turns {subject} from working to failing."
+        }
+      ],
+      "constraints": [
+        {
+          "id": "no_data_loss",
+          "label": "Existing user data must not be overwritten or deleted."
+        },
+        {
+          "id": "one_change",
+          "label": "Change one variable at a time and preserve observations."
+        },
+        {
+          "id": "limited_access",
+          "label": "Administrator access is unavailable."
+        },
+        {
+          "id": "short_window",
+          "label": "Only a short maintenance window is available."
+        },
+        {
+          "id": "reversible_steps",
+          "label": "Every diagnostic step must be reversible."
+        },
+        {
+          "id": "single_change",
+          "label": "Change one test variable before observing again."
+        },
+        {
+          "id": "observable_signal",
+          "label": "Name each test's deciding signal."
+        }
+      ],
+      "states": [
+        {
+          "id": "intermittent",
+          "label": "The failure is intermittent rather than constant."
+        },
+        {
+          "id": "after_change",
+          "label": "The failure began after a known configuration change."
+        },
+        {
+          "id": "partial_success",
+          "label": "One stage succeeds while the next stage fails."
+        },
+        {
+          "id": "unknown_baseline",
+          "label": "The last known-good state is not documented."
+        },
+        {
+          "id": "unstable_reproduction",
+          "label": "The symptom appears intermittently under similar conditions."
+        }
+      ],
+      "outcomes": [
+        {
+          "id": "fault_domain",
+          "label": "The failing component or boundary is identified."
+        },
+        {
+          "id": "minimal_repro",
+          "label": "A minimal reproduction captures the same failure reliably."
+        },
+        {
+          "id": "restored",
+          "label": "Normal operation is restored without data loss."
+        },
+        {
+          "id": "validated_fix",
+          "label": "The fix passes a direct check and a regression check."
+        },
+        {
+          "id": "runbook",
+          "label": "A concise prevention or recovery note is recorded."
+        },
+        {
+          "id": "reproduced_boundary",
+          "label": "The failure is reproduced at one bounded interface."
+        }
+      ],
+      "fallbacks": [
+        {
+          "id": "preserve_logs",
+          "label": "Stop changing state, preserve logs, and record the last confirmed boundary."
+        },
+        {
+          "id": "rollback",
+          "label": "Return to the last known reversible configuration."
+        },
+        {
+          "id": "escalate",
+          "label": "Escalate with reproduction steps, environment details, and exact errors."
+        }
+      ],
+      "compatibility": {
+        "intentOutcomes": {
+          "diagnose": [
+            "fault_domain",
+            "reproduced_boundary"
+          ],
+          "reproduce": [
+            "minimal_repro",
+            "fault_domain",
+            "reproduced_boundary"
+          ],
+          "recover": [
+            "restored",
+            "reproduced_boundary"
+          ],
+          "verify_fix": [
+            "validated_fix",
+            "reproduced_boundary"
+          ],
+          "prevent": [
+            "runbook",
+            "validated_fix",
+            "reproduced_boundary"
+          ],
+          "trace_transition": [
+            "fault_domain",
+            "minimal_repro",
+            "reproduced_boundary",
+            "restored",
+            "runbook",
+            "validated_fix"
+          ]
+        },
+        "domainIntents": {
+          "software_install": [
+            "diagnose",
+            "reproduce",
+            "recover",
+            "verify_fix",
+            "prevent",
+            "trace_transition"
+          ],
+          "network_connection": [
+            "diagnose",
+            "reproduce",
+            "recover",
+            "verify_fix",
+            "prevent",
+            "trace_transition"
+          ],
+          "file_sync": [
+            "diagnose",
+            "reproduce",
+            "recover",
+            "verify_fix",
+            "prevent",
+            "trace_transition"
+          ],
+          "peripheral": [
+            "diagnose",
+            "reproduce",
+            "recover",
+            "verify_fix",
+            "prevent",
+            "trace_transition"
+          ],
+          "web_form": [
+            "diagnose",
+            "reproduce",
+            "recover",
+            "verify_fix",
+            "prevent",
+            "trace_transition"
+          ],
+          "data_pipeline": [
+            "diagnose",
+            "reproduce",
+            "recover",
+            "verify_fix",
+            "prevent",
+            "trace_transition"
+          ],
+          "audio_output": [
+            "diagnose",
+            "reproduce",
+            "recover",
+            "verify_fix",
+            "prevent",
+            "trace_transition"
+          ],
+          "printer_queue": [
+            "diagnose",
+            "reproduce",
+            "recover",
+            "verify_fix",
+            "prevent",
+            "trace_transition"
+          ],
+          "account_login": [
+            "diagnose",
+            "reproduce",
+            "recover",
+            "verify_fix",
+            "prevent",
+            "trace_transition"
+          ],
+          "storage_space": [
+            "diagnose",
+            "reproduce",
+            "recover",
+            "verify_fix",
+            "prevent",
+            "trace_transition"
+          ],
+          "battery_charging": [
+            "diagnose",
+            "reproduce",
+            "recover",
+            "verify_fix",
+            "prevent",
+            "trace_transition"
+          ],
+          "browser_session": [
+            "diagnose",
+            "reproduce",
+            "recover",
+            "verify_fix",
+            "prevent",
+            "trace_transition"
+          ],
+          "email_delivery": [
+            "diagnose",
+            "reproduce",
+            "recover",
+            "verify_fix",
+            "prevent",
+            "trace_transition"
+          ],
+          "spreadsheet_formula": [
+            "diagnose",
+            "reproduce",
+            "recover",
+            "verify_fix",
+            "prevent",
+            "trace_transition"
+          ],
+          "mobile_sync": [
+            "diagnose",
+            "reproduce",
+            "recover",
+            "verify_fix",
+            "prevent",
+            "trace_transition"
+          ],
+          "database_query": [
+            "diagnose",
+            "reproduce",
+            "recover",
+            "verify_fix",
+            "prevent",
+            "trace_transition"
+          ],
+          "sensor_reading": [
+            "diagnose",
+            "reproduce",
+            "recover",
+            "verify_fix",
+            "prevent",
+            "trace_transition"
+          ],
+          "package_build": [
+            "diagnose",
+            "reproduce",
+            "recover",
+            "verify_fix",
+            "prevent",
+            "trace_transition"
+          ]
+        },
+        "domainConstraints": {
+          "software_install": [
+            "one_change",
+            "limited_access",
+            "short_window",
+            "reversible_steps",
+            "single_change",
+            "observable_signal"
+          ],
+          "network_connection": [
+            "one_change",
+            "limited_access",
+            "short_window",
+            "reversible_steps",
+            "single_change",
+            "observable_signal"
+          ],
+          "file_sync": [
+            "no_data_loss",
+            "one_change",
+            "limited_access",
+            "reversible_steps",
+            "single_change",
+            "observable_signal"
+          ],
+          "peripheral": [
+            "one_change",
+            "limited_access",
+            "short_window",
+            "reversible_steps",
+            "single_change",
+            "observable_signal"
+          ],
+          "web_form": [
+            "no_data_loss",
+            "one_change",
+            "limited_access",
+            "reversible_steps",
+            "single_change",
+            "observable_signal"
+          ],
+          "data_pipeline": [
+            "no_data_loss",
+            "one_change",
+            "short_window",
+            "reversible_steps",
+            "single_change",
+            "observable_signal"
+          ],
+          "audio_output": [
+            "one_change",
+            "limited_access",
+            "short_window",
+            "reversible_steps",
+            "single_change",
+            "observable_signal"
+          ],
+          "printer_queue": [
+            "no_data_loss",
+            "one_change",
+            "limited_access",
+            "reversible_steps",
+            "single_change",
+            "observable_signal"
+          ],
+          "account_login": [
+            "no_data_loss",
+            "one_change",
+            "limited_access",
+            "reversible_steps",
+            "single_change",
+            "observable_signal"
+          ],
+          "storage_space": [
+            "no_data_loss",
+            "one_change",
+            "limited_access",
+            "reversible_steps",
+            "single_change",
+            "observable_signal"
+          ],
+          "battery_charging": [
+            "one_change",
+            "limited_access",
+            "short_window",
+            "reversible_steps",
+            "single_change",
+            "observable_signal"
+          ],
+          "browser_session": [
+            "no_data_loss",
+            "one_change",
+            "limited_access",
+            "reversible_steps",
+            "single_change",
+            "observable_signal"
+          ],
+          "email_delivery": [
+            "no_data_loss",
+            "one_change",
+            "short_window",
+            "reversible_steps",
+            "single_change",
+            "observable_signal"
+          ],
+          "spreadsheet_formula": [
+            "no_data_loss",
+            "one_change",
+            "limited_access",
+            "reversible_steps",
+            "single_change",
+            "observable_signal"
+          ],
+          "mobile_sync": [
+            "no_data_loss",
+            "one_change",
+            "limited_access",
+            "reversible_steps",
+            "single_change",
+            "observable_signal"
+          ],
+          "database_query": [
+            "no_data_loss",
+            "one_change",
+            "short_window",
+            "reversible_steps",
+            "single_change",
+            "observable_signal"
+          ],
+          "sensor_reading": [
+            "one_change",
+            "limited_access",
+            "short_window",
+            "reversible_steps",
+            "single_change",
+            "observable_signal"
+          ],
+          "package_build": [
+            "one_change",
+            "limited_access",
+            "short_window",
+            "reversible_steps",
+            "single_change",
+            "observable_signal"
+          ]
+        },
+        "stateOutcomes": {
+          "intermittent": [
+            "fault_domain",
+            "minimal_repro",
+            "validated_fix",
+            "runbook",
+            "reproduced_boundary"
+          ],
+          "after_change": [
+            "fault_domain",
+            "restored",
+            "validated_fix",
+            "runbook",
+            "reproduced_boundary"
+          ],
+          "partial_success": [
+            "fault_domain",
+            "minimal_repro",
+            "restored",
+            "validated_fix",
+            "reproduced_boundary"
+          ],
+          "unknown_baseline": [
+            "fault_domain",
+            "minimal_repro",
+            "runbook",
+            "reproduced_boundary"
+          ],
+          "unstable_reproduction": [
+            "fault_domain",
+            "minimal_repro",
+            "reproduced_boundary",
+            "restored",
+            "runbook",
+            "validated_fix"
+          ]
+        },
+        "stateFallbacks": {
+          "intermittent": [
+            "preserve_logs",
+            "escalate"
+          ],
+          "after_change": [
+            "preserve_logs",
+            "rollback"
+          ],
+          "partial_success": [
+            "preserve_logs",
+            "rollback",
+            "escalate"
+          ],
+          "unknown_baseline": [
+            "preserve_logs",
+            "escalate"
+          ],
+          "unstable_reproduction": [
+            "escalate",
+            "preserve_logs",
+            "rollback"
+          ]
+        },
+        "riskFallbacks": {
+          "low": [
+            "preserve_logs",
+            "rollback",
+            "escalate"
+          ]
+        }
+      },
+      "responseContract": [
+        "Start with the smallest discriminating check.",
+        "Explain what each check proves.",
+        "Avoid destructive recovery by default.",
+        "End with a verification step."
+      ]
+    }
+  ]
+}

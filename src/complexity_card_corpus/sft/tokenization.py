@@ -12,7 +12,10 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from ..release_targets import TARGET_POST_TRAINING_ROWS
+from ..release_targets import (
+    TARGET_POST_TRAINING_ROWS,
+    TARGET_POST_TRAINING_SUPERVISED_TOKENS,
+)
 from ..build import file_sha256
 from ..chat_template import (
     CHAT_TEMPLATE_ID,
@@ -36,7 +39,7 @@ from .selection import (
 from .schema import IGNORE_INDEX, LABEL_DTYPE, PROJECTED_SFT_SCHEMA, TOKEN_DTYPE
 
 
-TRAIN_MAX_EXAMPLES_PER_FAMILY = 2_500
+TRAIN_MAX_EXAMPLES_PER_FAMILY = 15_000
 TRAIN_MAX_PER_STRUCTURE = 8
 TRAIN_EXTRACTION_MAX_PER_STRUCTURE = 32
 
@@ -565,9 +568,10 @@ def tokenize_instruction_dataset(
         "diagnostic_companion_has_500_to_1000_examples": 500
         <= manifests.get("diagnostic", {}).get("examples", 0)
         <= 1_000,
-        "training_supervised_tokens_between_3m_and_10m": 3_000_000
-        <= manifests.get("train", {}).get("supervised_tokens", 0)
-        <= 10_000_000,
+        "training_supervised_tokens_at_least_10m": (
+            manifests.get("train", {}).get("supervised_tokens", 0)
+            >= TARGET_POST_TRAINING_SUPERVISED_TOKENS
+        ),
     }
     manifest["release_quality"] = {
         "ready": all(quality_checks.values()),
@@ -598,7 +602,9 @@ def tokenize_instruction_dataset(
         "exact_train_prompt_uniqueness_ratio": round(
             exact_train_prompts / train_count if train_count else 0.0, 6
         ),
-        "target_supervised_token_range": [3_000_000, 10_000_000],
+        "minimum_supervised_training_tokens": (
+            TARGET_POST_TRAINING_SUPERVISED_TOKENS
+        ),
         "target_training_examples": TARGET_POST_TRAINING_ROWS,
     }
     (temporary / "manifest.json").write_text(

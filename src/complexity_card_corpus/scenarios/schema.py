@@ -273,6 +273,16 @@ class ScenarioFamilySpec(BaseModel):
                         f"{domain.domain_id}, state {state.atom_id}, risk {domain.risk_level}"
                     )
 
+        signature_capacity = self.semantic_signature_capacity()
+        if self.target > signature_capacity:
+            raise ValueError(
+                f"family {self.family_id} requests {self.target} scenarios but "
+                f"its semantic signature capacity is {signature_capacity}"
+            )
+        return self
+
+    def semantic_signature_capacity(self) -> int:
+        """Return the compatible raw-card combinations available to this tank."""
         signature_capacity = 0
         for domain in self.domains:
             for intent_id in self.compatibility.domain_intents[domain.domain_id]:
@@ -283,12 +293,7 @@ class ScenarioFamilySpec(BaseModel):
                     signature_capacity += len(
                         self.compatibility.domain_constraints[domain.domain_id]
                     ) * len(compatible_outcomes)
-        if self.target > signature_capacity:
-            raise ValueError(
-                f"family {self.family_id} requests {self.target} scenarios but "
-                f"its semantic signature capacity is {signature_capacity}"
-            )
-        return self
+        return signature_capacity
 
 
 class ScenarioForgeMetadata(BaseModel):

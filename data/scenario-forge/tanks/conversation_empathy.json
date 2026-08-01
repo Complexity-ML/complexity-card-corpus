@@ -1,0 +1,476 @@
+{
+  "format": "scenario-family-pack-v1",
+  "tankId": "conversation_empathy",
+  "families": [
+    {
+      "id": "conversation_empathy",
+      "label": "Conversation and empathy",
+      "target": 520,
+      "domains": [
+        {
+          "id": "work_stress",
+          "label": "Work stress",
+          "subject": "a stressful work situation",
+          "context": "The person wants acknowledgment and one manageable next step, not a diagnosis."
+        },
+        {
+          "id": "relationship_tension",
+          "label": "Relationship tension",
+          "subject": "a tense personal conversation",
+          "context": "Honesty and preservation of the relationship both matter."
+        },
+        {
+          "id": "uncertain_change",
+          "label": "Uncertain change",
+          "subject": "an uncertain life change",
+          "context": "The outcome is not controllable, but preparation and support are possible."
+        },
+        {
+          "id": "social_mistake",
+          "label": "Social mistake",
+          "subject": "an embarrassing social moment",
+          "context": "A small mistake is being replayed as if it were a lasting judgment."
+        },
+        {
+          "id": "achievement",
+          "label": "Achievement",
+          "subject": "a meaningful personal achievement",
+          "context": "The person wants to recognize progress without dismissing remaining difficulty."
+        },
+        {
+          "id": "loss_disappointment",
+          "label": "Loss and disappointment",
+          "subject": "a painful disappointment",
+          "context": "The person needs space for the feeling before moving to action."
+        },
+        {
+          "id": "work_conflict",
+          "label": "Work conflict",
+          "subject": "a difficult workplace exchange",
+          "context": "The speaker reports a specific interaction and wants acknowledgment before considering a response."
+        },
+        {
+          "id": "grief_update",
+          "label": "Grief update",
+          "subject": "a personal grief update",
+          "context": "The speaker shares loss without necessarily asking for advice or interpretation."
+        },
+        {
+          "id": "creative_rejection",
+          "label": "Creative rejection",
+          "subject": "a rejected creative submission",
+          "context": "Disappointment, effort, and uncertainty about the next attempt are all present in the message."
+        },
+        {
+          "id": "caregiving_stress",
+          "label": "Caregiving stress",
+          "subject": "a stressful caregiving moment",
+          "context": "The speaker describes limited energy and competing responsibilities without requesting diagnosis."
+        }
+      ],
+      "intents": [
+        {
+          "id": "acknowledge",
+          "label": "acknowledge the experience",
+          "goalTemplate": "Respond supportively to {subject} without minimizing it."
+        },
+        {
+          "id": "clarify_need",
+          "label": "clarify the immediate need",
+          "goalTemplate": "Help the person identify what they need from {subject} right now."
+        },
+        {
+          "id": "prepare_conversation",
+          "label": "prepare a grounded conversation",
+          "goalTemplate": "Prepare one respectful conversation about {subject}."
+        },
+        {
+          "id": "small_step",
+          "label": "choose a gentle next step",
+          "goalTemplate": "Choose one manageable next step after {subject}."
+        },
+        {
+          "id": "reflect",
+          "label": "reflect on meaning and progress",
+          "goalTemplate": "Reflect on what {subject} reveals without forcing a quick resolution."
+        },
+        {
+          "id": "reflect_need",
+          "label": "reflect the stated need",
+          "goalTemplate": "Reflect the need expressed around {subject} without assuming a motive."
+        }
+      ],
+      "constraints": [
+        {
+          "id": "no_assumption",
+          "label": "Do not assume motives, diagnoses, or unstated facts."
+        },
+        {
+          "id": "no_forced_fix",
+          "label": "Do not force problem-solving before acknowledging the experience."
+        },
+        {
+          "id": "one_question",
+          "label": "Ask no more than one gentle, useful question."
+        },
+        {
+          "id": "preserve_agency",
+          "label": "Preserve the person's agency and avoid commands."
+        },
+        {
+          "id": "specific_support",
+          "label": "Offer support that is concrete but proportionate."
+        },
+        {
+          "id": "no_assumed_motive",
+          "label": "Do not assign an unstated motive or feeling."
+        },
+        {
+          "id": "consent_to_advise",
+          "label": "Offer advice only with consent."
+        }
+      ],
+      "states": [
+        {
+          "id": "activated",
+          "label": "The emotion is immediate and physically activating."
+        },
+        {
+          "id": "replaying",
+          "label": "The person is repeatedly replaying the event."
+        },
+        {
+          "id": "mixed",
+          "label": "The person holds two conflicting feelings at once."
+        },
+        {
+          "id": "ready",
+          "label": "The person feels ready for a small constructive step."
+        },
+        {
+          "id": "mixed_emotion",
+          "label": "The speaker expresses several emotions without one clear request."
+        }
+      ],
+      "outcomes": [
+        {
+          "id": "felt_understood",
+          "label": "The central feeling is accurately acknowledged."
+        },
+        {
+          "id": "named_need",
+          "label": "The person can name the immediate need more clearly."
+        },
+        {
+          "id": "bounded_conversation",
+          "label": "A difficult conversation has one clear purpose and boundary."
+        },
+        {
+          "id": "small_action",
+          "label": "One manageable action is chosen without demanding certainty."
+        },
+        {
+          "id": "balanced_reflection",
+          "label": "The reflection holds both difficulty and evidence of agency."
+        },
+        {
+          "id": "acknowledged_need",
+          "label": "The reply acknowledges the need and offers one gentle next step."
+        }
+      ],
+      "fallbacks": [
+        {
+          "id": "stay_present",
+          "label": "Stay with acknowledgment and do not add an action step yet."
+        },
+        {
+          "id": "pause_conversation",
+          "label": "Pause the planned conversation until the person feels more regulated."
+        },
+        {
+          "id": "trusted_support",
+          "label": "Encourage contact with a trusted person when carrying it alone is too much."
+        }
+      ],
+      "compatibility": {
+        "intentOutcomes": {
+          "acknowledge": [
+            "felt_understood",
+            "acknowledged_need"
+          ],
+          "clarify_need": [
+            "named_need",
+            "felt_understood",
+            "acknowledged_need"
+          ],
+          "prepare_conversation": [
+            "bounded_conversation",
+            "acknowledged_need"
+          ],
+          "small_step": [
+            "small_action",
+            "acknowledged_need"
+          ],
+          "reflect": [
+            "balanced_reflection",
+            "named_need",
+            "acknowledged_need"
+          ],
+          "reflect_need": [
+            "acknowledged_need",
+            "balanced_reflection",
+            "bounded_conversation",
+            "felt_understood",
+            "named_need",
+            "small_action"
+          ]
+        },
+        "domainIntents": {
+          "work_stress": [
+            "acknowledge",
+            "clarify_need",
+            "prepare_conversation",
+            "small_step",
+            "reflect",
+            "reflect_need"
+          ],
+          "relationship_tension": [
+            "acknowledge",
+            "clarify_need",
+            "prepare_conversation",
+            "small_step",
+            "reflect",
+            "reflect_need"
+          ],
+          "uncertain_change": [
+            "acknowledge",
+            "clarify_need",
+            "small_step",
+            "reflect",
+            "reflect_need"
+          ],
+          "social_mistake": [
+            "acknowledge",
+            "clarify_need",
+            "prepare_conversation",
+            "small_step",
+            "reflect",
+            "reflect_need"
+          ],
+          "achievement": [
+            "acknowledge",
+            "clarify_need",
+            "small_step",
+            "reflect",
+            "reflect_need"
+          ],
+          "loss_disappointment": [
+            "acknowledge",
+            "clarify_need",
+            "prepare_conversation",
+            "small_step",
+            "reflect",
+            "reflect_need"
+          ],
+          "work_conflict": [
+            "acknowledge",
+            "clarify_need",
+            "prepare_conversation",
+            "small_step",
+            "reflect",
+            "reflect_need"
+          ],
+          "grief_update": [
+            "acknowledge",
+            "clarify_need",
+            "prepare_conversation",
+            "small_step",
+            "reflect",
+            "reflect_need"
+          ],
+          "creative_rejection": [
+            "acknowledge",
+            "clarify_need",
+            "prepare_conversation",
+            "small_step",
+            "reflect",
+            "reflect_need"
+          ],
+          "caregiving_stress": [
+            "acknowledge",
+            "clarify_need",
+            "prepare_conversation",
+            "small_step",
+            "reflect",
+            "reflect_need"
+          ]
+        },
+        "domainConstraints": {
+          "work_stress": [
+            "no_assumption",
+            "no_forced_fix",
+            "one_question",
+            "preserve_agency",
+            "specific_support",
+            "no_assumed_motive",
+            "consent_to_advise"
+          ],
+          "relationship_tension": [
+            "no_assumption",
+            "no_forced_fix",
+            "one_question",
+            "preserve_agency",
+            "specific_support",
+            "no_assumed_motive",
+            "consent_to_advise"
+          ],
+          "uncertain_change": [
+            "no_assumption",
+            "no_forced_fix",
+            "one_question",
+            "preserve_agency",
+            "specific_support",
+            "no_assumed_motive",
+            "consent_to_advise"
+          ],
+          "social_mistake": [
+            "no_assumption",
+            "no_forced_fix",
+            "one_question",
+            "preserve_agency",
+            "no_assumed_motive",
+            "consent_to_advise"
+          ],
+          "achievement": [
+            "no_assumption",
+            "no_forced_fix",
+            "one_question",
+            "preserve_agency",
+            "specific_support",
+            "no_assumed_motive",
+            "consent_to_advise"
+          ],
+          "loss_disappointment": [
+            "no_assumption",
+            "no_forced_fix",
+            "one_question",
+            "preserve_agency",
+            "specific_support",
+            "no_assumed_motive",
+            "consent_to_advise"
+          ],
+          "work_conflict": [
+            "no_assumption",
+            "no_forced_fix",
+            "one_question",
+            "preserve_agency",
+            "specific_support",
+            "no_assumed_motive",
+            "consent_to_advise"
+          ],
+          "grief_update": [
+            "no_assumption",
+            "no_forced_fix",
+            "one_question",
+            "preserve_agency",
+            "specific_support",
+            "no_assumed_motive",
+            "consent_to_advise"
+          ],
+          "creative_rejection": [
+            "no_assumption",
+            "no_forced_fix",
+            "one_question",
+            "preserve_agency",
+            "specific_support",
+            "no_assumed_motive",
+            "consent_to_advise"
+          ],
+          "caregiving_stress": [
+            "no_assumption",
+            "no_forced_fix",
+            "one_question",
+            "preserve_agency",
+            "specific_support",
+            "no_assumed_motive",
+            "consent_to_advise"
+          ]
+        },
+        "stateOutcomes": {
+          "activated": [
+            "felt_understood",
+            "named_need",
+            "balanced_reflection",
+            "acknowledged_need"
+          ],
+          "replaying": [
+            "felt_understood",
+            "named_need",
+            "small_action",
+            "balanced_reflection",
+            "acknowledged_need"
+          ],
+          "mixed": [
+            "felt_understood",
+            "named_need",
+            "bounded_conversation",
+            "balanced_reflection",
+            "acknowledged_need"
+          ],
+          "ready": [
+            "named_need",
+            "bounded_conversation",
+            "small_action",
+            "balanced_reflection",
+            "acknowledged_need"
+          ],
+          "mixed_emotion": [
+            "acknowledged_need",
+            "balanced_reflection",
+            "bounded_conversation",
+            "felt_understood",
+            "named_need",
+            "small_action"
+          ]
+        },
+        "stateFallbacks": {
+          "activated": [
+            "stay_present",
+            "pause_conversation",
+            "trusted_support"
+          ],
+          "replaying": [
+            "stay_present",
+            "trusted_support"
+          ],
+          "mixed": [
+            "stay_present",
+            "pause_conversation"
+          ],
+          "ready": [
+            "stay_present",
+            "trusted_support"
+          ],
+          "mixed_emotion": [
+            "pause_conversation",
+            "stay_present",
+            "trusted_support"
+          ]
+        },
+        "riskFallbacks": {
+          "low": [
+            "stay_present",
+            "pause_conversation",
+            "trusted_support"
+          ]
+        }
+      },
+      "responseContract": [
+        "Acknowledge before advising.",
+        "Avoid invented motives or diagnoses.",
+        "Ask at most one grounded question.",
+        "Preserve agency in any next step."
+      ]
+    }
+  ]
+}

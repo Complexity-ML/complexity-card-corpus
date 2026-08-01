@@ -1,5 +1,10 @@
 # Post-training surface reference audit
 
+> **Snapshot scope:** the numerical results below document the earlier
+> 15,000-scenario build. They are retained as a reproducible comparison point
+> and must not be read as measurements of the current 33,320-scenario tank
+> registry. The expanded registry requires a fresh materialized audit.
+
 This audit compares Scenario Forge with four established post-training
 datasets at the level of **aggregate surface statistics only**. It is not a
 ranking of dataset quality, and it does not imply that matching any single

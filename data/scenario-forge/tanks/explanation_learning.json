@@ -1,0 +1,680 @@
+{
+  "format": "scenario-family-pack-v1",
+  "tankId": "explanation_learning",
+  "families": [
+    {
+      "id": "explanation_learning",
+      "label": "Explanation and learning",
+      "target": 1260,
+      "domains": [
+        {
+          "id": "computing",
+          "label": "Computing",
+          "subject": "a basic computing mechanism",
+          "context": "The learner needs a mental model rather than implementation trivia."
+        },
+        {
+          "id": "software_resilience",
+          "label": "Software resilience",
+          "subject": "a backup and recovery principle",
+          "context": "A restorable backup must precede risky software changes."
+        },
+        {
+          "id": "data_literacy",
+          "label": "Data literacy",
+          "subject": "a data interpretation concept",
+          "context": "A chart or summary must be read without overstating what it proves."
+        },
+        {
+          "id": "physical_science",
+          "label": "Physical science",
+          "subject": "a physical-science principle",
+          "context": "The explanation should connect an observable effect to a simple mechanism."
+        },
+        {
+          "id": "life_science",
+          "label": "Life science",
+          "subject": "a life-science process",
+          "context": "The learner needs accurate scale and causality without anthropomorphic shortcuts."
+        },
+        {
+          "id": "mathematics",
+          "label": "Mathematics",
+          "subject": "a mathematical relationship",
+          "context": "The explanation should connect notation, intuition, and one worked example."
+        },
+        {
+          "id": "personal_finance",
+          "label": "Personal finance literacy",
+          "subject": "a personal-finance concept",
+          "context": "The material is educational and must not become individualized financial advice.",
+          "riskLevel": "medium"
+        },
+        {
+          "id": "civics",
+          "label": "Civics",
+          "subject": "a civic process",
+          "context": "Roles, procedure, and jurisdiction need to remain distinct."
+        },
+        {
+          "id": "media_literacy",
+          "label": "Media literacy",
+          "subject": "a media-verification concept",
+          "context": "Evidence quality and uncertainty matter more than a quick verdict."
+        },
+        {
+          "id": "probability",
+          "label": "Probability",
+          "subject": "a basic probability relationship",
+          "context": "Possible outcomes, independence, and mutual exclusion need distinct examples."
+        },
+        {
+          "id": "ecology",
+          "label": "Ecology",
+          "subject": "an ecological energy-flow principle",
+          "context": "Matter cycling and energy transfer must not be described as the same process."
+        },
+        {
+          "id": "electrical_energy",
+          "label": "Electrical energy",
+          "subject": "a power-and-energy relationship",
+          "context": "Power is a rate while energy accumulates over time."
+        },
+        {
+          "id": "language_grammar",
+          "label": "Language grammar",
+          "subject": "a sentence-role distinction",
+          "context": "Form, grammatical role, and meaning should be connected through one clear example."
+        },
+        {
+          "id": "computer_networks",
+          "label": "Computer networks",
+          "subject": "a name-resolution mechanism",
+          "context": "Human-readable names and network addresses play different roles in a connection."
+        },
+        {
+          "id": "research_methods",
+          "label": "Research methods",
+          "subject": "a correlation-and-causation distinction",
+          "context": "Association, temporal order, confounding, and intervention evidence must remain separate."
+        },
+        {
+          "id": "network_protocol",
+          "label": "Network protocol",
+          "subject": "a network protocol exchange",
+          "context": "Message order, state transitions, and failure responses explain how participants coordinate."
+        },
+        {
+          "id": "statistical_sampling",
+          "label": "Statistical sampling",
+          "subject": "a sampling procedure",
+          "context": "Population, selection mechanism, sample size, and bias determine what the sample can represent."
+        },
+        {
+          "id": "legal_procedure",
+          "label": "Legal procedure",
+          "subject": "a procedural legal concept",
+          "context": "Roles, deadlines, evidence requirements, and jurisdiction define the procedure without giving legal advice."
+        },
+        {
+          "id": "ecological_cycle",
+          "label": "Ecological cycle",
+          "subject": "an ecological nutrient cycle",
+          "context": "Inputs, transformations, reservoirs, and feedback explain movement through the system."
+        }
+      ],
+      "intents": [
+        {
+          "id": "mechanism",
+          "label": "explain the core mechanism",
+          "goalTemplate": "Explain the core mechanism behind {subject}."
+        },
+        {
+          "id": "contrast",
+          "label": "contrast nearby concepts",
+          "goalTemplate": "Contrast {subject} with the nearest commonly confused concept."
+        },
+        {
+          "id": "worked_example",
+          "label": "walk through a worked example",
+          "goalTemplate": "Teach {subject} through one concrete worked example."
+        },
+        {
+          "id": "misconception",
+          "label": "diagnose a misconception",
+          "goalTemplate": "Identify and correct a plausible misconception about {subject}."
+        },
+        {
+          "id": "application",
+          "label": "apply the principle",
+          "goalTemplate": "Apply {subject} to a new but simple situation."
+        },
+        {
+          "id": "diagnose_gap",
+          "label": "locate the learner's precise gap",
+          "goalTemplate": "Diagnose the precise learning gap around {subject} before adding detail."
+        }
+      ],
+      "constraints": [
+        {
+          "id": "beginner",
+          "label": "Use beginner-level vocabulary and define necessary terms."
+        },
+        {
+          "id": "concise",
+          "label": "Keep the explanation concise enough to retain the main causal chain."
+        },
+        {
+          "id": "verified",
+          "label": "Do not introduce claims that cannot be supported by the stated facts."
+        },
+        {
+          "id": "example",
+          "label": "Include one concrete example and explain why it fits."
+        },
+        {
+          "id": "fact_inference",
+          "label": "Mark the boundary between fact, inference, and simplification."
+        },
+        {
+          "id": "observable_check",
+          "label": "End with an observable check of understanding."
+        },
+        {
+          "id": "prerequisite_order",
+          "label": "Introduce prerequisites before using them."
+        }
+      ],
+      "states": [
+        {
+          "id": "unfamiliar",
+          "label": "The learner has no reliable prior model."
+        },
+        {
+          "id": "partial",
+          "label": "The learner knows the vocabulary but not the mechanism."
+        },
+        {
+          "id": "conflicting_models",
+          "label": "Two explanations appear to contradict each other."
+        },
+        {
+          "id": "rote_only",
+          "label": "The learner can repeat a rule but cannot transfer it."
+        },
+        {
+          "id": "mixed_understanding",
+          "label": "The learner repeats the rule but cannot apply it."
+        }
+      ],
+      "outcomes": [
+        {
+          "id": "mental_model",
+          "label": "The learner can restate the mechanism in their own words."
+        },
+        {
+          "id": "distinguish",
+          "label": "The learner can distinguish the concept from its nearest alternative."
+        },
+        {
+          "id": "predict",
+          "label": "The learner can predict one simple consequence."
+        },
+        {
+          "id": "correct_error",
+          "label": "The learner can identify why the earlier misconception fails."
+        },
+        {
+          "id": "transfer",
+          "label": "The learner can apply the principle to a fresh example."
+        },
+        {
+          "id": "transfer_evidence",
+          "label": "The learner applies the mechanism to a fresh example."
+        }
+      ],
+      "fallbacks": [
+        {
+          "id": "simpler_model",
+          "label": "Return to a smaller causal model with fewer moving parts."
+        },
+        {
+          "id": "counterexample",
+          "label": "Use a counterexample to expose the exact point of confusion."
+        },
+        {
+          "id": "source_check",
+          "label": "Name the unresolved claim and suggest an authoritative source check."
+        }
+      ],
+      "compatibility": {
+        "intentOutcomes": {
+          "mechanism": [
+            "mental_model",
+            "predict",
+            "transfer_evidence"
+          ],
+          "contrast": [
+            "distinguish",
+            "transfer_evidence"
+          ],
+          "worked_example": [
+            "predict",
+            "transfer",
+            "transfer_evidence"
+          ],
+          "misconception": [
+            "correct_error",
+            "distinguish",
+            "transfer_evidence"
+          ],
+          "application": [
+            "transfer",
+            "predict",
+            "transfer_evidence"
+          ],
+          "diagnose_gap": [
+            "correct_error",
+            "distinguish",
+            "mental_model",
+            "predict",
+            "transfer",
+            "transfer_evidence"
+          ]
+        },
+        "domainIntents": {
+          "computing": [
+            "mechanism",
+            "contrast",
+            "worked_example",
+            "misconception",
+            "application",
+            "diagnose_gap"
+          ],
+          "software_resilience": [
+            "mechanism",
+            "contrast",
+            "worked_example",
+            "misconception",
+            "application",
+            "diagnose_gap"
+          ],
+          "data_literacy": [
+            "mechanism",
+            "contrast",
+            "worked_example",
+            "misconception",
+            "application",
+            "diagnose_gap"
+          ],
+          "physical_science": [
+            "mechanism",
+            "contrast",
+            "worked_example",
+            "misconception",
+            "application",
+            "diagnose_gap"
+          ],
+          "life_science": [
+            "mechanism",
+            "contrast",
+            "worked_example",
+            "misconception",
+            "application",
+            "diagnose_gap"
+          ],
+          "mathematics": [
+            "mechanism",
+            "contrast",
+            "worked_example",
+            "misconception",
+            "application",
+            "diagnose_gap"
+          ],
+          "personal_finance": [
+            "mechanism",
+            "contrast",
+            "worked_example",
+            "misconception",
+            "application",
+            "diagnose_gap"
+          ],
+          "civics": [
+            "mechanism",
+            "contrast",
+            "worked_example",
+            "misconception",
+            "application",
+            "diagnose_gap"
+          ],
+          "media_literacy": [
+            "mechanism",
+            "contrast",
+            "worked_example",
+            "misconception",
+            "application",
+            "diagnose_gap"
+          ],
+          "probability": [
+            "mechanism",
+            "contrast",
+            "worked_example",
+            "misconception",
+            "application",
+            "diagnose_gap"
+          ],
+          "ecology": [
+            "mechanism",
+            "contrast",
+            "worked_example",
+            "misconception",
+            "application",
+            "diagnose_gap"
+          ],
+          "electrical_energy": [
+            "mechanism",
+            "contrast",
+            "worked_example",
+            "misconception",
+            "application",
+            "diagnose_gap"
+          ],
+          "language_grammar": [
+            "mechanism",
+            "contrast",
+            "worked_example",
+            "misconception",
+            "application",
+            "diagnose_gap"
+          ],
+          "computer_networks": [
+            "mechanism",
+            "contrast",
+            "worked_example",
+            "misconception",
+            "application",
+            "diagnose_gap"
+          ],
+          "research_methods": [
+            "mechanism",
+            "contrast",
+            "worked_example",
+            "misconception",
+            "application",
+            "diagnose_gap"
+          ],
+          "network_protocol": [
+            "mechanism",
+            "contrast",
+            "worked_example",
+            "misconception",
+            "application",
+            "diagnose_gap"
+          ],
+          "statistical_sampling": [
+            "mechanism",
+            "contrast",
+            "worked_example",
+            "misconception",
+            "application",
+            "diagnose_gap"
+          ],
+          "legal_procedure": [
+            "mechanism",
+            "contrast",
+            "worked_example",
+            "misconception",
+            "application",
+            "diagnose_gap"
+          ],
+          "ecological_cycle": [
+            "mechanism",
+            "contrast",
+            "worked_example",
+            "misconception",
+            "application",
+            "diagnose_gap"
+          ]
+        },
+        "domainConstraints": {
+          "computing": [
+            "beginner",
+            "concise",
+            "verified",
+            "example",
+            "observable_check",
+            "prerequisite_order"
+          ],
+          "software_resilience": [
+            "beginner",
+            "concise",
+            "verified",
+            "example",
+            "observable_check",
+            "prerequisite_order"
+          ],
+          "data_literacy": [
+            "beginner",
+            "concise",
+            "verified",
+            "example",
+            "fact_inference",
+            "observable_check",
+            "prerequisite_order"
+          ],
+          "physical_science": [
+            "beginner",
+            "concise",
+            "verified",
+            "example",
+            "fact_inference",
+            "observable_check",
+            "prerequisite_order"
+          ],
+          "life_science": [
+            "beginner",
+            "concise",
+            "verified",
+            "example",
+            "fact_inference",
+            "observable_check",
+            "prerequisite_order"
+          ],
+          "mathematics": [
+            "beginner",
+            "concise",
+            "verified",
+            "example",
+            "observable_check",
+            "prerequisite_order"
+          ],
+          "personal_finance": [
+            "beginner",
+            "concise",
+            "verified",
+            "example",
+            "fact_inference",
+            "observable_check",
+            "prerequisite_order"
+          ],
+          "civics": [
+            "beginner",
+            "concise",
+            "verified",
+            "example",
+            "fact_inference",
+            "observable_check",
+            "prerequisite_order"
+          ],
+          "media_literacy": [
+            "beginner",
+            "concise",
+            "verified",
+            "example",
+            "fact_inference",
+            "observable_check",
+            "prerequisite_order"
+          ],
+          "probability": [
+            "beginner",
+            "concise",
+            "verified",
+            "example",
+            "observable_check",
+            "prerequisite_order"
+          ],
+          "ecology": [
+            "beginner",
+            "concise",
+            "verified",
+            "example",
+            "fact_inference",
+            "observable_check",
+            "prerequisite_order"
+          ],
+          "electrical_energy": [
+            "beginner",
+            "concise",
+            "verified",
+            "example",
+            "observable_check",
+            "prerequisite_order"
+          ],
+          "language_grammar": [
+            "beginner",
+            "concise",
+            "verified",
+            "example",
+            "observable_check",
+            "prerequisite_order"
+          ],
+          "computer_networks": [
+            "beginner",
+            "concise",
+            "verified",
+            "example",
+            "observable_check",
+            "prerequisite_order"
+          ],
+          "research_methods": [
+            "beginner",
+            "concise",
+            "verified",
+            "example",
+            "fact_inference",
+            "observable_check",
+            "prerequisite_order"
+          ],
+          "network_protocol": [
+            "beginner",
+            "concise",
+            "verified",
+            "example",
+            "observable_check",
+            "prerequisite_order"
+          ],
+          "statistical_sampling": [
+            "beginner",
+            "concise",
+            "verified",
+            "example",
+            "fact_inference",
+            "observable_check",
+            "prerequisite_order"
+          ],
+          "legal_procedure": [
+            "beginner",
+            "concise",
+            "verified",
+            "example",
+            "fact_inference",
+            "observable_check",
+            "prerequisite_order"
+          ],
+          "ecological_cycle": [
+            "beginner",
+            "concise",
+            "verified",
+            "example",
+            "fact_inference",
+            "observable_check",
+            "prerequisite_order"
+          ]
+        },
+        "stateOutcomes": {
+          "unfamiliar": [
+            "mental_model",
+            "distinguish",
+            "predict",
+            "transfer_evidence"
+          ],
+          "partial": [
+            "mental_model",
+            "predict",
+            "transfer",
+            "transfer_evidence"
+          ],
+          "conflicting_models": [
+            "distinguish",
+            "correct_error",
+            "transfer_evidence"
+          ],
+          "rote_only": [
+            "predict",
+            "correct_error",
+            "transfer",
+            "transfer_evidence"
+          ],
+          "mixed_understanding": [
+            "correct_error",
+            "distinguish",
+            "mental_model",
+            "predict",
+            "transfer",
+            "transfer_evidence"
+          ]
+        },
+        "stateFallbacks": {
+          "unfamiliar": [
+            "simpler_model",
+            "source_check"
+          ],
+          "partial": [
+            "simpler_model",
+            "counterexample"
+          ],
+          "conflicting_models": [
+            "counterexample",
+            "source_check"
+          ],
+          "rote_only": [
+            "simpler_model",
+            "counterexample"
+          ],
+          "mixed_understanding": [
+            "counterexample",
+            "simpler_model",
+            "source_check"
+          ]
+        },
+        "riskFallbacks": {
+          "low": [
+            "simpler_model",
+            "counterexample",
+            "source_check"
+          ],
+          "medium": [
+            "simpler_model",
+            "source_check"
+          ]
+        }
+      },
+      "responseContract": [
+        "Lead with the simplest accurate model.",
+        "Define specialized terms on first use.",
+        "Include a check for understanding.",
+        "Keep uncertainty visible."
+      ]
+    }
+  ]
+}

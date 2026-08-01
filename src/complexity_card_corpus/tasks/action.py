@@ -9,6 +9,7 @@ from .core import (
     _deal_task_frames,
     _number,
     _payload,
+    _render_domain,
 )
 
 
@@ -107,7 +108,7 @@ def _practical(row: dict[str, Any], variant: int) -> TaskHand:
     hour = _number(f"hour:{code}", 9, 16)
     cost = _number(f"cost:{code}", 18, 95)
     provider, option, action, confirmation, protected_state = _PRACTICAL_CARDS[
-        row["domain"]
+        _render_domain(row)
     ]
     constraint = row.get("constraint", "")
     constraint_fact = ""
@@ -315,7 +316,9 @@ _ERRORS = {
 
 
 def _troubleshooting(row: dict[str, Any], variant: int) -> TaskHand:
-    env, error, change, diagnostic_template, rollback = _ERRORS[row["domain"]]
+    env, error, change, diagnostic_template, rollback = _ERRORS[
+        _render_domain(row)
+    ]
     code = _code(row)
     no_admin = "administrator access is unavailable" in row["constraint"].lower()
     access_note = (
@@ -570,7 +573,7 @@ def _planning(row: dict[str, Any], variant: int) -> TaskHand:
             ),
         ),
     }
-    option_cards = option_sets[row["domain"]]
+    option_cards = option_sets[_render_domain(row)]
     option_a, option_b, option_c = option_cards[
         _number(f"planning-options:{row['scenario_id']}", 0, len(option_cards) - 1)
     ]

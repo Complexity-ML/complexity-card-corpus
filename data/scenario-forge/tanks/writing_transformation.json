@@ -1,0 +1,606 @@
+{
+  "format": "scenario-family-pack-v1",
+  "tankId": "writing_transformation",
+  "families": [
+    {
+      "id": "writing_transformation",
+      "label": "Writing and transformation",
+      "target": 1040,
+      "domains": [
+        {
+          "id": "email",
+          "label": "Email",
+          "subject": "a professional email",
+          "context": "The message needs a clear purpose, appropriate tone, and explicit next step."
+        },
+        {
+          "id": "project_update",
+          "label": "Project update",
+          "subject": "a project status update",
+          "context": "Progress, evidence, blockers, and ownership should be easy to scan."
+        },
+        {
+          "id": "support_reply",
+          "label": "Support reply",
+          "subject": "a customer-support response",
+          "context": "The issue needs acknowledgment without any claim of an unverified resolution."
+        },
+        {
+          "id": "meeting_notes",
+          "label": "Meeting notes",
+          "subject": "a set of meeting notes",
+          "context": "Decisions, open questions, and actions need separation."
+        },
+        {
+          "id": "technical_explanation",
+          "label": "Technical explanation",
+          "subject": "a short technical explanation",
+          "context": "Accuracy and reader orientation matter more than decorative jargon."
+        },
+        {
+          "id": "public_notice",
+          "label": "Public notice",
+          "subject": "a short public notice",
+          "context": "Readers need the change, timing, affected service, and verified alternative immediately."
+        },
+        {
+          "id": "handover_note",
+          "label": "Handover note",
+          "subject": "a work handover note",
+          "context": "Completed work, active work, ownership, and unresolved items must remain distinct."
+        },
+        {
+          "id": "schedule_change",
+          "label": "Schedule change",
+          "subject": "a schedule-change message",
+          "context": "The previous time, new time, reason boundary, and required acknowledgment need clarity."
+        },
+        {
+          "id": "feedback_message",
+          "label": "Feedback message",
+          "subject": "a constructive feedback message",
+          "context": "Observation, impact, and requested adjustment should be separated from personal judgment."
+        },
+        {
+          "id": "procedure_summary",
+          "label": "Procedure summary",
+          "subject": "a short procedure summary",
+          "context": "The ordered steps and stopping condition matter more than background detail."
+        },
+        {
+          "id": "event_invitation",
+          "label": "Event invitation",
+          "subject": "a concise event invitation",
+          "context": "Purpose, audience, time, place, and response deadline need a clear hierarchy."
+        },
+        {
+          "id": "progress_brief",
+          "label": "Progress brief",
+          "subject": "a one-paragraph progress brief",
+          "context": "Completed work, measurable progress, current blocker, and next owner should be easy to scan."
+        },
+        {
+          "id": "grant_abstract",
+          "label": "Grant abstract",
+          "subject": "a grant abstract",
+          "context": "Problem, proposed method, evidence, and expected contribution must fit a strict space without inflated claims."
+        },
+        {
+          "id": "appeal_response",
+          "label": "Appeal response",
+          "subject": "a response to a formal appeal",
+          "context": "The response must acknowledge the request, state verified facts, explain the decision, and give one reviewable next step."
+        },
+        {
+          "id": "policy_change_notice",
+          "label": "Policy notice",
+          "subject": "a policy-change notice",
+          "context": "Effective date, affected scope, required action, and exceptions must remain easy to locate."
+        },
+        {
+          "id": "tutorial_step",
+          "label": "Tutorial step",
+          "subject": "a technical tutorial step",
+          "context": "Prerequisites, command, expected result, and recovery note must appear in usable order."
+        }
+      ],
+      "intents": [
+        {
+          "id": "draft",
+          "label": "draft from structured facts",
+          "goalTemplate": "Draft {subject} from a bounded set of facts."
+        },
+        {
+          "id": "revise",
+          "label": "revise for clarity",
+          "goalTemplate": "Revise {subject} for clarity without changing its claims."
+        },
+        {
+          "id": "summarize",
+          "label": "summarize faithfully",
+          "goalTemplate": "Summarize {subject} while preserving decisions and caveats."
+        },
+        {
+          "id": "adapt_tone",
+          "label": "adapt tone for the audience",
+          "goalTemplate": "Adapt the tone of {subject} for its intended audience."
+        },
+        {
+          "id": "restructure",
+          "label": "restructure for action",
+          "goalTemplate": "Restructure {subject} so the reader can identify the next action."
+        },
+        {
+          "id": "adapt_register",
+          "label": "adapt the register without changing meaning",
+          "goalTemplate": "Adapt the register of {subject} while preserving its supported meaning."
+        }
+      ],
+      "constraints": [
+        {
+          "id": "no_new_claims",
+          "label": "Do not add facts, commitments, or outcomes absent from the source."
+        },
+        {
+          "id": "plain_language",
+          "label": "Prefer plain language over jargon and inflated phrasing."
+        },
+        {
+          "id": "short",
+          "label": "Keep the result within a strict short-form length."
+        },
+        {
+          "id": "tone",
+          "label": "Maintain a calm, respectful, and direct tone."
+        },
+        {
+          "id": "actionable",
+          "label": "Make ownership and the requested next step explicit."
+        },
+        {
+          "id": "meaning_preservation",
+          "label": "Do not add, remove, or strengthen any factual commitment."
+        },
+        {
+          "id": "audience_boundary",
+          "label": "Fit the audience; keep necessary qualifications."
+        }
+      ],
+      "states": [
+        {
+          "id": "rough_notes",
+          "label": "The source is a rough collection of notes."
+        },
+        {
+          "id": "too_long",
+          "label": "The source is accurate but too long and repetitive."
+        },
+        {
+          "id": "ambiguous",
+          "label": "The source mixes facts, opinions, and unresolved questions."
+        },
+        {
+          "id": "wrong_tone",
+          "label": "The source content is useful but the tone does not fit the audience."
+        },
+        {
+          "id": "mixed_register",
+          "label": "The draft shifts between formal and conversational language."
+        }
+      ],
+      "outcomes": [
+        {
+          "id": "clear_purpose",
+          "label": "The opening makes the purpose immediately clear."
+        },
+        {
+          "id": "faithful_summary",
+          "label": "All material claims remain faithful to the source."
+        },
+        {
+          "id": "scan_actions",
+          "label": "Actions, owners, and timing are easy to scan."
+        },
+        {
+          "id": "audience_fit",
+          "label": "Vocabulary and tone fit the intended reader."
+        },
+        {
+          "id": "open_questions",
+          "label": "Unresolved questions remain visible rather than being invented away."
+        },
+        {
+          "id": "faithful_register",
+          "label": "The revision uses one suitable register and preserves every claim."
+        }
+      ],
+      "fallbacks": [
+        {
+          "id": "request_facts",
+          "label": "Request the missing fact instead of inventing a bridge sentence."
+        },
+        {
+          "id": "retain_caveat",
+          "label": "Retain the caveat explicitly when shortening the text."
+        },
+        {
+          "id": "two_versions",
+          "label": "Provide a concise version and a slightly fuller version for comparison."
+        }
+      ],
+      "compatibility": {
+        "intentOutcomes": {
+          "draft": [
+            "clear_purpose",
+            "faithful_summary",
+            "faithful_register"
+          ],
+          "revise": [
+            "clear_purpose",
+            "faithful_summary",
+            "faithful_register"
+          ],
+          "summarize": [
+            "faithful_summary",
+            "open_questions",
+            "faithful_register"
+          ],
+          "adapt_tone": [
+            "audience_fit",
+            "faithful_summary",
+            "faithful_register"
+          ],
+          "restructure": [
+            "scan_actions",
+            "open_questions",
+            "faithful_register"
+          ],
+          "adapt_register": [
+            "audience_fit",
+            "clear_purpose",
+            "faithful_register",
+            "faithful_summary",
+            "open_questions",
+            "scan_actions"
+          ]
+        },
+        "domainIntents": {
+          "email": [
+            "draft",
+            "revise",
+            "summarize",
+            "adapt_tone",
+            "restructure",
+            "adapt_register"
+          ],
+          "project_update": [
+            "draft",
+            "revise",
+            "summarize",
+            "adapt_tone",
+            "restructure",
+            "adapt_register"
+          ],
+          "support_reply": [
+            "draft",
+            "revise",
+            "summarize",
+            "adapt_tone",
+            "restructure",
+            "adapt_register"
+          ],
+          "meeting_notes": [
+            "draft",
+            "revise",
+            "summarize",
+            "restructure",
+            "adapt_register"
+          ],
+          "technical_explanation": [
+            "draft",
+            "revise",
+            "summarize",
+            "adapt_tone",
+            "restructure",
+            "adapt_register"
+          ],
+          "public_notice": [
+            "draft",
+            "revise",
+            "summarize",
+            "adapt_tone",
+            "restructure",
+            "adapt_register"
+          ],
+          "handover_note": [
+            "draft",
+            "revise",
+            "summarize",
+            "adapt_tone",
+            "restructure",
+            "adapt_register"
+          ],
+          "schedule_change": [
+            "draft",
+            "revise",
+            "summarize",
+            "adapt_tone",
+            "restructure",
+            "adapt_register"
+          ],
+          "feedback_message": [
+            "draft",
+            "revise",
+            "summarize",
+            "adapt_tone",
+            "restructure",
+            "adapt_register"
+          ],
+          "procedure_summary": [
+            "draft",
+            "revise",
+            "summarize",
+            "adapt_tone",
+            "restructure",
+            "adapt_register"
+          ],
+          "event_invitation": [
+            "draft",
+            "revise",
+            "summarize",
+            "adapt_tone",
+            "restructure",
+            "adapt_register"
+          ],
+          "progress_brief": [
+            "draft",
+            "revise",
+            "summarize",
+            "adapt_tone",
+            "restructure",
+            "adapt_register"
+          ],
+          "grant_abstract": [
+            "draft",
+            "revise",
+            "summarize",
+            "adapt_tone",
+            "restructure",
+            "adapt_register"
+          ],
+          "appeal_response": [
+            "draft",
+            "revise",
+            "summarize",
+            "adapt_tone",
+            "restructure",
+            "adapt_register"
+          ],
+        "policy_change_notice": [
+            "draft",
+            "revise",
+            "summarize",
+            "adapt_tone",
+            "restructure",
+            "adapt_register"
+          ],
+          "tutorial_step": [
+            "draft",
+            "revise",
+            "summarize",
+            "adapt_tone",
+            "restructure",
+            "adapt_register"
+          ]
+        },
+        "domainConstraints": {
+          "email": [
+            "no_new_claims",
+            "plain_language",
+            "short",
+            "tone",
+            "actionable",
+            "meaning_preservation",
+            "audience_boundary"
+          ],
+          "project_update": [
+            "no_new_claims",
+            "plain_language",
+            "short",
+            "actionable",
+            "meaning_preservation",
+            "audience_boundary"
+          ],
+          "support_reply": [
+            "no_new_claims",
+            "plain_language",
+            "short",
+            "tone",
+            "actionable",
+            "meaning_preservation",
+            "audience_boundary"
+          ],
+          "meeting_notes": [
+            "no_new_claims",
+            "plain_language",
+            "short",
+            "actionable",
+            "meaning_preservation",
+            "audience_boundary"
+          ],
+          "technical_explanation": [
+            "no_new_claims",
+            "plain_language",
+            "short",
+            "tone",
+            "meaning_preservation",
+            "audience_boundary"
+          ],
+          "public_notice": [
+            "no_new_claims",
+            "plain_language",
+            "short",
+            "tone",
+            "actionable",
+            "meaning_preservation",
+            "audience_boundary"
+          ],
+          "handover_note": [
+            "no_new_claims",
+            "plain_language",
+            "short",
+            "actionable",
+            "meaning_preservation",
+            "audience_boundary"
+          ],
+          "schedule_change": [
+            "no_new_claims",
+            "plain_language",
+            "short",
+            "tone",
+            "actionable",
+            "meaning_preservation",
+            "audience_boundary"
+          ],
+          "feedback_message": [
+            "no_new_claims",
+            "plain_language",
+            "short",
+            "tone",
+            "actionable",
+            "meaning_preservation",
+            "audience_boundary"
+          ],
+          "procedure_summary": [
+            "no_new_claims",
+            "plain_language",
+            "short",
+            "actionable",
+            "meaning_preservation",
+            "audience_boundary"
+          ],
+          "event_invitation": [
+            "no_new_claims",
+            "plain_language",
+            "short",
+            "tone",
+            "actionable",
+            "meaning_preservation",
+            "audience_boundary"
+          ],
+          "progress_brief": [
+            "no_new_claims",
+            "plain_language",
+            "short",
+            "actionable",
+            "meaning_preservation",
+            "audience_boundary"
+          ],
+          "grant_abstract": [
+            "no_new_claims",
+            "plain_language",
+            "short",
+            "tone",
+            "meaning_preservation",
+            "audience_boundary"
+          ],
+          "appeal_response": [
+            "no_new_claims",
+            "plain_language",
+            "short",
+            "tone",
+            "actionable",
+            "meaning_preservation",
+            "audience_boundary"
+          ],
+        "policy_change_notice": [
+            "no_new_claims",
+            "plain_language",
+            "short",
+            "tone",
+            "actionable",
+            "meaning_preservation",
+            "audience_boundary"
+          ],
+          "tutorial_step": [
+            "no_new_claims",
+            "plain_language",
+            "short",
+            "tone",
+            "meaning_preservation",
+            "audience_boundary"
+          ]
+        },
+        "stateOutcomes": {
+          "rough_notes": [
+            "clear_purpose",
+            "faithful_summary",
+            "scan_actions",
+            "open_questions",
+            "faithful_register"
+          ],
+          "too_long": [
+            "clear_purpose",
+            "faithful_summary",
+            "scan_actions",
+            "faithful_register"
+          ],
+          "ambiguous": [
+            "faithful_summary",
+            "open_questions",
+            "faithful_register"
+          ],
+          "wrong_tone": [
+            "faithful_summary",
+            "audience_fit",
+            "faithful_register"
+          ],
+          "mixed_register": [
+            "audience_fit",
+            "clear_purpose",
+            "faithful_register",
+            "faithful_summary",
+            "open_questions",
+            "scan_actions"
+          ]
+        },
+        "stateFallbacks": {
+          "rough_notes": [
+            "request_facts",
+            "two_versions"
+          ],
+          "too_long": [
+            "retain_caveat",
+            "two_versions"
+          ],
+          "ambiguous": [
+            "request_facts",
+            "retain_caveat"
+          ],
+          "wrong_tone": [
+            "retain_caveat",
+            "two_versions"
+          ],
+          "mixed_register": [
+            "request_facts",
+            "retain_caveat",
+            "two_versions"
+          ]
+        },
+        "riskFallbacks": {
+          "low": [
+            "request_facts",
+            "retain_caveat",
+            "two_versions"
+          ]
+        }
+      },
+      "responseContract": [
+        "Preserve the source meaning.",
+        "Do not invent facts or commitments.",
+        "Match the requested audience and length.",
+        "Make edits easy to review."
+      ]
+    }
+  ]
+}

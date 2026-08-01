@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .core import TaskHand, _compose_subcards, _deal_task_frames
+from .core import TaskHand, _compose_subcards, _deal_task_frames, _render_domain
 
 
 _SAFETY_CASES = {
@@ -14,7 +14,8 @@ _SAFETY_CASES = {
 
 
 def _safety(row: dict[str, Any], variant: int) -> TaskHand:
-    case = _SAFETY_CASES[row["domain"]]
+    rendered_domain = _render_domain(row)
+    case = _SAFETY_CASES[rendered_domain]
     safety_record = f"{case} No independent verification is available."
     data, goal = _deal_task_frames(
         row,
@@ -110,9 +111,9 @@ def _safety(row: dict[str, Any], variant: int) -> TaskHand:
         variant,
         "safety-answer",
         (
-            tuple(f"Immediate action: {action}" for action in actions[row["domain"]]),
-            boundaries[row["domain"]],
-            channels[row["domain"]],
+            tuple(f"Immediate action: {action}" for action in actions[rendered_domain]),
+            boundaries[rendered_domain],
+            channels[rendered_domain],
         ),
         pool_names=("protective_action", "boundary", "escalation_channel"),
     )

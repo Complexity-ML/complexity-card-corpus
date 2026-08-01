@@ -10,6 +10,7 @@ from .core import (
     _lower_sentence_initial,
     _number,
     _pick,
+    _render_domain,
 )
 
 
@@ -93,7 +94,7 @@ _LESSONS = {
 
 
 def _explanation(row: dict[str, Any], variant: int) -> TaskHand:
-    mechanism, example, check = _LESSONS[row["domain"]]
+    mechanism, example, check = _LESSONS[_render_domain(row)]
     embedded_mechanism = _lower_sentence_initial(mechanism)
     data, goal = _deal_task_frames(
         row,
@@ -190,7 +191,7 @@ def _writing(row: dict[str, Any], variant: int) -> TaskHand:
             f"Progress brief {code}: Eight of ten records are checked. Two still await source documents, which {owner} will request by day {day}. The final count remains pending.",
         ),
     }
-    source, content = content_cards[row["domain"]]
+    source, content = content_cards[_render_domain(row)]
     data, goal = _deal_task_frames(
         row,
         variant,
@@ -243,7 +244,8 @@ def _empathy(row: dict[str, Any], variant: int) -> TaskHand:
         "achievement": "I am proud of finishing, but I also feel strangely empty now.",
         "loss_disappointment": "I prepared for this outcome for months, and now I feel both sad and stuck.",
     }
-    quote = quotes[row["domain"]]
+    rendered_domain = _render_domain(row)
+    quote = quotes[rendered_domain]
     data, goal = _deal_task_frames(
         row,
         variant,
@@ -307,7 +309,7 @@ def _empathy(row: dict[str, Any], variant: int) -> TaskHand:
         row,
         variant,
         "empathy-answer",
-        (acknowledgments[row["domain"]], agency_cards, question_cards),
+        (acknowledgments[rendered_domain], agency_cards, question_cards),
         pool_names=("acknowledgment", "agency", "optional_question"),
     )
     return TaskHand(data, goal, answer, ("acknowledgment", "agency", "question"))
@@ -365,7 +367,8 @@ def _clarification(row: dict[str, Any], variant: int) -> TaskHand:
             "set no completion deadline",
         ),
     }
-    ambiguous, restatement, question, reversible_default = cases[row["domain"]]
+    rendered_domain = _render_domain(row)
+    ambiguous, restatement, question, reversible_default = cases[rendered_domain]
     situation_titles = {
         "ambiguous_request": "Ambiguous request — identify the affected item",
         "missing_reference": "Missing reference — request the absent report",
@@ -435,6 +438,6 @@ def _clarification(row: dict[str, Any], variant: int) -> TaskHand:
         goal,
         answer,
         ("restatement", "one_question", "reversible_default"),
-        situation_title=situation_titles[row["domain"]],
-        situation=situation_cards[row["domain"]],
+        situation_title=situation_titles[rendered_domain],
+        situation=situation_cards[rendered_domain],
     )

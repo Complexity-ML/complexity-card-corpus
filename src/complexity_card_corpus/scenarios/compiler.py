@@ -77,15 +77,21 @@ def _assign_splits(
         for key, group_rows in ordered:
             for subtotal, selected in tuple(sorted(subsets.items(), reverse=True)):
                 candidate = subtotal + len(group_rows)
-                if candidate <= family_target and candidate not in subsets:
+                if candidate not in subsets:
                     subsets[candidate] = (*selected, key)
-        if family_target not in subsets:
-            sizes = [len(group_rows) for _, group_rows in ordered]
-            raise ValueError(
-                f"cannot form exact validation holdout of {family_target} rows for "
-                f"{family_id} from domain-intent group sizes {sizes}"
-            )
-        selected_groups = set(subsets[family_target])
+        # A complete (family, domain, intent) group is the leakage boundary.
+        # At larger scales those groups can be wider than the exact percentage
+        # quota, so choose the closest whole-group subset instead of splitting
+        # a semantic unit merely to hit an exact row count.
+        closest_total = min(
+            (subtotal for subtotal in subsets if subtotal > 0),
+            key=lambda subtotal: (
+                abs(subtotal - family_target),
+                subtotal > family_target,
+                _digest(f"{seed}:validation-total:{family_id}:{subtotal}"),
+            ),
+        )
+        selected_groups = set(subsets[closest_total])
         for key in selected_groups:
             for row in groups[key]:
                 row["split"] = "validation"

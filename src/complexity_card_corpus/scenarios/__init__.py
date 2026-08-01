@@ -12,6 +12,7 @@ from .schema import (
     SCENARIO_SCHEMA as SCENARIO_SCHEMA,
     ScenarioForgeRegistry as ScenarioForgeRegistry,
 )
+from .tanks import audit_scenario_tanks as audit_scenario_tanks
 
 __all__ = [
     "SCENARIO_FORGE_VERSION",
@@ -19,6 +20,7 @@ __all__ = [
     "SCENARIO_SCHEMA",
     "ScenarioForgeRegistry",
     "audit_scenarios",
+    "audit_scenario_tanks",
     "build_scenario_forge",
     "compile_scenarios",
     "load_scenario_registry",

@@ -9,10 +9,10 @@ is the canonical dataset format, and o200k binary streams are optional derived
 training artifacts. No third-party dataset is included in the public corpus.
 
 > **Current status:** the knowledge-card and grounded-instruction collections
-> are buildable. The four-surface Scenario Forge build produces 43,199 readable
-> conversations after exact transcript/response cleanup and family capping.
-> The automated release gate remains false; the 100K training-example target
-> and separate stratified human review have not yet been satisfied.
+> are buildable. Scenario Forge now contains 33,320 semantic source scenarios
+> backed by 14 editable family tanks. A 100K-row / 10M-supervised-token release
+> remains a target until the expanded corpus is materialized, audited and
+> separately reviewed; theoretical capacity is never reported as released data.
 
 ## Why cards?
 
@@ -92,25 +92,25 @@ Every example retains its source-card keys and evidence.
 
 ### Scenario Forge
 
-Scenario Forge compiles **15,000** semantic scenarios across 14 assistant
+Scenario Forge compiles **33,320** semantic scenarios across 14 assistant
 families:
 
 | Family | Scenarios |
 | --- | ---: |
-| Practical action | 750 |
-| Explanation and learning | 650 |
-| Troubleshooting | 500 |
-| Writing and transformation | 400 |
-| Planning and comparison | 200 |
-| Conversation and empathy | 500 |
+| Practical action | 760 |
+| Explanation and learning | 1,260 |
+| Troubleshooting | 1,220 |
+| Writing and transformation | 1,040 |
+| Planning and comparison | 540 |
+| Conversation and empathy | 520 |
 | Safety and uncertainty | 400 |
-| Grounded question answering | 2,260 |
-| Summarization and synthesis | 2,100 |
-| Extraction and classification | 2,100 |
-| Reasoning and verification | 2,540 |
-| Critique and revision | 600 |
-| Brainstorming and creativity | 1,400 |
-| Context clarification | 600 |
+| Grounded question answering | 3,660 |
+| Summarization and synthesis | 3,600 |
+| Extraction and classification | 5,280 |
+| Reasoning and verification | 3,240 |
+| Critique and revision | 6,000 |
+| Brainstorming and creativity | 2,920 |
+| Context clarification | 2,880 |
 
 Each scenario combines a compatible family, domain, intent, state, outcome,
 constraint, risk-aware fallback and domain-specific trigger. The registry owns
@@ -119,8 +119,9 @@ combination.
 
 The scenario audit requires:
 
-- 15,000 unique IDs, signatures, titles, objectives and situations;
-- exactly 14,250 train and 750 validation scenarios;
+- 33,320 unique IDs, signatures, titles, objectives and situations;
+- an approximately 5% grouped validation partition within a documented
+  per-family tolerance;
 - zero shared `(family, domain, intent)` groups across splits;
 - complete family allocation and compatible semantic payloads;
 - one creation hash over the semantic signature and one verification hash over
@@ -132,6 +133,27 @@ The scenario audit requires:
 
 `scenarios.parquet` is canonical. `scenarios.jsonl` is provided for readable
 inspection.
+
+#### Editable family tanks
+
+Each assistant family lives in its own
+`data/scenario-forge/tanks/<family>.json` file. The 14 tanks currently contain
+8–20 authored domains and 41–54 raw semantic atoms each. Together they produce
+585 distinct source cards and 6,061 realized source-link types. The domains,
+contexts and compatibility rows are physical source data; increasing a target
+count alone does not count as hydration.
+
+The tank audit reports authored atom counts, compatible signature capacity and
+unused reserve independently:
+
+```bash
+uv run card-corpus audit-scenario-tanks \
+  --registry data/scenario-forge/scenario-forge-v1.json
+```
+
+Regression tests require at least eight authored domains, 40 raw atoms and a
+1.5× compatible-capacity reserve in every tank. Every registered domain must
+also deal a valid concrete task hand before the corpus can build.
 
 ### Post-training conversations
 
@@ -223,9 +245,9 @@ slots are masked only when measuring response-template repetition.
 
 ### 100K scale contract
 
-The semantic nucleus contains 15,000 source cards. A 100,000-row release
-therefore requires at least seven genuinely distinct retained surfaces per
-source card. The planned budget is eight, giving a 120,000-row
+The semantic nucleus contains 33,320 source cards. A 100,000-row release
+therefore requires at least four genuinely distinct retained surfaces per
+source card. The planned budget is eight, giving a 266,560-row
 pre-deduplication ceiling. This is a capacity calculation, not a claim that
 those rows have already been generated.
 
@@ -495,7 +517,7 @@ generic resolution paragraphs.
 ```text
 data/source/                         original linked-card collections
 data/forge/                          editable large-deck blueprints
-data/scenario-forge/                 semantic scenario registry
+data/scenario-forge/                 semantic registry and 14 editable family tanks
 data/evaluation/                     independently authored held-out exchanges
 data/vocabulary/                     statistical multi-usage dictionary
 src/complexity_card_corpus/          CLI and compact cross-stage utilities

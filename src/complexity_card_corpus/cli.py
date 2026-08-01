@@ -26,7 +26,7 @@ from .package import (
     package_instructions_for_hugging_face,
 )
 from .posttrain import audit_human_review, build_post_training_corpus
-from .scenarios import build_scenario_forge
+from .scenarios import audit_scenario_tanks, build_scenario_forge
 from .tokenize import tokenize_documents
 from .vocabulary_gap import build_vocabulary_gap
 from .vocabulary_wordnet_audit import audit_vocabulary_with_wordnet
@@ -53,6 +53,9 @@ def parser() -> argparse.ArgumentParser:
     scenario_forge = commands.add_parser("build-scenario-forge")
     scenario_forge.add_argument("--registry", type=Path, required=True)
     scenario_forge.add_argument("--output", type=Path, required=True)
+
+    tank_audit = commands.add_parser("audit-scenario-tanks")
+    tank_audit.add_argument("--registry", type=Path, required=True)
 
     post_training = commands.add_parser("build-post-training")
     post_training.add_argument("--scenarios", type=Path, required=True)
@@ -244,6 +247,8 @@ def main() -> None:
                 sort_keys=True,
             )
         )
+    elif args.command == "audit-scenario-tanks":
+        print(json.dumps(audit_scenario_tanks(args.registry), indent=2, sort_keys=True))
     elif args.command == "build-post-training":
         result = build_post_training_corpus(
             args.scenarios,

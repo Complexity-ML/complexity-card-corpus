@@ -16,53 +16,115 @@ from complexity_card_corpus.scenarios import (
     build_scenario_forge,
     compile_scenarios,
     load_scenario_registry,
+    audit_scenario_tanks,
 )
 from complexity_card_corpus.scenario_language import DynamicNarrativeComposer
 
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "data/scenario-forge/scenario-forge-v1.json"
+EXPECTED_FAMILY_COUNTS = {
+    "brainstorming_creativity": 2_920,
+    "conversation_empathy": 520,
+    "context_clarification": 2_880,
+    "critique_revision": 6_000,
+    "explanation_learning": 1_260,
+    "extraction_classification": 5_280,
+    "grounded_qa": 3_660,
+    "planning_comparison": 540,
+    "practical_action": 760,
+    "reasoning_verification": 3_240,
+    "safety_uncertainty": 400,
+    "summarization_synthesis": 3_600,
+    "troubleshooting": 1_220,
+    "writing_transformation": 1_040,
+}
+EXPECTED_SCENARIOS = sum(EXPECTED_FAMILY_COUNTS.values())
 
 
-def test_scenario_forge_compiles_fifteen_thousand_semantic_cards() -> None:
+def _expanded_registry_payload() -> dict:
+    return load_scenario_registry(REGISTRY).model_dump(mode="json", by_alias=True)
+
+
+def test_registry_keeps_one_editable_raw_data_tank_per_family() -> None:
+    root_payload = json.loads(REGISTRY.read_text())
+
+    assert root_payload["families"] == []
+    assert len(root_payload["includes"]) == len(EXPECTED_FAMILY_COUNTS)
+    assert all(include.startswith("tanks/") for include in root_payload["includes"])
+
+    tank_ids = []
+    domain_contexts = []
+    intent_templates = []
+    for include in root_payload["includes"]:
+        tank_path = REGISTRY.parent / include
+        tank = json.loads(tank_path.read_text())
+        assert tank["format"] == "scenario-family-pack-v1"
+        assert len(tank["families"]) == 1
+        family = tank["families"][0]
+        assert tank["tankId"] == family["id"] == tank_path.stem
+        assert family["target"] == EXPECTED_FAMILY_COUNTS[family["id"]]
+        # A tank must contain authored subject matter, not merely enough
+        # Cartesian combinations to reach its generated-row target.
+        assert len(family["domains"]) >= 8
+        assert len(family["intents"]) >= 5
+        assert len(family["constraints"]) >= 5
+        assert len(family["states"]) >= 4
+        assert len(family["outcomes"]) >= 5
+        assert len(family["fallbacks"]) >= 3
+        tank_ids.append(tank["tankId"])
+        domain_contexts.extend(domain["context"] for domain in family["domains"])
+        intent_templates.extend(
+            intent["goalTemplate"] for intent in family["intents"]
+        )
+
+    assert set(tank_ids) == set(EXPECTED_FAMILY_COUNTS)
+    assert len(domain_contexts) == len(set(domain_contexts))
+    assert len(intent_templates) == len(set(intent_templates))
+
+
+def test_tank_hydration_audit_exposes_capacity_without_inventing_rows() -> None:
+    audit = audit_scenario_tanks(REGISTRY)
+
+    assert audit["tank_count"] == len(EXPECTED_FAMILY_COUNTS)
+    assert set(audit["tanks"]) == set(EXPECTED_FAMILY_COUNTS)
+    for family_id, tank in audit["tanks"].items():
+        assert tank["path"] == f"tanks/{family_id}.json"
+        assert tank["target_scenarios"] == EXPECTED_FAMILY_COUNTS[family_id]
+        assert tank["compatible_signature_capacity"] >= tank["target_scenarios"]
+        assert tank["unused_signature_capacity"] >= 0
+        assert tank["raw_atom_count"] == sum(tank["raw_atom_counts"].values())
+        assert tank["raw_atom_count"] >= 40
+        assert tank["raw_atom_counts"]["domains"] >= 8
+        assert tank["capacity_reserve_ratio"] >= 1.5
+        assert tank["hydrated_for_scale"] is True
+
+
+def test_scenario_forge_compiles_semantic_cards_from_family_tanks() -> None:
     registry = load_scenario_registry(REGISTRY)
     rows = compile_scenarios(registry)
     audit = audit_scenarios(rows, registry)
 
-    assert len(rows) == 15_000
-    assert audit["unique_ids"] == 15_000
-    assert audit["unique_semantic_signatures"] == 15_000
-    assert audit["unique_semantic_payloads"] == 15_000
-    assert audit["unique_situations"] == 15_000
-    assert audit["unique_titles"] == 15_000
-    assert audit["unique_goals"] == 15_000
+    assert len(rows) == EXPECTED_SCENARIOS
+    assert audit["unique_ids"] == EXPECTED_SCENARIOS
+    assert audit["unique_semantic_signatures"] == EXPECTED_SCENARIOS
+    assert audit["unique_semantic_payloads"] == EXPECTED_SCENARIOS
+    assert audit["unique_situations"] == EXPECTED_SCENARIOS
+    assert audit["unique_titles"] == EXPECTED_SCENARIOS
+    assert audit["unique_goals"] == EXPECTED_SCENARIOS
     assert audit["unique_triggers"] >= 100
-    assert audit["unique_creation_hashes"] == 15_000
-    assert audit["unique_verification_hashes"] == 15_000
-    assert audit["family_counts"] == {
-        "brainstorming_creativity": 1_400,
-        "conversation_empathy": 500,
-        "context_clarification": 600,
-        "critique_revision": 600,
-        "explanation_learning": 650,
-        "extraction_classification": 2_100,
-        "grounded_qa": 2_260,
-        "planning_comparison": 200,
-        "practical_action": 750,
-        "reasoning_verification": 2_540,
-        "safety_uncertainty": 400,
-        "summarization_synthesis": 2_100,
-        "troubleshooting": 500,
-        "writing_transformation": 400,
-    }
+    assert audit["unique_creation_hashes"] == EXPECTED_SCENARIOS
+    assert audit["unique_verification_hashes"] == EXPECTED_SCENARIOS
+    assert audit["family_counts"] == EXPECTED_FAMILY_COUNTS
     assert audit["model_generated_dialogue_rows"] == 0
     assert audit["payload_contract_match_ratio"] == 1.0
     assert audit["compatibility_match_ratio"] == 1.0
-    assert audit["split_counts"] == {"train": 14_250, "validation": 750}
+    assert sum(audit["split_counts"].values()) == EXPECTED_SCENARIOS
     assert audit["split_holdout_unit"] == "family+domain+intent"
     assert audit["split_group_overlap"] == 0
-    assert sum(audit["validation_family_counts"].values()) == 750
-    assert audit["surface_stats"]["documents"] == 15_000
+    assert abs(audit["validation_row_delta"]) <= audit["validation_tolerance_rows"]
+    assert 4.9 <= audit["validation_percent_actual"] <= 5.1
+    assert audit["surface_stats"]["documents"] == EXPECTED_SCENARIOS
     assert audit["surface_stats"]["unique_document_rate"] == 1.0
     assert audit["surface_stats"]["unique_sentence_rate"] >= 0.45
     assert 14 <= audit["surface_stats"]["mean_sentence_words"] <= 20
@@ -72,19 +134,19 @@ def test_scenario_forge_compiles_fifteen_thousand_semantic_cards() -> None:
     assert 0 < audit["surface_stats"]["mattr_100"] <= 1
     assert "type_token_ratio" not in audit["surface_stats"]
     assert audit["surface_language_audit"]["issue_count"] == 0
-    assert audit["surface_language_audit"]["checked_rows"] == 15_000
+    assert audit["surface_language_audit"]["checked_rows"] == EXPECTED_SCENARIOS
     assert audit["surface_language_audit"]["semantic_anchor_match_rate"] == 1.0
     assert audit["surface_language_audit"]["frame_family_cells"] == 168
     assert audit["morphology_audit"] == {
-        "intent_phrases": 70,
-        "unique_lemmas": 57,
+        "intent_phrases": 84,
+        "unique_lemmas": 62,
         "forms_per_intent": 5,
-        "forms_generated": 350,
-        "unique_realized_forms": 281,
+        "forms_generated": 420,
+        "unique_realized_forms": 337,
     }
     card_staticity = audit["card_staticity"]
-    assert card_staticity["hands"] == 15_000
-    assert card_staticity["unique_hands"] == 15_000
+    assert card_staticity["hands"] == EXPECTED_SCENARIOS
+    assert card_staticity["unique_hands"] == EXPECTED_SCENARIOS
     assert card_staticity["exact_hand_uniqueness_ratio"] == 1.0
     assert card_staticity["static_axes"] == []
     assert set(card_staticity["axes"]) == {
@@ -125,10 +187,10 @@ def test_scenario_forge_compiles_fifteen_thousand_semantic_cards() -> None:
         "cards_per_scenario": 8,
         "links_per_scenario": 12,
         "orphan_cards": 0,
-        "connected_scenarios": 15_000,
+        "connected_scenarios": EXPECTED_SCENARIOS,
         "minimum_card_degree": 2,
-        "unique_cards": 456,
-        "unique_links": 3_631,
+        "unique_cards": 585,
+        "unique_links": 6_061,
     }
     assert all(len(row["creation_hash"]) == 64 for row in rows)
     assert all(len(row["verification_hash"]) == 64 for row in rows)
@@ -157,7 +219,7 @@ def test_scenario_forge_output_is_deterministic_and_inspectable(tmp_path: Path) 
         json.loads(line)
         for line in (tmp_path / "first/scenarios.jsonl").read_text().splitlines()
     ]
-    assert len(rows) == len(jsonl_rows) == 15_000
+    assert len(rows) == len(jsonl_rows) == EXPECTED_SCENARIOS
     assert rows[0]["scenario_id"] == jsonl_rows[0]["scenario_id"]
     assert json.loads(rows[0]["semantic_payload"])["subject"]
 
@@ -197,7 +259,7 @@ def test_weak_generalist_families_have_broad_linked_subject_decks() -> None:
 
 
 def test_scenario_registry_rejects_insufficient_semantic_capacity() -> None:
-    payload = json.loads(REGISTRY.read_text())
+    payload = _expanded_registry_payload()
     family = payload["families"][0]
     family["target"] = (
         len(family["domains"])
@@ -213,7 +275,7 @@ def test_scenario_registry_rejects_insufficient_semantic_capacity() -> None:
 
 
 def test_scenario_registry_rejects_duplicate_axis_ids() -> None:
-    payload = json.loads(REGISTRY.read_text())
+    payload = _expanded_registry_payload()
     payload["families"][0]["constraints"][1]["id"] = payload["families"][0][
         "constraints"
     ][0]["id"]
@@ -223,7 +285,7 @@ def test_scenario_registry_rejects_duplicate_axis_ids() -> None:
 
 
 def test_scenario_registry_rejects_incomplete_compatibility_matrix() -> None:
-    payload = json.loads(REGISTRY.read_text())
+    payload = _expanded_registry_payload()
     del payload["families"][0]["compatibility"]["intentOutcomes"]["arrange"]
 
     with pytest.raises(ValueError, match="intentOutcomes must cover exactly"):
@@ -234,7 +296,7 @@ def test_scenario_registry_rejects_incomplete_compatibility_matrix() -> None:
 def test_scenario_registry_rejects_missing_new_compatibility_rows(
     matrix: str,
 ) -> None:
-    payload = json.loads(REGISTRY.read_text())
+    payload = _expanded_registry_payload()
     family = payload["families"][0]
     del family["compatibility"][matrix][next(iter(family["compatibility"][matrix]))]
 
@@ -243,7 +305,7 @@ def test_scenario_registry_rejects_missing_new_compatibility_rows(
 
 
 def test_scenario_registry_rejects_unknown_compatibility_reference() -> None:
-    payload = json.loads(REGISTRY.read_text())
+    payload = _expanded_registry_payload()
     payload["families"][0]["compatibility"]["intentOutcomes"]["arrange"] = [
         "invented_outcome"
     ]
@@ -253,7 +315,7 @@ def test_scenario_registry_rejects_unknown_compatibility_reference() -> None:
 
 
 def test_scenario_registry_requires_fallback_for_every_risk_state_pair() -> None:
-    payload = json.loads(REGISTRY.read_text())
+    payload = _expanded_registry_payload()
     payload["families"][0]["compatibility"]["riskFallbacks"]["medium"] = [
         "official_channel"
     ]
@@ -356,7 +418,9 @@ def test_validation_holds_out_complete_domain_intent_groups() -> None:
         if row["split"] == "validation"
     }
     assert not train_groups & validation_groups
-    assert sum(row["split"] == "validation" for row in rows) == 750
+    actual_validation = sum(row["split"] == "validation" for row in rows)
+    expected_validation = round(len(rows) * registry.validation_percent / 100)
+    assert abs(actual_validation - expected_validation) <= len(registry.families)
 
 
 def test_safety_constraints_are_domain_specific() -> None:

@@ -19,6 +19,7 @@ from .schema import (
     SCENARIO_SCHEMA,
     ScenarioForgeRegistry,
 )
+from .tanks import audit_scenario_tanks
 
 
 def load_scenario_registry(path: Path) -> ScenarioForgeRegistry:
@@ -32,6 +33,16 @@ def load_scenario_registry(path: Path) -> ScenarioForgeRegistry:
         included_families = include_payload.get("families")
         if not isinstance(included_families, list) or not included_families:
             raise ValueError(f"empty Scenario Forge family pack: {include_path}")
+        tank_id = include_payload.get("tankId")
+        if tank_id is not None:
+            if len(included_families) != 1:
+                raise ValueError(
+                    f"Scenario Forge tank must contain one family: {include_path}"
+                )
+            if included_families[0].get("id") != tank_id:
+                raise ValueError(
+                    f"Scenario Forge tank ID does not match its family: {include_path}"
+                )
         families.extend(included_families)
     payload["families"] = families
     return ScenarioForgeRegistry.model_validate(payload)
@@ -42,6 +53,7 @@ def build_scenario_forge(
     output_root: Path,
 ) -> dict[str, Any]:
     registry = load_scenario_registry(registry_path)
+    tank_audit = audit_scenario_tanks(registry_path)
     rows = compile_scenarios(registry)
     audit = audit_scenarios(rows, registry)
 
@@ -104,6 +116,7 @@ def build_scenario_forge(
             "provenance": SCENARIO_PROVENANCE,
         },
         "audit": audit,
+        "tank_hydration": tank_audit,
         "files": files,
     }
     manifest_path = temporary / "manifest.json"

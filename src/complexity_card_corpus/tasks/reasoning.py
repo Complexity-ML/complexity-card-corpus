@@ -8,6 +8,7 @@ from .core import (
     _compose_subcards,
     _deal_task_frames,
     _number,
+    _render_domain,
 )
 
 
@@ -16,7 +17,7 @@ def _reasoning(row: dict[str, Any], variant: int) -> TaskHand:
     units = _number(f"units:{code}", 4, 12)
     each = _number(f"each:{code}", 3, 9)
     extra = _number(f"extra:{code}", 2, 7)
-    domain = row["domain"]
+    domain = _render_domain(row)
     if domain == "shopping_arithmetic":
         result = units * each + extra
         data = f"Problem {code}: {units} items cost ${each} each, plus a ${extra} delivery fee."
@@ -227,7 +228,7 @@ def _critique(row: dict[str, Any], variant: int) -> TaskHand:
             "No incident was recorded last month. Assess likelihood, impact, exposure, and mitigation evidence before assigning a risk level.",
         ),
     }
-    draft, weakness, revision = cases[row["domain"]]
+    draft, weakness, revision = cases[_render_domain(row)]
     draft = f"Draft {code}: {draft}"
     data, goal = _deal_task_frames(
         row,
@@ -382,7 +383,7 @@ def _brainstorm(row: dict[str, Any], variant: int) -> TaskHand:
             ),
         ),
     }
-    case_cards = cases[row["domain"]]
+    case_cards = cases[_render_domain(row)]
     brief, answer = case_cards[
         _number(f"brainstorm-case:{row['scenario_id']}", 0, len(case_cards) - 1)
     ]

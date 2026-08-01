@@ -291,10 +291,12 @@ def audit_scenarios(
 
     split_counts = Counter(row["split"] for row in rows)
     expected_validation = round(len(rows) * registry.validation_percent / 100)
-    if split_counts["validation"] != expected_validation:
+    actual_validation = split_counts["validation"]
+    validation_tolerance = len(registry.families)
+    if abs(actual_validation - expected_validation) > validation_tolerance:
         raise ValueError(
-            f"expected exactly {expected_validation} validation rows, found "
-            f"{split_counts['validation']}"
+            f"expected approximately {expected_validation} validation rows within "
+            f"{validation_tolerance}, found {actual_validation}"
         )
     train_groups = {
         (row["family"], row["domain"], row["intent"])
@@ -406,6 +408,11 @@ def audit_scenarios(
         "split_counts": dict(sorted(split_counts.items())),
         "split_holdout_unit": "family+domain+intent",
         "split_group_overlap": 0,
+        "validation_requested_rows": expected_validation,
+        "validation_actual_rows": actual_validation,
+        "validation_row_delta": actual_validation - expected_validation,
+        "validation_tolerance_rows": validation_tolerance,
+        "validation_percent_actual": round(actual_validation / len(rows) * 100, 6),
         "validation_family_counts": dict(
             sorted(
                 Counter(

@@ -1,0 +1,564 @@
+{
+  "format": "scenario-family-pack-v1",
+  "tankId": "planning_comparison",
+  "families": [
+    {
+      "id": "planning_comparison",
+      "label": "Planning and comparison",
+      "target": 540,
+      "domains": [
+        {
+          "id": "travel_plan",
+          "label": "Travel plan",
+          "subject": "a bounded travel plan",
+          "context": "Timing, budget, mobility, and cancellation tolerance shape the options."
+        },
+        {
+          "id": "learning_plan",
+          "label": "Learning plan",
+          "subject": "a short learning plan",
+          "context": "Available time, prerequisites, and observable practice should drive the sequence."
+        },
+        {
+          "id": "small_project",
+          "label": "Small project",
+          "subject": "a small project plan",
+          "context": "Scope, dependencies, owners, and exit criteria need to stay explicit."
+        },
+        {
+          "id": "purchase_decision",
+          "label": "Purchase decision",
+          "subject": "a purchase comparison",
+          "context": "Requirements, total cost, and uncertainty matter more than feature count."
+        },
+        {
+          "id": "meal_plan",
+          "label": "Meal plan",
+          "subject": "a bounded weekly meal plan",
+          "context": "Budget, available time, dietary requirements, and ingredient reuse constrain the options."
+        },
+        {
+          "id": "household_move",
+          "label": "Household move",
+          "subject": "a small household move",
+          "context": "Packing dependencies, transport capacity, deadline, and protected essentials need sequencing."
+        },
+        {
+          "id": "community_event",
+          "label": "Community event",
+          "subject": "a small community event plan",
+          "context": "Venue, volunteer time, accessibility, and a weather fallback must be explicit."
+        },
+        {
+          "id": "appointment_schedule",
+          "label": "Appointment schedule",
+          "subject": "a multi-appointment schedule",
+          "context": "Travel time, fixed windows, preparation, and one uncertain confirmation constrain the order."
+        },
+        {
+          "id": "maintenance_plan",
+          "label": "Maintenance plan",
+          "subject": "a routine maintenance plan",
+          "context": "Dependencies, service window, spare materials, and rollback points shape the sequence."
+        },
+        {
+          "id": "reading_plan",
+          "label": "Reading plan",
+          "subject": "a short reading plan",
+          "context": "Available sessions, prerequisites, review checkpoints, and the reading deadline limit the scope."
+        },
+        {
+          "id": "conference_launch",
+          "label": "Conference launch",
+          "subject": "a small conference launch",
+          "context": "Venue, speakers, registration, communication, and contingency dates have linked dependencies."
+        },
+        {
+          "id": "research_pilot",
+          "label": "Research pilot",
+          "subject": "a research pilot",
+          "context": "Question, protocol, data access, evaluation, and stop criteria must fit the available budget."
+        },
+        {
+          "id": "office_relocation",
+          "label": "Office relocation",
+          "subject": "a small office relocation",
+          "context": "Site access, equipment, network activation, staff notice, and essential services follow different deadlines."
+        },
+        {
+          "id": "maintenance_window",
+          "label": "Maintenance window",
+          "subject": "a service maintenance window",
+          "context": "Dependencies, rollback, notice, validation, and ownership determine the sequence."
+        }
+      ],
+      "intents": [
+        {
+          "id": "define_options",
+          "label": "define viable options",
+          "goalTemplate": "Define the viable options for {subject}."
+        },
+        {
+          "id": "compare",
+          "label": "compare against hard criteria",
+          "goalTemplate": "Compare options for {subject} against explicit hard criteria."
+        },
+        {
+          "id": "sequence",
+          "label": "sequence the work",
+          "goalTemplate": "Sequence {subject} around dependencies and checkpoints."
+        },
+        {
+          "id": "allocate",
+          "label": "allocate limited resources",
+          "goalTemplate": "Allocate limited time or budget across {subject}."
+        },
+        {
+          "id": "fallback",
+          "label": "design a fallback",
+          "goalTemplate": "Design a fallback path for {subject} before commitment."
+        },
+        {
+          "id": "sequence_dependencies",
+          "label": "sequence the dependencies",
+          "goalTemplate": "Sequence the dependencies for {subject} into a feasible order."
+        }
+      ],
+      "constraints": [
+        {
+          "id": "budget",
+          "label": "A fixed budget is a hard upper bound."
+        },
+        {
+          "id": "time",
+          "label": "A fixed deadline limits the feasible sequence."
+        },
+        {
+          "id": "must_have",
+          "label": "One stated requirement cannot be traded away."
+        },
+        {
+          "id": "uncertain_input",
+          "label": "One important input remains uncertain."
+        },
+        {
+          "id": "reversible",
+          "label": "Early steps should preserve the ability to change direction."
+        },
+        {
+          "id": "resource_ceiling",
+          "label": "Stay within the stated resource ceiling."
+        },
+        {
+          "id": "contingency_budget",
+          "label": "Reserve capacity for major disruption."
+        }
+      ],
+      "states": [
+        {
+          "id": "too_many_options",
+          "label": "There are too many loosely comparable options."
+        },
+        {
+          "id": "missing_dependency",
+          "label": "A dependency has not yet been resolved."
+        },
+        {
+          "id": "conflicting_priorities",
+          "label": "Two priorities currently conflict."
+        },
+        {
+          "id": "partial_plan",
+          "label": "A partial plan exists but lacks checkpoints and fallback conditions."
+        },
+        {
+          "id": "blocked_dependency",
+          "label": "One dependency is blocked while independent work remains possible."
+        }
+      ],
+      "outcomes": [
+        {
+          "id": "shortlist",
+          "label": "A shortlist remains after applying hard constraints."
+        },
+        {
+          "id": "decision_matrix",
+          "label": "The comparison shows why one option fits better."
+        },
+        {
+          "id": "ordered_steps",
+          "label": "Steps are ordered by dependency with clear checkpoints."
+        },
+        {
+          "id": "resource_plan",
+          "label": "Time or budget is allocated to the highest-value work."
+        },
+        {
+          "id": "triggered_fallback",
+          "label": "The fallback has an explicit trigger rather than a vague intention."
+        },
+        {
+          "id": "feasible_sequence",
+          "label": "The plan separates blocked work from a feasible sequence."
+        }
+      ],
+      "fallbacks": [
+        {
+          "id": "defer",
+          "label": "Defer commitment until the decisive unknown is resolved."
+        },
+        {
+          "id": "smaller_scope",
+          "label": "Choose a smaller reversible scope that still tests the plan."
+        },
+        {
+          "id": "second_option",
+          "label": "Keep the strongest alternative ready with a clear switch condition."
+        }
+      ],
+      "compatibility": {
+        "intentOutcomes": {
+          "define_options": [
+            "shortlist",
+            "feasible_sequence"
+          ],
+          "compare": [
+            "decision_matrix",
+            "shortlist",
+            "feasible_sequence"
+          ],
+          "sequence": [
+            "ordered_steps",
+            "feasible_sequence"
+          ],
+          "allocate": [
+            "resource_plan",
+            "ordered_steps",
+            "feasible_sequence"
+          ],
+          "fallback": [
+            "triggered_fallback",
+            "feasible_sequence"
+          ],
+          "sequence_dependencies": [
+            "decision_matrix",
+            "feasible_sequence",
+            "ordered_steps",
+            "resource_plan",
+            "shortlist",
+            "triggered_fallback"
+          ]
+        },
+        "domainIntents": {
+          "travel_plan": [
+            "define_options",
+            "compare",
+            "sequence",
+            "allocate",
+            "fallback",
+            "sequence_dependencies"
+          ],
+          "learning_plan": [
+            "define_options",
+            "compare",
+            "sequence",
+            "allocate",
+            "fallback",
+            "sequence_dependencies"
+          ],
+          "small_project": [
+            "define_options",
+            "compare",
+            "sequence",
+            "allocate",
+            "fallback",
+            "sequence_dependencies"
+          ],
+          "purchase_decision": [
+            "define_options",
+            "compare",
+            "allocate",
+            "fallback",
+            "sequence_dependencies"
+          ],
+          "meal_plan": [
+            "define_options",
+            "compare",
+            "sequence",
+            "allocate",
+            "fallback",
+            "sequence_dependencies"
+          ],
+          "household_move": [
+            "define_options",
+            "compare",
+            "sequence",
+            "allocate",
+            "fallback",
+            "sequence_dependencies"
+          ],
+          "community_event": [
+            "define_options",
+            "compare",
+            "sequence",
+            "allocate",
+            "fallback",
+            "sequence_dependencies"
+          ],
+          "appointment_schedule": [
+            "define_options",
+            "compare",
+            "sequence",
+            "allocate",
+            "fallback",
+            "sequence_dependencies"
+          ],
+          "maintenance_plan": [
+            "define_options",
+            "compare",
+            "sequence",
+            "allocate",
+            "fallback",
+            "sequence_dependencies"
+          ],
+          "reading_plan": [
+            "define_options",
+            "compare",
+            "sequence",
+            "allocate",
+            "fallback",
+            "sequence_dependencies"
+          ],
+          "conference_launch": [
+            "define_options",
+            "compare",
+            "sequence",
+            "allocate",
+            "fallback",
+            "sequence_dependencies"
+          ],
+          "research_pilot": [
+            "define_options",
+            "compare",
+            "sequence",
+            "allocate",
+            "fallback",
+            "sequence_dependencies"
+          ],
+          "office_relocation": [
+            "define_options",
+            "compare",
+            "sequence",
+            "allocate",
+            "fallback",
+            "sequence_dependencies"
+          ],
+          "maintenance_window": [
+            "define_options",
+            "compare",
+            "sequence",
+            "allocate",
+            "fallback",
+            "sequence_dependencies"
+          ]
+        },
+        "domainConstraints": {
+          "travel_plan": [
+            "budget",
+            "time",
+            "must_have",
+            "uncertain_input",
+            "reversible",
+            "resource_ceiling",
+            "contingency_budget"
+          ],
+          "learning_plan": [
+            "budget",
+            "time",
+            "must_have",
+            "uncertain_input",
+            "reversible",
+            "resource_ceiling",
+            "contingency_budget"
+          ],
+          "small_project": [
+            "budget",
+            "time",
+            "must_have",
+            "uncertain_input",
+            "reversible",
+            "resource_ceiling",
+            "contingency_budget"
+          ],
+          "purchase_decision": [
+            "budget",
+            "time",
+            "must_have",
+            "uncertain_input",
+            "reversible",
+            "resource_ceiling",
+            "contingency_budget"
+          ],
+          "meal_plan": [
+            "budget",
+            "time",
+            "must_have",
+            "uncertain_input",
+            "reversible",
+            "resource_ceiling",
+            "contingency_budget"
+          ],
+          "household_move": [
+            "budget",
+            "time",
+            "must_have",
+            "uncertain_input",
+            "reversible",
+            "resource_ceiling",
+            "contingency_budget"
+          ],
+          "community_event": [
+            "budget",
+            "time",
+            "must_have",
+            "uncertain_input",
+            "reversible",
+            "resource_ceiling",
+            "contingency_budget"
+          ],
+          "appointment_schedule": [
+            "budget",
+            "time",
+            "must_have",
+            "uncertain_input",
+            "reversible",
+            "resource_ceiling",
+            "contingency_budget"
+          ],
+          "maintenance_plan": [
+            "budget",
+            "time",
+            "must_have",
+            "uncertain_input",
+            "reversible",
+            "resource_ceiling",
+            "contingency_budget"
+          ],
+          "reading_plan": [
+            "budget",
+            "time",
+            "must_have",
+            "uncertain_input",
+            "reversible",
+            "resource_ceiling",
+            "contingency_budget"
+          ],
+          "conference_launch": [
+            "budget",
+            "time",
+            "must_have",
+            "uncertain_input",
+            "reversible",
+            "resource_ceiling",
+            "contingency_budget"
+          ],
+          "research_pilot": [
+            "budget",
+            "time",
+            "must_have",
+            "uncertain_input",
+            "reversible",
+            "resource_ceiling",
+            "contingency_budget"
+          ],
+          "office_relocation": [
+            "budget",
+            "time",
+            "must_have",
+            "uncertain_input",
+            "reversible",
+            "resource_ceiling",
+            "contingency_budget"
+          ],
+          "maintenance_window": [
+            "budget",
+            "time",
+            "must_have",
+            "uncertain_input",
+            "reversible",
+            "resource_ceiling",
+            "contingency_budget"
+          ]
+        },
+        "stateOutcomes": {
+          "too_many_options": [
+            "shortlist",
+            "decision_matrix",
+            "feasible_sequence"
+          ],
+          "missing_dependency": [
+            "ordered_steps",
+            "triggered_fallback",
+            "feasible_sequence"
+          ],
+          "conflicting_priorities": [
+            "decision_matrix",
+            "resource_plan",
+            "triggered_fallback",
+            "feasible_sequence"
+          ],
+          "partial_plan": [
+            "ordered_steps",
+            "resource_plan",
+            "triggered_fallback",
+            "feasible_sequence"
+          ],
+          "blocked_dependency": [
+            "decision_matrix",
+            "feasible_sequence",
+            "ordered_steps",
+            "resource_plan",
+            "shortlist",
+            "triggered_fallback"
+          ]
+        },
+        "stateFallbacks": {
+          "too_many_options": [
+            "smaller_scope",
+            "second_option"
+          ],
+          "missing_dependency": [
+            "defer",
+            "smaller_scope"
+          ],
+          "conflicting_priorities": [
+            "defer",
+            "second_option"
+          ],
+          "partial_plan": [
+            "smaller_scope",
+            "second_option"
+          ],
+          "blocked_dependency": [
+            "defer",
+            "second_option",
+            "smaller_scope"
+          ]
+        },
+        "riskFallbacks": {
+          "low": [
+            "defer",
+            "smaller_scope",
+            "second_option"
+          ]
+        }
+      },
+      "responseContract": [
+        "Separate hard constraints from preferences.",
+        "Show the comparison criteria.",
+        "Sequence dependencies before optional work.",
+        "Include a fallback trigger."
+      ]
+    }
+  ]
+}
