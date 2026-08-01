@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -10,10 +11,14 @@ import pyarrow.parquet as pq
 from complexity_card_corpus.build import CARD_SCHEMA, DOCUMENT_SCHEMA, RELATION_SCHEMA
 from complexity_card_corpus.instruct import (
     IGNORE_INDEX,
+    _balance_task_families,
+    _deduplicate_exact_responses,
     _deduplicate_structural_rows,
+    _inline_sentence,
     _naturalize_assistant_target,
     _normalized_structure,
     _project_sft_exchange,
+    _project_sft_conversation,
     build_instruction_dataset,
     load_heldout_evaluation,
     tokenize_instruction_dataset,
@@ -43,7 +48,9 @@ def _card(dataset_id: str, split: str, key: str, name: str) -> dict:
         "description": f"{name} records a precise test property and no other claim.",
         "facts": [f"Documented fact: {name} is part of the test atlas."],
         "tags": ["test"],
-        "attributes_json": json.dumps({"material": "blue glass", "status": "catalogued"}),
+        "attributes_json": json.dumps(
+            {"material": "blue glass", "status": "catalogued"}
+        ),
         "source": "Complexity original test cards",
         "source_urls": [],
         "license": "CC BY-NC 4.0",
@@ -111,7 +118,9 @@ def _tiny_corpus(root: Path) -> None:
             "version": "1.0.0",
         },
     ]
-    pq.write_table(pa.Table.from_pylist(cards, schema=CARD_SCHEMA), root / "cards.parquet")
+    pq.write_table(
+        pa.Table.from_pylist(cards, schema=CARD_SCHEMA), root / "cards.parquet"
+    )
     pq.write_table(
         pa.Table.from_pylist(relations, schema=RELATION_SCHEMA),
         root / "relations.parquet",
@@ -127,7 +136,10 @@ def test_original_instructions_are_deterministic_and_deck_split(tmp_path: Path) 
     _tiny_corpus(corpus)
     first = build_instruction_dataset(corpus, tmp_path / "first")
     second = build_instruction_dataset(corpus, tmp_path / "second")
-    assert first["files"]["instructions.parquet"]["sha256"] == second["files"]["instructions.parquet"]["sha256"]
+    assert (
+        first["files"]["instructions.parquet"]["sha256"]
+        == second["files"]["instructions.parquet"]["sha256"]
+    )
 
     rows = pq.read_table(tmp_path / "first/instructions.parquet").to_pylist()
     assert {row["split"] for row in rows} == {"train", "validation"}
@@ -164,16 +176,33 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
     assert template["id"] == CHAT_TEMPLATE_ID
     assert template["assistant_only_loss"] is True
     assert template["training_projection"] == (
-        "naturalize_card_hand_target_final_assistant"
+        "naturalize_card_hand_preserve_assistant_turns"
     )
     projected_path = tmp_path / "tokenized/projected.parquet"
     assert projected_path.exists()
     projected_rows = pq.read_table(projected_path).to_pylist()
     assert len(projected_rows) == manifest["total_examples"]
     assert manifest["projected_parquet"]["examples"] == len(projected_rows)
+    assert manifest["release_quality"]["checks"]["no_exact_duplicate_train_responses"]
+    assert manifest["release_quality"]["exact_train_response_uniqueness_ratio"] == 1.0
+    assert set(manifest["release_quality"]["response_length_bands"]) == {
+        "direct_1_25",
+        "short_26_45",
+        "standard_46_80",
+        "extended_81_plus",
+    }
     assert {row["split"] for row in projected_rows} == {"train", "validation"}
     assert all("SITUATION CARD" not in row["prompt"] for row in projected_rows)
     assert all("Hand " not in row["response"] for row in projected_rows)
+    assert all(
+        row["messages"][-1]["content"] == row["response"] for row in projected_rows
+    )
+    assert any(len(row["messages"]) == 4 for row in projected_rows)
+    assert all(
+        " CARD" not in message["content"]
+        for row in projected_rows
+        for message in row["messages"]
+    )
     for partition, metadata in manifest["partitions"].items():
         assert set(metadata["conditioning_card_counts"]) == {
             "surface",
@@ -230,7 +259,10 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
             assert "GOAL CARD" not in decoded
             assert "card hand" not in decoded.lower()
             assert example["hand_id"] == source["example_id"]
-            assert example["training_representation"] == "natural_instruction"
+            assert example["training_representation"] in {
+                "natural_instruction",
+                "natural_multi_turn",
+            }
             assert set(example["conditioning_cards"]) == {
                 "surface",
                 "dialogue_state",
@@ -258,9 +290,14 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
                 for message in source["messages"][:-1]
                 if message["role"] == "assistant"
             ]
-            assert not any(
-                message in decoded for message in intermediate_assistant_messages
-            )
+            if not has_card_hand and len(source["messages"]) > 2:
+                assert all(
+                    message in decoded for message in intermediate_assistant_messages
+                )
+            else:
+                assert not any(
+                    message in decoded for message in intermediate_assistant_messages
+                )
             assert "For hand " not in decoded
         assert int(supervised.sum()) == metadata["supervised_tokens"]
 
@@ -581,6 +618,13 @@ def test_every_generalist_contract_has_a_direct_projection_without_build() -> No
         )
 
 
+def test_inline_sentence_preserves_a_named_subject() -> None:
+    assert _inline_sentence("Mina will finish the review.") == (
+        "Mina will finish the review."
+    )
+    assert _inline_sentence("The review remains open.") == ("the review remains open.")
+
+
 def test_structural_normalization_deduplicates_slot_variants() -> None:
     first = "Mina should verify case A19 by day 12, then record the result."
     second = "Mina should verify case B72 by day 27, then record the result."
@@ -597,6 +641,122 @@ def test_structural_normalization_deduplicates_slot_variants() -> None:
     kept, audit = _deduplicate_structural_rows(rows, target_key="target")
     assert [row["example_id"] for row in kept] == ["a", "c"]
     assert audit["dropped_structural_duplicates"] == 1
+
+
+def test_structural_deduplication_allows_a_schema_specific_limit() -> None:
+    rows = [
+        {
+            "example_id": f"json-{index}",
+            "task": "extraction_classification",
+            "target": json.dumps({"case": f"A{index:05d}", "status": "pending"}),
+        }
+        for index in range(4)
+    ]
+    kept, audit = _deduplicate_structural_rows(
+        rows,
+        target_key="target",
+        max_per_structure=1,
+        per_task_limits={"extraction_classification": 3},
+    )
+    assert len(kept) == 3
+    assert audit["dropped_structural_duplicates"] == 1
+    assert audit["maximum_retained_per_structure"] == 3
+
+
+def test_exact_response_deduplication_keeps_one_deterministic_example() -> None:
+    rows = [
+        {
+            "example_id": "b",
+            "task": "planning_comparison",
+            "_projected_target": "Use route B.",
+        },
+        {
+            "example_id": "a",
+            "task": "planning_comparison",
+            "_projected_target": "Use route B.",
+        },
+        {
+            "example_id": "c",
+            "task": "planning_comparison",
+            "_projected_target": "Use route A.",
+        },
+    ]
+    kept, audit = _deduplicate_exact_responses(rows)
+    assert [row["example_id"] for row in kept] == ["a", "c"]
+    assert audit["dropped_exact_response_duplicates"] == 1
+    assert audit["exact_response_uniqueness_ratio"] == 1.0
+
+
+def test_family_balance_caps_only_dominant_families() -> None:
+    rows = [{"example_id": f"a-{index}", "task": "a"} for index in range(7)] + [
+        {"example_id": f"b-{index}", "task": "b"} for index in range(2)
+    ]
+    kept, audit = _balance_task_families(rows, max_examples_per_family=3)
+    assert Counter(row["task"] for row in kept) == {"a": 3, "b": 2}
+    assert audit["dropped_for_family_balance"] == 4
+
+
+def test_sft_projection_preserves_a_real_four_turn_conversation() -> None:
+    messages = [
+        {
+            "role": "user",
+            "content": "SITUATION CARD\nA report is late.\n\nDATA CARD\nThe owner is Mara.",
+        },
+        {"role": "assistant", "content": "I can help."},
+        {
+            "role": "user",
+            "content": "RULE CARD\nDo not invent a deadline.\n\nGOAL CARD\nWrite a concise follow-up.",
+        },
+        {
+            "role": "assistant",
+            "content": "Hand ABC123 — Ask Mara for the report and request a confirmed delivery time.",
+        },
+    ]
+    projected, _cards = _project_sft_conversation(
+        messages,
+        example_id="example:four-turn",
+        task="writing_transformation",
+        answer_json="{}",
+    )
+    assert [message["role"] for message in projected] == [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+    ]
+    assert all(" CARD" not in message["content"] for message in projected)
+    assert "Hand " not in projected[-1]["content"]
+
+
+def test_semantic_projection_uses_authored_cards_without_trace_ids() -> None:
+    messages = [
+        {"role": "user", "content": "Explain the result."},
+        {
+            "role": "assistant",
+            "content": "The total is 12 because three groups of four make 12.",
+        },
+    ]
+    metadata = {
+        "scenario_id": "scenario:do-not-surface",
+        "subject": "a grouped total",
+        "surface_intent": "verify the proposed result",
+        "source_state": "A candidate answer is available but has not been checked.",
+        "source_constraint": "Confirm the result through a second simple check.",
+        "fallback_surface": "Return to a smaller calculation with fewer moving parts.",
+        "desired_outcome": "A second method confirms the proposed result.",
+        "variant": 3,
+    }
+    _prompt, target, _cards = _project_sft_exchange(
+        messages,
+        example_id="example:semantic-resolution",
+        task="reasoning_verification",
+        answer_json=json.dumps(metadata),
+    )
+    assert "candidate answer" in target.lower()
+    assert "second simple check" in target.lower()
+    assert "second method" in target.lower()
+    assert "do-not-surface" not in target
+    assert "scenario:" not in target
 
 
 def test_heldout_evaluation_is_separately_authored() -> None:
@@ -621,14 +781,45 @@ def test_heldout_evaluation_is_separately_authored() -> None:
     }
     assert all(row["split"] == "validation" for row in rows)
     assert all(
-        json.loads(row["answer_json"])["evaluation_source"]
-        == "separately_authored"
+        json.loads(row["answer_json"])["evaluation_source"] == "separately_authored"
         for row in rows
     )
     assert len({_normalized_structure(row["response"]) for row in rows}) == len(rows)
 
 
-def test_tokenization_replaces_generated_validation_with_heldout(tmp_path: Path) -> None:
+def test_v2_evaluation_has_700_source_separated_examples() -> None:
+    rows = load_heldout_evaluation(Path("data/evaluation/generalist-heldout-v2.json"))
+    assert len(rows) == 700
+    assert Counter(row["task"] for row in rows) == {
+        task: 50
+        for task in {
+            "practical_action",
+            "explanation_learning",
+            "troubleshooting",
+            "writing_transformation",
+            "planning_comparison",
+            "conversation_empathy",
+            "safety_uncertainty",
+            "grounded_qa",
+            "summarization_synthesis",
+            "extraction_classification",
+            "reasoning_verification",
+            "critique_revision",
+            "brainstorming_creativity",
+            "context_clarification",
+        }
+    }
+    assert len({row["prompt"] for row in rows}) == 700
+    assert len({row["response"] for row in rows}) == 700
+    sources = Counter(
+        json.loads(row["answer_json"])["evaluation_source"] for row in rows
+    )
+    assert sources == {"separately_authored": 28, "source_separated_diagnostic": 672}
+
+
+def test_tokenization_replaces_generated_validation_with_heldout(
+    tmp_path: Path,
+) -> None:
     tokenizer = Path("/Users/boris/Dev/complexity-framework/tokenizer-o200k")
     if not tokenizer.exists():
         return
@@ -639,22 +830,24 @@ def test_tokenization_replaces_generated_validation_with_heldout(tmp_path: Path)
         tmp_path / "instructions/instructions.parquet",
         tokenizer,
         tmp_path / "tokenized",
-        heldout_evaluation_path=Path(
-            "data/evaluation/generalist-heldout-v1.json"
-        ),
+        heldout_evaluation_path=Path("data/evaluation/generalist-heldout-v2.json"),
     )
-    assert manifest["partitions"]["eval"]["examples"] == 28
+    assert manifest["partitions"]["eval"]["examples"] == 700
     assert manifest["train_eval_structure_overlap"] == 0
-    assert manifest["heldout_evaluation"]["method"] == "separately_authored"
-    projected_rows = pq.read_table(
-        tmp_path / "tokenized/projected.parquet"
-    ).to_pylist()
+    assert manifest["heldout_evaluation"]["method"] == "mixed_source_separated"
+    assert manifest["heldout_evaluation"]["provenance_counts"] == {
+        "separately_authored": 28,
+        "source_separated_diagnostic": 672,
+    }
+    projected_rows = pq.read_table(tmp_path / "tokenized/projected.parquet").to_pylist()
     validation_rows = [row for row in projected_rows if row["split"] == "validation"]
-    assert len(validation_rows) == 28
+    assert len(validation_rows) == 700
     assert all(row["example_id"].startswith("heldout:") for row in validation_rows)
     eval_ids = {
         json.loads(line)["example_id"]
-        for line in (tmp_path / "tokenized/eval/examples.jsonl").read_text().splitlines()
+        for line in (tmp_path / "tokenized/eval/examples.jsonl")
+        .read_text()
+        .splitlines()
     }
     assert eval_ids
     assert all(example_id.startswith("heldout:") for example_id in eval_ids)

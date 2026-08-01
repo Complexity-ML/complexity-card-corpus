@@ -132,16 +132,30 @@ The next language layer should be accepted only when it:
 
 ## Current post-training surface gate
 
-In the current 30,000-example build, all final responses are exactly unique.
-After semantic fields, identifiers, dates, amounts, times and numbers are
-masked, 1,383 distinct response skeletons remain (4.61% exact
-masked-skeleton uniqueness). The largest exact masked-skeleton share is 0.83%,
-the largest masked eight-token message coverage is 3.12%, and the largest
-within-family masked-template share is 8.33%. These are automated anti-template
-diagnostics, not a correctness score. The 280-row stratified human review
-remains pending and the corpus remains explicitly not training-ready.
+The current four-surface build contains 36,449 readable conversations after
+exact transcript/response cleanup and a cap on dominant raw families. Its
+model-facing projection starts from the 34,641 generated training rows, removes
+5,270 exact response duplicates, caps 238 rows from the dominant family, then
+removes 1,496 structurally repetitive rows. Prose structures retain at most 48
+examples; exact-unique extraction JSON uses a schema-aware ceiling of 512 so a
+valid field contract is not mistaken for prose duplication. This leaves 27,637
+training examples and 3,139,173 supervised training tokens. With the held-out
+evaluation split, the artifact contains 28,337 examples and 3,162,724
+supervised tokens.
 
-All 15,000 source scenarios have paired instruct and chat renderings for
-review, but none of the chat openers is an exact match or literal prefix of the
-paired instruct prompt. This preserves format coverage without counting a
-copied opening as prompt diversity.
+The retained projection has 100% exact final-response uniqueness, all 14 task
+families, 11,026 easy, 7,605 medium and 9,006 hard examples, and 15,110 genuine
+four-message exchanges (54.67%). The largest family holds 14.84% of training
+examples and the smallest 2.66%. All four response-length bands exceed 5%, and
+20,709 normalized `(family, structure)` pairs are distinct. The held-out
+evaluation suite has 700 examples, exactly 50 per family: 28 separately
+authored gold exchanges and 672 source-separated diagnostics built without
+training renderers.
+
+The readable surface still passes the anti-template diagnostics: the largest
+masked eight-token message coverage is 3.49% and the largest within-family
+masked-template share is 8.40%. These are repetition diagnostics, not a
+correctness score. The 280-row stratified human review also remains pending.
+All automated SFT release checks now pass. Publication still requires the
+stratified human-review gate; the automated checks do not certify semantic or
+safety correctness across the full corpus.

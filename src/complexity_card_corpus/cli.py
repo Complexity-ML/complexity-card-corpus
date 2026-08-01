@@ -57,7 +57,7 @@ def parser() -> argparse.ArgumentParser:
     post_training = commands.add_parser("build-post-training")
     post_training.add_argument("--scenarios", type=Path, required=True)
     post_training.add_argument("--output", type=Path, required=True)
-    post_training.add_argument("--variants-per-scenario", type=int, default=2)
+    post_training.add_argument("--variants-per-scenario", type=int, default=4)
     post_training.add_argument(
         "--review-scenarios",
         "--review-rows",
@@ -134,9 +134,7 @@ def parser() -> argparse.ArgumentParser:
     vocabulary_gap.add_argument("--conversations", type=Path, required=True)
     vocabulary_gap.add_argument("--output", type=Path, required=True)
     vocabulary_gap.add_argument("--min-sources", type=int, default=2)
-    vocabulary_gap.add_argument(
-        "--min-occurrences-per-source", type=int, default=20
-    )
+    vocabulary_gap.add_argument("--min-occurrences-per-source", type=int, default=20)
     vocabulary_gap.add_argument("--max-candidates", type=int, default=5_000)
 
     vocabulary_placement = commands.add_parser("place-vocabulary")

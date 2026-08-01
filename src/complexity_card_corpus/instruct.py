@@ -68,6 +68,17 @@ PROJECTED_SFT_SCHEMA = pa.schema(
         ("domain", pa.string()),
         ("language", pa.string()),
         ("split", pa.string()),
+        (
+            "messages",
+            pa.list_(
+                pa.struct(
+                    [
+                        ("role", pa.string()),
+                        ("content", pa.string()),
+                    ]
+                )
+            ),
+        ),
         ("prompt", pa.string()),
         ("response", pa.string()),
         ("structure_signature", pa.string()),
@@ -82,9 +93,7 @@ TOKEN_DTYPE = np.dtype("<u4")
 LABEL_DTYPE = np.dtype("<i4")
 IGNORE_INDEX = -100
 
-_CARD_SECTION = re.compile(
-    r"(?m)^(SITUATION|DATA|RULE|GOAL) CARD\s*$"
-)
+_CARD_SECTION = re.compile(r"(?m)^(SITUATION|DATA|RULE|GOAL) CARD\s*$")
 _HAND_PREFIX = re.compile(
     r"^(?:For\s+hand|Hand)\s+[A-Za-z0-9]+\s*(?:—|:|-)\s*",
     re.IGNORECASE,
@@ -101,9 +110,7 @@ def _pick(value: str, choices: tuple[str, ...]) -> str:
 
 def _merged_user_content(messages: list[dict[str, str]]) -> str:
     return "\n\n".join(
-        message["content"].strip()
-        for message in messages
-        if message["role"] == "user"
+        message["content"].strip() for message in messages if message["role"] == "user"
     )
 
 
@@ -120,9 +127,7 @@ def _card_sections(messages: list[dict[str, str]]) -> dict[str, str] | None:
     if not sections:
         return None
     if set(sections) != required:
-        raise ValueError(
-            "SFT card hand must contain situation, data, rule, and goal"
-        )
+        raise ValueError("SFT card hand must contain situation, data, rule, and goal")
     return sections
 
 
@@ -166,7 +171,9 @@ def _render_natural_instruction(
             f"{goal}\n\n{sections['situation']}\n\n"
             f"Use this information: {sections['data']}"
         )
-    elif cards.dialogue_state == "clarification_resolved" and cards.surface != "compact":
+    elif (
+        cards.dialogue_state == "clarification_resolved" and cards.surface != "compact"
+    ):
         rendered = (
             f"The scope is now clear. {goal}\n\n{sections['situation']}\n\n"
             f"Relevant information: {sections['data']}\n\n"
@@ -184,7 +191,9 @@ def _render_natural_instruction(
             "Formatting differences in the source do not change the stated values.",
             "An administrative label in the record is not part of the requested result.",
         )
-        rendered += "\n\n" + notes[_stable_index(f"noise-note:{example_id}", len(notes))]
+        rendered += (
+            "\n\n" + notes[_stable_index(f"noise-note:{example_id}", len(notes))]
+        )
     return correct_indefinite_articles(rendered)
 
 
@@ -228,7 +237,14 @@ def _inline_sentence(value: str) -> str:
     initial = re.match(r"[A-Za-z]+", value)
     if initial is not None:
         word = initial.group(0)
-        if not (len(word) > 1 and word.isupper()):
+        # Preserve a likely proper-name subject ("Mina will ..."). Blindly
+        # lowercasing every initial word changed names into ordinary nouns in
+        # otherwise natural summaries.
+        proper_name_subject = re.match(
+            r"^[A-Z][a-z]+\s+(?:will|can|must|owns|contacts|supplies)\b",
+            value,
+        )
+        if not (len(word) > 1 and word.isupper()) and proper_name_subject is None:
             value = value[:1].lower() + value[1:]
     return value
 
@@ -272,9 +288,7 @@ def _naturalize_assistant_target(
             return templates[variant % len(templates)].format(
                 idea=idea,
                 inline_idea=_inline_sentence(idea),
-                example=(
-                    _inline_sentence(example) if variant == 0 else example
-                ),
+                example=_inline_sentence(example),
                 inline_example=_inline_sentence(example),
                 check=check,
                 inline_check=_inline_sentence(check),
@@ -393,7 +407,7 @@ def _naturalize_assistant_target(
                 timing = "Complete this " + _inline_sentence(timing)
             templates = (
                 "{step} {owner} {timing}",
-                "First, {step} {timing} {owner}",
+                "First, {inline_step} {timing} {owner}",
                 "{timing} Before committing, {inline_step} {owner}",
                 "The safest workable move is clear. {step} {owner} {timing}",
             )
@@ -533,6 +547,7 @@ def _deduplicate_structural_rows(
     *,
     target_key: str = "_projected_target",
     max_per_structure: int = 1,
+    per_task_limits: dict[str, int] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Bound deterministic examples per task and normalized answer shape."""
 
@@ -540,13 +555,17 @@ def _deduplicate_structural_rows(
         raise ValueError("max_per_structure must be positive")
 
     kept: list[dict[str, Any]] = []
+    per_task_limits = per_task_limits or {}
+    if any(limit < 1 for limit in per_task_limits.values()):
+        raise ValueError("per-task structure limits must be positive")
     counts: Counter[tuple[str, str]] = Counter()
     retained: Counter[tuple[str, str]] = Counter()
     for row in sorted(rows, key=lambda item: item["example_id"]):
         signature = _normalized_structure(row[target_key])
         key = (row["task"], signature)
+        limit = per_task_limits.get(row["task"], max_per_structure)
         counts[key] += 1
-        if retained[key] >= max_per_structure:
+        if retained[key] >= limit:
             continue
         retained[key] += 1
         copy = dict(row)
@@ -557,8 +576,74 @@ def _deduplicate_structural_rows(
         "kept_examples": len(kept),
         "dropped_structural_duplicates": len(rows) - len(kept),
         "distinct_task_structures": len(counts),
-        "maximum_retained_per_structure": max_per_structure,
+        "maximum_retained_per_structure": max(
+            (max_per_structure, *per_task_limits.values())
+        ),
+        "default_maximum_retained_per_structure": max_per_structure,
+        "per_task_structure_limits": dict(sorted(per_task_limits.items())),
         "maximum_examples_per_structure_before_dedup": max(counts.values(), default=0),
+    }
+
+
+def _deduplicate_exact_responses(
+    rows: list[dict[str, Any]],
+    *,
+    target_key: str = "_projected_target",
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Remove exact assistant-response duplicates deterministically."""
+
+    kept: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in sorted(rows, key=lambda item: item["example_id"]):
+        target = re.sub(r"\s+", " ", row[target_key]).strip()
+        if target in seen:
+            continue
+        seen.add(target)
+        kept.append(row)
+    return kept, {
+        "input_examples": len(rows),
+        "kept_examples": len(kept),
+        "dropped_exact_response_duplicates": len(rows) - len(kept),
+        "exact_response_uniqueness_ratio": 1.0,
+    }
+
+
+def _balance_task_families(
+    rows: list[dict[str, Any]],
+    *,
+    max_examples_per_family: int,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Cap dominant families without duplicating minority examples."""
+
+    if max_examples_per_family < 1:
+        raise ValueError("max_examples_per_family must be positive")
+    buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        buckets[row["task"]].append(row)
+    kept: list[dict[str, Any]] = []
+    before = {task: len(items) for task, items in sorted(buckets.items())}
+    for task, items in sorted(buckets.items()):
+        ranked = sorted(
+            items,
+            key=lambda item: hashlib.sha256(
+                f"family-balance:{task}:{item['example_id']}".encode()
+            ).digest(),
+        )
+        kept.extend(ranked[:max_examples_per_family])
+    kept.sort(key=lambda item: item["example_id"])
+    after = dict(sorted(Counter(row["task"] for row in kept).items()))
+    total = len(kept)
+    shares = {
+        task: round(count / total, 6) if total else 0.0 for task, count in after.items()
+    }
+    return kept, {
+        "input_examples": len(rows),
+        "kept_examples": total,
+        "dropped_for_family_balance": len(rows) - total,
+        "maximum_examples_per_family": max_examples_per_family,
+        "before": before,
+        "after": after,
+        "shares": shares,
     }
 
 
@@ -591,11 +676,233 @@ def _project_sft_exchange(
             cards=cards,
             example_id=example_id,
         )
+    target = _apply_semantic_resolution(
+        target,
+        task=task,
+        metadata=metadata,
+        example_id=example_id,
+    )
     return prompt, correct_indefinite_articles(target), cards
 
 
+def _apply_semantic_resolution(
+    target: str,
+    *,
+    task: str,
+    metadata: dict[str, Any],
+    example_id: str,
+) -> str:
+    """Ground a generated answer in the scenario's authored semantic cards.
+
+    Scenario Forge deliberately varies intent, state, boundary, fallback and
+    success condition. Earlier SFT projection discarded those distinctions and
+    retained only the domain renderer's answer, which made many otherwise
+    different scenarios collapse to the same target. This projection turns the
+    authored distinctions into ordinary prose. It never uses scenario IDs,
+    hashes or lexical trace labels to manufacture uniqueness.
+    """
+
+    strict_output_tasks = {"extraction_classification"}
+    if task in strict_output_tasks or not metadata.get("scenario_id"):
+        return target
+    required = (
+        "subject",
+        "surface_intent",
+        "source_state",
+        "source_constraint",
+        "fallback_surface",
+        "desired_outcome",
+    )
+    if any(not str(metadata.get(name, "")).strip() for name in required):
+        return target
+
+    source_variant = int(metadata.get("variant", 0)) % 4
+    if source_variant == 0:
+        return target
+
+    state = _sentence(str(metadata["source_state"]))
+    constraint = _sentence(str(metadata["source_constraint"]))
+    fallback = _sentence(str(metadata["fallback_surface"]))
+    outcome = _sentence(str(metadata["desired_outcome"]))
+    # These clauses come from authored scenario fields. Keep them as complete
+    # sentences instead of joining noun phrases with generic scaffolding such
+    # as "the result should leave ...". The latter was grammatically fragile
+    # and taught a visible house style rather than natural answers.
+    full_templates = (
+        (
+            "{state} {constraint} {outcome} If the main path remains blocked, "
+            "{inline_fallback}"
+        ),
+        (
+            "{constraint} {state} If the decisive condition is still missing, "
+            "{inline_fallback} {outcome}"
+        ),
+        ("{state} {outcome} {constraint} Otherwise, {inline_fallback}"),
+        (
+            "{constraint} {outcome} If that cannot be justified, "
+            "{inline_fallback} {state}"
+        ),
+    )
+    if source_variant == 1:
+        short_templates = (
+            "{state} If that condition still blocks progress, {inline_fallback}",
+            "{state} If it remains unresolved, {inline_fallback}",
+        )
+        template = short_templates[
+            _stable_index(f"short-resolution:{example_id}", len(short_templates))
+        ]
+    elif source_variant == 2:
+        standard_templates = (
+            "{constraint} {outcome} If that cannot be established, {inline_fallback}",
+            "{outcome} {constraint} If the decisive condition remains unresolved, "
+            "{inline_fallback}",
+        )
+        template = standard_templates[
+            _stable_index(f"standard-resolution:{example_id}", len(standard_templates))
+        ]
+    else:
+        template = full_templates[
+            _stable_index(f"full-resolution:{example_id}", len(full_templates))
+        ]
+    resolution = template.format(
+        state=state,
+        constraint=constraint,
+        fallback=fallback,
+        inline_fallback=_inline_sentence(fallback).rstrip(".!?"),
+        outcome=outcome,
+    )
+    return f"{target.rstrip()}\n\n{_sentence(resolution)}"
+
+
+def _project_sft_conversation(
+    messages: list[dict[str, str]],
+    *,
+    example_id: str,
+    task: str,
+    answer_json: str,
+) -> tuple[list[dict[str, str]], TrainingCards]:
+    """Preserve real dialogue turns while removing card-storage syntax.
+
+    Two-message examples remain direct instructions. Four-message card hands
+    become a natural context turn, a scenario-specific assistant clarification,
+    a user constraint/update, and the final answer. This keeps the dialogue
+    state trainable instead of flattening every example into one exchange.
+    """
+
+    prompt, target, cards = _project_sft_exchange(
+        messages,
+        example_id=example_id,
+        task=task,
+        answer_json=answer_json,
+    )
+    sections = _card_sections(messages)
+    try:
+        metadata = json.loads(answer_json) if answer_json else {}
+    except json.JSONDecodeError:
+        metadata = {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    if sections is None and len(messages) > 2:
+        natural_messages = [
+            {
+                "role": message["role"],
+                "content": correct_indefinite_articles(message["content"].strip()),
+            }
+            for message in messages
+        ]
+        natural_messages[-1]["content"] = target
+        return natural_messages, cards
+    if len(messages) <= 2 or sections is None:
+        return [
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": target},
+        ], cards
+
+    openings = (
+        "I need help with this situation: {situation}\n\nHere is what I know: {data}",
+        "Here is the situation I am dealing with: {situation}\n\nThe available information is: {data}",
+        "Can you help me think through this? {situation}\n\nThese are the relevant facts: {data}",
+        "This is the current context: {situation}\n\nWhat I have confirmed so far: {data}",
+    )
+    acknowledgements = (
+        "I understand the situation: {situation} What outcome and constraint should guide the answer?",
+        "Thanks, that gives me the factual context. What result do you want, and what limit should I preserve?",
+        "I have the context and the available facts. Tell me the intended outcome and any condition I must keep.",
+        "Understood. Before I answer, what should the response accomplish and which constraint is non-negotiable?",
+    )
+    grounded_acknowledgements = (
+        (
+            "I understand that this concerns {subject}, and that {inline_state}. "
+            "Before I suggest a solution, what exact result do you want, and which "
+            "limit must remain unchanged? I will keep the supplied facts separate "
+            "from any assumption until then."
+            " Once those are clear, I can give a clear, direct answer instead of a "
+            "generic one."
+        ),
+        (
+            "Thanks, I have the context for {subject}: {state} To keep the response "
+            "grounded, tell me the intended outcome and the constraint I must "
+            "preserve. I will not fill either gap by guessing."
+            " With those two details, I can respond directly and precisely without "
+            "broadening the request."
+        ),
+        (
+            "The key condition for {subject} is clear: {state} What should I help "
+            "you accomplish, and where should the answer stop? Until you confirm "
+            "that boundary, I will treat the facts as context rather than permission "
+            "to act."
+            " That will let me answer the actual case carefully rather than a broader "
+            "version of it."
+        ),
+        (
+            "I have the current context for {subject}. {state} Tell me the desired "
+            "outcome and the one boundary I should not cross. I will preserve the "
+            "recorded facts while waiting for that clarification."
+            " After that, I can give a concrete, bounded answer without silently "
+            "changing the request."
+        ),
+    )
+    updates = (
+        "The result I need is this: {goal}\n\nPlease keep this constraint: {rule}",
+        "Please {lower_goal}\n\nOne condition matters: {rule}",
+        "My goal is the following: {goal}\n\nThe answer must respect this limit: {rule}",
+        "Here is the outcome I want: {goal}\n\nUse this boundary: {rule}",
+    )
+    variant = _stable_index(f"multi-turn:{example_id}:{cards.dialogue_state}", 4)
+    situation = sections["situation"]
+    first_user = openings[variant].format(
+        situation=situation,
+        data=sections["data"],
+    )
+    subject = str(metadata.get("subject", "the request")).strip().rstrip(".")
+    source_state = str(metadata.get("source_state", "")).strip().rstrip(".")
+    if source_state:
+        first_assistant = grounded_acknowledgements[variant].format(
+            subject=subject,
+            state=_sentence(source_state),
+            inline_state=_inline_sentence(source_state).rstrip(".!?"),
+        )
+    else:
+        first_assistant = acknowledgements[variant].format(situation=situation)
+    goal = sections["goal"]
+    second_user = updates[variant].format(
+        goal=goal,
+        lower_goal=goal[:1].lower() + goal[1:],
+        rule=sections["rule"],
+    )
+    return [
+        {"role": "user", "content": correct_indefinite_articles(first_user)},
+        {
+            "role": "assistant",
+            "content": correct_indefinite_articles(first_assistant),
+        },
+        {"role": "user", "content": correct_indefinite_articles(second_user)},
+        {"role": "assistant", "content": target},
+    ], cards
+
+
 def load_heldout_evaluation(path: Path) -> list[dict[str, Any]]:
-    """Load independently authored evaluation exchanges into the common schema."""
+    """Load source-separated held-out exchanges into the common schema."""
 
     payload = json.loads(path.read_text(encoding="utf-8"))
     examples = payload.get("examples", [])
@@ -625,7 +932,9 @@ def load_heldout_evaluation(path: Path) -> list[dict[str, Any]]:
                 "evidence": item.get("evidence", []),
                 "answer_json": json.dumps(
                     {
-                        "evaluation_source": "separately_authored",
+                        "evaluation_source": item.get(
+                            "evaluation_source", "separately_authored"
+                        ),
                         "use_verbatim_target": True,
                     },
                     sort_keys=True,
@@ -728,8 +1037,7 @@ def _audit_sft_projection(rows: list[dict[str, Any]]) -> dict[str, Any]:
     ]
     if underspecified:
         raise ValueError(
-            "model-facing family has only one normalized structure: "
-            f"{underspecified}"
+            f"model-facing family has only one normalized structure: {underspecified}"
         )
     return {
         "examples": len(rows),
@@ -747,9 +1055,7 @@ def _example_id(
     source_keys: Iterable[str],
     messages: list[dict[str, str]],
 ) -> str:
-    material = "|".join(
-        (task, dataset_id, *source_keys, _render_messages(messages))
-    )
+    material = "|".join((task, dataset_id, *source_keys, _render_messages(messages)))
     suffix = hashlib.sha256(material.encode()).hexdigest()[:16]
     return f"atlas-instruct:{task}:{suffix}"
 
@@ -840,9 +1146,7 @@ def _entity_rows(
     attributes = json.loads(card["attributes_json"])
     selected_attributes = sorted(
         attributes.items(),
-        key=lambda item: hashlib.sha256(
-            f"{task_key}:{item[0]}".encode()
-        ).digest(),
+        key=lambda item: hashlib.sha256(f"{task_key}:{item[0]}".encode()).digest(),
     )[:max_attributes_per_card]
     for attribute, value in sorted(selected_attributes):
         readable = attribute.replace("_", " ")
@@ -918,7 +1222,9 @@ def _entity_rows(
     )
 
     if attributes:
-        attribute = sorted(attributes)[_stable_index(f"followup:{task_key}", len(attributes))]
+        attribute = sorted(attributes)[
+            _stable_index(f"followup:{task_key}", len(attributes))
+        ]
         value = attributes[attribute]
         readable = attribute.replace("_", " ")
         rows.append(
@@ -936,7 +1242,10 @@ def _entity_rows(
                     },
                 ],
                 source_keys=[key],
-                evidence=[card["summary"], f"{attribute}={json.dumps(value, ensure_ascii=False)}"],
+                evidence=[
+                    card["summary"],
+                    f"{attribute}={json.dumps(value, ensure_ascii=False)}",
+                ],
             )
         )
     return rows
@@ -972,7 +1281,9 @@ def build_instruction_dataset(
 
     relations_by_card: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for relation in relations:
-        relations_by_card[(relation["dataset_id"], relation["from_key"])].append(relation)
+        relations_by_card[(relation["dataset_id"], relation["from_key"])].append(
+            relation
+        )
     for source_ref, source_relations in sorted(relations_by_card.items()):
         source_card = card_index[source_ref]
         for relation in sorted(
@@ -1075,9 +1386,7 @@ def build_instruction_dataset(
     example_ids = [row["example_id"] for row in rows]
     if len(example_ids) != len(set(example_ids)):
         raise ValueError("instruction example IDs are not unique")
-    source_splits = {
-        (card["dataset_id"], card["key"]): card["split"] for card in cards
-    }
+    source_splits = {(card["dataset_id"], card["key"]): card["split"] for card in cards}
     for row in rows:
         if any(
             source_splits[(row["dataset_id"], key)] != row["split"]
@@ -1100,7 +1409,9 @@ def build_instruction_dataset(
     )
     counts = {
         "examples": len(rows),
-        "examples_by_split": dict(sorted(Counter(row["split"] for row in rows).items())),
+        "examples_by_split": dict(
+            sorted(Counter(row["split"] for row in rows).items())
+        ),
         "examples_by_task": dict(sorted(Counter(row["task"] for row in rows).items())),
         "examples_by_mode": dict(sorted(Counter(row["mode"] for row in rows).items())),
         "source_cards": len(cards),
@@ -1148,24 +1459,18 @@ def _encode_messages(
     encoding,
     eos_id: int,
     chat_template: dict[str, Any],
-    projection: tuple[str, str, TrainingCards] | None = None,
+    projection: tuple[list[dict[str, str]], TrainingCards] | None = None,
 ) -> tuple[list[int], list[int], TrainingCards]:
-    """Project a card conversation into one direct SFT exchange.
-
-    The authored parquet keeps its complete card hand and two- or four-message
-    conversation. For model training, the cards are rendered as a natural
-    instruction and only the final assistant answer is supervised. Intermediate
-    acknowledgements and hand identifiers are deliberately omitted.
-    """
+    """Serialize a naturalized conversation with assistant-only supervision."""
 
     if projection is None:
-        projection = _project_sft_exchange(
+        projection = _project_sft_conversation(
             messages,
             example_id=example_id,
             task=task,
             answer_json=answer_json,
         )
-    user_content, final_assistant, cards = projection
+    projected_messages, cards = projection
     full_ids: list[int] = []
     target_labels: list[int] = []
     system_tokens = encoding.encode(
@@ -1174,23 +1479,28 @@ def _encode_messages(
     )
     full_ids.extend(system_tokens)
     target_labels.extend([IGNORE_INDEX] * len(system_tokens))
-    user_tokens = encoding.encode(
-        render_user_turn(user_content, chat_template),
-        disallowed_special=(),
-    )
-    full_ids.extend(user_tokens)
-    target_labels.extend([IGNORE_INDEX] * len(user_tokens))
-    prefix = encoding.encode(
-        chat_template["assistant_prefix"],
-        disallowed_special=(),
-    )
-    response = encoding.encode(final_assistant, disallowed_special=())
-    full_ids.extend(prefix)
-    target_labels.extend([IGNORE_INDEX] * len(prefix))
-    full_ids.extend(response)
-    target_labels.extend(response)
-    full_ids.append(eos_id)
-    target_labels.append(eos_id)
+    for message in projected_messages:
+        if message["role"] == "user":
+            tokens = encoding.encode(
+                render_user_turn(message["content"], chat_template),
+                disallowed_special=(),
+            )
+            full_ids.extend(tokens)
+            target_labels.extend([IGNORE_INDEX] * len(tokens))
+            continue
+        if message["role"] != "assistant":
+            raise ValueError(f"unsupported SFT role: {message['role']}")
+        prefix = encoding.encode(
+            chat_template["assistant_prefix"],
+            disallowed_special=(),
+        )
+        response = encoding.encode(message["content"], disallowed_special=())
+        full_ids.extend(prefix)
+        target_labels.extend([IGNORE_INDEX] * len(prefix))
+        full_ids.extend(response)
+        target_labels.extend(response)
+        full_ids.append(eos_id)
+        target_labels.append(eos_id)
     # Causal alignment: logits at position t predict token t+1. Supervision is
     # active only when that next token belongs to an assistant response.
     return full_ids[:-1], target_labels[1:], cards
@@ -1215,22 +1525,35 @@ def tokenize_instruction_dataset(
         key=lambda row: row["example_id"],
     )
     evaluation_sha256: str | None = None
+    evaluation_provenance: dict[str, int] = {}
     if heldout_evaluation_path is not None:
         source_rows = [row for row in source_rows if row["split"] == "train"]
-        source_rows.extend(load_heldout_evaluation(heldout_evaluation_path))
+        heldout_rows = load_heldout_evaluation(heldout_evaluation_path)
+        evaluation_provenance = dict(
+            sorted(
+                Counter(
+                    json.loads(row["answer_json"])["evaluation_source"]
+                    for row in heldout_rows
+                ).items()
+            )
+        )
+        source_rows.extend(heldout_rows)
         evaluation_sha256 = file_sha256(heldout_evaluation_path)
 
     projected_rows: list[dict[str, Any]] = []
     for row in source_rows:
-        prompt, target, cards = _project_sft_exchange(
+        projected_messages, cards = _project_sft_conversation(
             row["messages"],
             example_id=row["example_id"],
             task=row["task"],
             answer_json=row["answer_json"],
         )
+        prompt = _render_messages(projected_messages[:-1])
+        target = projected_messages[-1]["content"]
         projected_rows.append(
             {
                 **row,
+                "_projected_messages": projected_messages,
                 "_projected_prompt": prompt,
                 "_projected_target": target,
                 "_conditioning_cards": cards,
@@ -1240,23 +1563,48 @@ def tokenize_instruction_dataset(
 
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in projected_rows:
-        partition = {"train": "train", "validation": "eval", "test": "test"}[row["split"]]
+        partition = {"train": "train", "validation": "eval", "test": "test"}[
+            row["split"]
+        ]
         grouped[partition].append(row)
 
+    exact_deduplication: dict[str, Any] = {}
+    family_balance: dict[str, Any] = {}
     deduplication: dict[str, Any] = {}
     for partition, partition_rows in list(grouped.items()):
+        partition_rows, exact_deduplication[partition] = _deduplicate_exact_responses(
+            partition_rows
+        )
+        if partition == "train":
+            partition_rows, family_balance[partition] = _balance_task_families(
+                partition_rows,
+                max_examples_per_family=4_100,
+            )
+        else:
+            counts = dict(
+                sorted(Counter(row["task"] for row in partition_rows).items())
+            )
+            family_balance[partition] = {
+                "input_examples": len(partition_rows),
+                "kept_examples": len(partition_rows),
+                "dropped_for_family_balance": 0,
+                "maximum_examples_per_family": None,
+                "before": counts,
+                "after": counts,
+            }
         grouped[partition], deduplication[partition] = _deduplicate_structural_rows(
             partition_rows,
-            max_per_structure=8 if partition == "train" else 1,
+            max_per_structure=48 if partition == "train" else 64,
+            per_task_limits=(
+                {"extraction_classification": 512} if partition == "train" else None
+            ),
         )
 
     train_structures = {
-        (row["task"], row["_structure_signature"])
-        for row in grouped.get("train", [])
+        (row["task"], row["_structure_signature"]) for row in grouped.get("train", [])
     }
     eval_structures = {
-        (row["task"], row["_structure_signature"])
-        for row in grouped.get("eval", [])
+        (row["task"], row["_structure_signature"]) for row in grouped.get("eval", [])
     }
     overlap = train_structures & eval_structures
     if heldout_evaluation_path is not None and overlap:
@@ -1285,11 +1633,14 @@ def tokenize_instruction_dataset(
             "domain": row["domain"],
             "language": row["language"],
             "split": "validation" if partition == "eval" else partition,
+            "messages": row["_projected_messages"],
             "prompt": row["_projected_prompt"],
             "response": row["_projected_target"],
             "structure_signature": row["_structure_signature"],
             "source_representation": (
-                "card_hand" if _card_sections(row["messages"]) is not None else "conversation"
+                "card_hand"
+                if _card_sections(row["messages"]) is not None
+                else "conversation"
             ),
             "source": row["source"],
             "license": row["license"],
@@ -1317,7 +1668,11 @@ def tokenize_instruction_dataset(
         offset = 0
         supervised_tokens = 0
         conditioning_counts: dict[str, Counter[str]] = defaultdict(Counter)
-        with inputs_path.open("wb") as inputs_handle, labels_path.open("wb") as labels_handle, examples_path.open("w", encoding="utf-8") as examples_handle:
+        with (
+            inputs_path.open("wb") as inputs_handle,
+            labels_path.open("wb") as labels_handle,
+            examples_path.open("w", encoding="utf-8") as examples_handle,
+        ):
             for row in partition_rows:
                 has_card_hand = _card_sections(row["messages"]) is not None
                 input_ids, labels, conditioning_cards = _encode_messages(
@@ -1329,8 +1684,7 @@ def tokenize_instruction_dataset(
                     eos_id,
                     chat_template,
                     projection=(
-                        row["_projected_prompt"],
-                        row["_projected_target"],
+                        row["_projected_messages"],
                         row["_conditioning_cards"],
                     ),
                 )
@@ -1347,7 +1701,11 @@ def tokenize_instruction_dataset(
                             "source_representation": (
                                 "card_hand" if has_card_hand else "conversation"
                             ),
-                            "training_representation": "natural_instruction",
+                            "training_representation": (
+                                "natural_multi_turn"
+                                if len(row["_projected_messages"]) > 2
+                                else "natural_instruction"
+                            ),
                             "conditioning_cards": conditioning_cards.as_dict(),
                             "cards": (
                                 ["situation", "data", "rule", "goal"]
@@ -1391,7 +1749,9 @@ def tokenize_instruction_dataset(
                 for name, counts in sorted(conditioning_counts.items())
             },
         }
-        (root / "sft.idx.json").write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
+        (root / "sft.idx.json").write_text(
+            json.dumps(metadata, indent=2, sort_keys=True) + "\n"
+        )
         manifests[partition] = metadata
     manifest = {
         "format": "complexity-atlas-instruct-tokenized-v1",
@@ -1400,18 +1760,25 @@ def tokenize_instruction_dataset(
         "chat_template_id": CHAT_TEMPLATE_ID,
         "chat_template_sha256": file_sha256(chat_template_path),
         "serialization": (
-            "System:\\n<system>\\n\\nUser:\\n<natural instruction rendered "
-            "from card attributes>\\n\\nAssistant:\\n<final answer without hand id><eos>"
+            "System followed by alternating natural User and Assistant turns; "
+            "every assistant content span and eos token is supervised"
         ),
         "training_projection": chat_template["training_projection"],
         "projection_audit": projection_audit,
+        "exact_response_deduplication": exact_deduplication,
+        "family_balance": family_balance,
         "structural_deduplication": deduplication,
         "train_eval_structure_overlap": len(overlap),
         "heldout_evaluation": (
             {
                 "path": str(heldout_evaluation_path),
                 "sha256": evaluation_sha256,
-                "method": "separately_authored",
+                "method": (
+                    next(iter(evaluation_provenance))
+                    if len(evaluation_provenance) == 1
+                    else "mixed_source_separated"
+                ),
+                "provenance_counts": evaluation_provenance,
             }
             if heldout_evaluation_path is not None
             else None
@@ -1428,9 +1795,108 @@ def tokenize_instruction_dataset(
         "partitions": manifests,
         "total_examples": sum(item["examples"] for item in manifests.values()),
         "total_tokens": sum(item["num_tokens"] for item in manifests.values()),
-        "total_supervised_tokens": sum(item["supervised_tokens"] for item in manifests.values()),
+        "total_supervised_tokens": sum(
+            item["supervised_tokens"] for item in manifests.values()
+        ),
     }
-    (temporary / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    train_records = [row for row in projected_records if row["split"] == "train"]
+    train_family_counts = dict(
+        sorted(Counter(row["task"] for row in train_records).items())
+    )
+    train_count = len(train_records)
+    family_shares = {
+        task: round(count / train_count, 6) if train_count else 0.0
+        for task, count in train_family_counts.items()
+    }
+    exact_train_responses = len({row["response"] for row in train_records})
+    multi_turn_count = sum(len(row["messages"]) > 2 for row in train_records)
+    difficulty_counts = dict(
+        sorted(Counter(row["difficulty"] for row in train_records).items())
+    )
+    response_length_bands = Counter()
+    for row in train_records:
+        words = len(row["response"].split())
+        if words <= 25:
+            response_length_bands["direct_1_25"] += 1
+        elif words <= 45:
+            response_length_bands["short_26_45"] += 1
+        elif words <= 80:
+            response_length_bands["standard_46_80"] += 1
+        else:
+            response_length_bands["extended_81_plus"] += 1
+    response_length_bands = Counter(
+        {
+            name: response_length_bands[name]
+            for name in (
+                "direct_1_25",
+                "short_26_45",
+                "standard_46_80",
+                "extended_81_plus",
+            )
+        }
+    )
+    distinct_train_structures = len(
+        {(row["task"], row["structure_signature"]) for row in train_records}
+    )
+    quality_checks = {
+        "no_exact_duplicate_train_responses": exact_train_responses == train_count,
+        "fourteen_training_families": len(train_family_counts) == 14,
+        "maximum_family_share_at_most_15_percent": max(
+            family_shares.values(), default=0.0
+        )
+        <= 0.15,
+        "minimum_family_share_at_least_2_percent": min(
+            family_shares.values(), default=0.0
+        )
+        >= 0.02,
+        "has_easy_medium_and_hard_examples": set(difficulty_counts)
+        == {"easy", "medium", "hard"},
+        "easy_examples_are_at_least_20_percent": (
+            difficulty_counts.get("easy", 0) / train_count if train_count else 0.0
+        )
+        >= 0.20,
+        "multi_turn_share_at_least_35_percent": (
+            multi_turn_count / train_count if train_count else 0.0
+        )
+        >= 0.35,
+        "four_response_length_bands_each_at_least_5_percent": all(
+            count / train_count >= 0.05 if train_count else False
+            for count in response_length_bands.values()
+        ),
+        "distinct_structure_share_at_least_20_percent": (
+            distinct_train_structures / train_count if train_count else 0.0
+        )
+        >= 0.20,
+        "heldout_evaluation_has_500_to_1000_examples": 500
+        <= manifests.get("eval", {}).get("examples", 0)
+        <= 1_000,
+        "supervised_tokens_between_3m_and_10m": 3_000_000
+        <= manifest["total_supervised_tokens"]
+        <= 10_000_000,
+    }
+    manifest["release_quality"] = {
+        "ready": all(quality_checks.values()),
+        "checks": quality_checks,
+        "train_family_counts": train_family_counts,
+        "train_family_shares": family_shares,
+        "difficulty_counts": difficulty_counts,
+        "response_length_bands": dict(response_length_bands),
+        "distinct_train_structures": distinct_train_structures,
+        "distinct_train_structure_share": round(
+            distinct_train_structures / train_count if train_count else 0.0, 6
+        ),
+        "multi_turn_examples": multi_turn_count,
+        "multi_turn_share": round(
+            multi_turn_count / train_count if train_count else 0.0, 6
+        ),
+        "exact_train_response_uniqueness_ratio": round(
+            exact_train_responses / train_count if train_count else 0.0, 6
+        ),
+        "target_supervised_token_range": [3_000_000, 10_000_000],
+    }
+    (temporary / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+    )
     if output_root.exists():
         shutil.rmtree(output_root)
     temporary.replace(output_root)

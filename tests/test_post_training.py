@@ -59,10 +59,13 @@ def test_vocabulary_overflow_uses_compatible_capacity_without_dropping_words() -
         "concise",
         "faithful",
     }
-    assert sum(
-        "statistical_alternative" in row.get("lexical_assignment_method", "")
-        for row in enriched
-    ) == 2
+    assert (
+        sum(
+            "statistical_alternative" in row.get("lexical_assignment_method", "")
+            for row in enriched
+        )
+        == 2
+    )
 
 
 def _task_row(
@@ -435,7 +438,9 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
     )
 
     rows = pq.read_table(output / "conversations.parquet").to_pylist()
-    assert len(rows) == 30_000
+    assert result["audit"]["rows"] == len(rows)
+    assert 29_000 <= len(rows) <= 30_000
+    assert len({row["response"] for row in rows}) == len(rows)
     family_responses: dict[str, list[str]] = {}
     for row in rows:
         transcript = row["rendered_text"]
@@ -481,7 +486,10 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
     assert result["audit"]["source_scenario_split_overlap"] == 0
     assert result["audit"]["semantic_group_split_overlap"] == 0
     paired_prompts = result["audit"]["paired_prompt_surface_stats"]
-    assert paired_prompts["paired_scenarios"] == 15_000
+    assert paired_prompts["paired_scenarios"] <= result["audit"]["source_scenarios"]
+    assert paired_prompts["paired_scenarios"] >= int(
+        result["audit"]["source_scenarios"] * 0.98
+    )
     assert paired_prompts["exact_first_user_message_matches"] == 0
     assert paired_prompts["chat_opener_is_instruct_prefix"] == 0
     assert result["audit"]["split_holdout_units"] == [
@@ -489,7 +497,7 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
         "family+domain+intent",
     ]
     assert result["audit"]["exact_conversation_uniqueness_ratio"] == 1.0
-    assert result["audit"]["exact_final_response_uniqueness_ratio"] >= 0.95
+    assert result["audit"]["exact_final_response_uniqueness_ratio"] == 1.0
     assert result["audit"]["model_generated_dialogue_rows"] == 0
     assert result["audit"]["single_state_and_constraint_ratio"] == 1.0
     assert result["audit"]["natural_language_gate"] == {
@@ -501,9 +509,18 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
         "forbidden_user_phrases": list(post_training._FORBIDDEN_USER_META_PHRASES),
     }
     role_stats = result["audit"]["role_text_stats"]
-    assert role_stats["user_prompts"]["length"]["items"] == 45_000
-    assert role_stats["assistant_messages"]["length"]["items"] == 45_000
-    assert role_stats["final_responses"]["length"]["items"] == 30_000
+    expected_user_messages = sum(
+        message["role"] == "user" for row in rows for message in row["messages"]
+    )
+    expected_assistant_messages = sum(
+        message["role"] == "assistant" for row in rows for message in row["messages"]
+    )
+    assert role_stats["user_prompts"]["length"]["items"] == expected_user_messages
+    assert (
+        role_stats["assistant_messages"]["length"]["items"]
+        == expected_assistant_messages
+    )
+    assert role_stats["final_responses"]["length"]["items"] == len(rows)
     assert role_stats["user_prompts"]["eight_grams"]["distinct_ngrams"] > 0
     assert role_stats["final_responses"]["eight_grams"]["distinct_ngrams"] > 0
     masked = result["audit"]["masked_response_diversity"]

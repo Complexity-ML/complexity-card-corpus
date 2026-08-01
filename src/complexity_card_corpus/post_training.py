@@ -339,7 +339,13 @@ def _conversation_rows(
                     "task": scenario["family"],
                     "mode": mode,
                     "difficulty": (
-                        "hard" if scenario["risk_level"] == "high" else "medium"
+                        "hard"
+                        if scenario["risk_level"] in {"high", "critical"}
+                        else (
+                            "easy"
+                            if variant % 4 in {0, 1}
+                            else ("hard" if variant % 4 == 3 else "medium")
+                        )
                     ),
                     "dataset_id": DATASET_ID,
                     "domain": scenario["domain"],
@@ -358,7 +364,56 @@ def _conversation_rows(
                     "version": "1.0.0",
                 }
             )
-    return sorted(rows, key=lambda row: row["example_id"])
+    deduplicated: list[dict[str, Any]] = []
+    seen_transcripts: set[str] = set()
+    seen_responses: set[str] = set()
+    ranked_rows = sorted(
+        rows,
+        key=lambda item: (
+            not bool(json.loads(item["answer_json"])["lexical_focus"]),
+            item["example_id"],
+        ),
+    )
+    for row in ranked_rows:
+        transcript = row["rendered_text"]
+        response = row["response"]
+        if transcript in seen_transcripts or response in seen_responses:
+            continue
+        seen_transcripts.add(transcript)
+        seen_responses.add(response)
+        deduplicated.append(row)
+    return sorted(deduplicated, key=lambda item: item["example_id"])
+
+
+def _balance_conversation_families(
+    rows: list[dict[str, Any]], *, max_examples_per_family: int = 5_000
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Cap dominant families after exact response deduplication."""
+
+    buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        buckets[row["task"]].append(row)
+    before = dict(sorted((task, len(items)) for task, items in buckets.items()))
+    kept: list[dict[str, Any]] = []
+    for task, items in sorted(buckets.items()):
+        ranked = sorted(
+            items,
+            key=lambda item: (
+                not bool(json.loads(item["answer_json"])["lexical_focus"]),
+                hashlib.sha256(
+                    f"post-training-balance:{task}:{item['example_id']}".encode()
+                ).digest(),
+            ),
+        )
+        kept.extend(ranked[:max_examples_per_family])
+    kept.sort(key=lambda item: item["example_id"])
+    after = dict(sorted(Counter(row["task"] for row in kept).items()))
+    return kept, {
+        "before": before,
+        "after": after,
+        "maximum_examples_per_family": max_examples_per_family,
+        "dropped": len(rows) - len(kept),
+    }
 
 
 def _load_vocabulary_placements(path: Path) -> list[dict[str, str]]:
@@ -954,9 +1009,7 @@ def _review_sample(
     for scenario_id, modes in scenario_rows.items():
         answer = scenario_answers[scenario_id]
         if set(modes) != {"chat", "instruct"}:
-            raise ValueError(
-                f"review scenario {scenario_id} does not provide both chat and instruct"
-            )
+            continue
         grouped[answer["family"]][(answer["risk_level"], answer["split"])][
             answer["domain"]
         ].append(scenario_id)
@@ -1035,7 +1088,7 @@ def build_post_training_corpus(
     scenarios_path: Path,
     output_root: Path,
     *,
-    variants_per_scenario: int = 2,
+    variants_per_scenario: int = 4,
     review_scenarios: int = 140,
     seed: int = 42,
     vocabulary_placement_path: Path | None = None,
@@ -1053,7 +1106,9 @@ def build_post_training_corpus(
         variants_per_scenario,
         vocabulary_placements=placements,
     )
+    rows, family_balance = _balance_conversation_families(rows)
     audit = _audit(rows)
+    audit["family_balance"] = family_balance
     observed_lexical_focus = {
         json.loads(row["answer_json"])["lexical_focus"]
         for row in rows
