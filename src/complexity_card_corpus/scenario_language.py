@@ -11,6 +11,13 @@ from .english_morphology import (
 
 
 NARRATIVE_FRAME_IDS = tuple(f"frame_{index:02d}" for index in range(1, 13))
+QUESTION_FRAME_IDS = frozenset({"frame_02", "frame_06", "frame_10"})
+
+
+def uses_question_surface(frame_id: str) -> bool:
+    """Reserve one quarter of narrative frames for direct questions."""
+
+    return frame_id in QUESTION_FRAME_IDS
 
 
 class DomainLike(Protocol):
@@ -204,30 +211,20 @@ def _render_frame(
         f"If the case cannot support {intent_base} for {subject}, follow: {fallback_text}.",
     )
     question_endings = (
-        f"How would you {intent_base} for {subject} while retaining this fallback: {fallback_text}?",
-        f"How would you {intent_base} for {subject} with this fallback: {fallback_text}?",
-        f"What grounded approach would {intent_base} for {subject} and retain: {fallback_text}?",
-        f"How can you {intent_base} for {subject} while preserving: {fallback_text}?",
-        f"What careful approach would {intent_base} for {subject} with this fallback: {fallback_text}?",
-        f"How would you {intent_base} for {subject} and retain: {fallback_text}?",
-        f"What grounded step could {intent_base} for {subject} while preserving: {fallback_text}?",
-        f"How can you {intent_base} for {subject} with this fallback: {fallback_text}?",
-        f"What supported approach would {intent_base} for {subject} while retaining: {fallback_text}?",
-        f"How would you {intent_base} for {subject} while keeping: {fallback_text}?",
-        f"What bounded step would {intent_base} for {subject} and retain: {fallback_text}?",
-        f"How can you {intent_base} for {subject} while preserving: {fallback_text}?",
+        f"How would you {intent_base} for {subject} under this fallback condition: {fallback_text}?",
+        f"How would you {intent_base} for {subject} with this recovery option: {fallback_text}?",
+        f"What grounded approach would {intent_base} for {subject} given this fallback: {fallback_text}?",
+        f"How can you {intent_base} for {subject} within this recovery boundary: {fallback_text}?",
+        f"What careful approach would {intent_base} for {subject} with this backup step: {fallback_text}?",
+        f"How would you {intent_base} for {subject} given this contingency: {fallback_text}?",
+        f"What grounded step could {intent_base} for {subject} under this fallback: {fallback_text}?",
+        f"How can you {intent_base} for {subject} with this alternative available: {fallback_text}?",
+        f"What supported approach would {intent_base} for {subject} given this recovery path: {fallback_text}?",
+        f"How would you {intent_base} for {subject} with this safeguard: {fallback_text}?",
+        f"What bounded step would {intent_base} for {subject} under this contingency: {fallback_text}?",
+        f"How can you {intent_base} for {subject} with this fallback available: {fallback_text}?",
     )
-    endings = (
-        question_endings
-        if family_id
-        in {
-            "conversation_empathy",
-            "explanation_learning",
-            "grounded_qa",
-            "reasoning_verification",
-        }
-        else statement_endings
-    )
+    endings = question_endings if uses_question_surface(frame_id) else statement_endings
 
     trigger = correct_indefinite_articles(triggers[frame_index])
     situation = " ".join(

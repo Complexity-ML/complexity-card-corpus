@@ -97,20 +97,20 @@ families:
 
 | Family | Scenarios |
 | --- | ---: |
-| Practical action | 600 |
-| Explanation and learning | 400 |
-| Troubleshooting | 300 |
-| Writing and transformation | 250 |
+| Practical action | 750 |
+| Explanation and learning | 650 |
+| Troubleshooting | 500 |
+| Writing and transformation | 400 |
 | Planning and comparison | 200 |
-| Conversation and empathy | 150 |
-| Safety and uncertainty | 100 |
-| Grounded question answering | 1,800 |
-| Summarization and synthesis | 2,000 |
-| Extraction and classification | 2,000 |
-| Reasoning and verification | 1,800 |
-| Critique and revision | 1,800 |
-| Brainstorming and creativity | 1,800 |
-| Context clarification | 1,800 |
+| Conversation and empathy | 500 |
+| Safety and uncertainty | 400 |
+| Grounded question answering | 1,950 |
+| Summarization and synthesis | 1,700 |
+| Extraction and classification | 1,700 |
+| Reasoning and verification | 2,000 |
+| Critique and revision | 1,400 |
+| Brainstorming and creativity | 1,400 |
+| Context clarification | 1,450 |
 
 Each scenario combines a compatible family, domain, intent, state, outcome,
 constraint, risk-aware fallback and domain-specific trigger. The registry owns
@@ -166,14 +166,14 @@ The current generated set contains:
 | Train / validation | 28,500 / 1,500 |
 | Instruct / chat | 15,000 / 15,000 |
 | Exact conversation uniqueness | 100% |
-| Exact final-response uniqueness | 100% |
-| Distinct masked response skeletons | 1,383 |
-| Exact masked-skeleton uniqueness | 4.61% |
-| Largest exact masked-skeleton share | 0.83% |
+| Exact final-response uniqueness | 99.75% |
+| Distinct masked response skeletons | 1,643 |
+| Exact masked-skeleton uniqueness | 5.48% |
+| Largest exact masked-skeleton share | 0.71% |
 | Families with validated completion contracts | 14 / 14 |
-| Largest masked eight-token coverage | 3.12% |
-| Largest family-level masked-template share | 8.33% |
-| Observed conversation vocabulary | 2,724 |
+| Largest masked eight-token coverage | 3.33% |
+| Largest family-level masked-template share | 8.40% |
+| Observed conversation vocabulary | 2,711 |
 | Conversations mapped to vocabulary metadata | 8,194 |
 | Statistical vocabulary terms mapped | 4,097 |
 | Arbitrary vocabulary labels surfaced in conversations | 0 |
@@ -184,6 +184,25 @@ language structures more honestly than identifier-driven exact uniqueness. Raw
 source anchors remain visible in unmasked statistics; subjects, intents,
 states, constraints, outcomes, fallbacks, IDs, dates, amounts, times and numeric
 slots are masked only when measuring response-template repetition.
+
+### Natural SFT projection
+
+The readable Parquet keeps the four authored source cards for inspection. The
+tokenized SFT projection deals a second, invisible conditioning hand that
+controls how those semantics become a natural request:
+
+- seven surface forms and eight dialogue states;
+- twelve output contracts and fourteen reasoning patterns;
+- evidence, uncertainty and context-density controls;
+- thirteen style variants plus bounded irrelevant-detail noise.
+
+These conditioning cards are recorded per example in `examples.jsonl` and
+aggregated in each `sft.idx.json`. They never appear as literal card labels in
+the model text. Regression tests decode generated SFT streams and require zero
+`SITUATION CARD`, `DATA CARD`, `RULE CARD`, `GOAL CARD` or hand-ID prefixes. The
+30,000-example build spans all nine conditioning axes, with 7
+surface, 8 dialogue, 12 output, 14 reasoning, 4 evidence, 13 style, 3 density,
+2 noise and 5 uncertainty values.
 
 ## Human review
 
@@ -288,7 +307,9 @@ The versioned dictionary at
 `data/vocabulary/vocabulary-dictionary-v1.json` contains all 4,097 words. A
 word has one selected placement for generation plus up to four alternative
 contexts in `statistical_usages`; a word is never assumed to have only one
-meaning. Every
+meaning. If a later family rebalance exhausts the selected cell, generation
+moves only the overflowing terms to a recorded statistical alternative, then
+to a deterministic same-family cell as a final capacity fallback. Every
 entry also carries its full 101-cell score vector and masked-token neighbours.
 
 The current classification audit reports 2,111 statistically supported,
@@ -331,9 +352,9 @@ uv run card-corpus tokenize \
   --output build/tokenized/o200k
 
 uv run card-corpus tokenize-instruct \
-  --instructions build/atlas-instruct \
+  --instructions build/post-training/conversations.parquet \
   --tokenizer /path/to/tokenizer-o200k \
-  --output build/atlas-instruct-o200k
+  --output build/post-training-o200k
 ```
 
 Document token streams use little-endian `uint32`, because o200k token IDs do

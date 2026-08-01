@@ -14,6 +14,7 @@ from complexity_card_corpus.english_morphology import (
 )
 from complexity_card_corpus.post_training import (
     REVIEW_GRADES,
+    _apply_vocabulary_placements,
     audit_human_review,
     build_post_training_corpus,
 )
@@ -23,6 +24,45 @@ from complexity_card_corpus.task_cards import deal_task_hand
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "data/scenario-forge/scenario-forge-v1.json"
+
+
+def test_vocabulary_overflow_uses_compatible_capacity_without_dropping_words() -> None:
+    scenarios = [
+        {"scenario_id": "a", "family": "writing_transformation", "domain": "email"},
+        {"scenario_id": "b", "family": "writing_transformation", "domain": "summary"},
+        {"scenario_id": "c", "family": "writing_transformation", "domain": "summary"},
+    ]
+    placements = [
+        {
+            "token": token,
+            "family": "writing_transformation",
+            "domain": "email",
+            "assignment_method": "cross_source_context",
+            "statistical_usages_json": json.dumps(
+                [
+                    {
+                        "family": "writing_transformation",
+                        "domain": "summary",
+                        "rank": 2,
+                        "score": 8.0,
+                    }
+                ]
+            ),
+        }
+        for token in ("clear", "concise", "faithful")
+    ]
+
+    enriched = _apply_vocabulary_placements(scenarios, placements)
+
+    assert {row.get("lexical_focus") for row in enriched} == {
+        "clear",
+        "concise",
+        "faithful",
+    }
+    assert sum(
+        "statistical_alternative" in row.get("lexical_assignment_method", "")
+        for row in enriched
+    ) == 2
 
 
 def _task_row(
@@ -132,6 +172,19 @@ def test_extraction_emits_exactly_the_requested_schema() -> None:
         "action",
         "next_owner",
     }
+
+
+def test_extraction_record_labels_are_not_repeated() -> None:
+    for domain in ("contact_record", "inventory_record"):
+        hand = deal_task_hand(
+            _task_row(
+                "extraction_classification",
+                domain,
+                scenario="20c14d43c3ff",
+            ),
+            0,
+        )
+        assert "record record" not in hand.data.lower()
 
 
 def test_event_brainstorm_checks_every_hard_constraint() -> None:

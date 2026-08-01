@@ -38,20 +38,20 @@ def test_scenario_forge_compiles_fifteen_thousand_semantic_cards() -> None:
     assert audit["unique_creation_hashes"] == 15_000
     assert audit["unique_verification_hashes"] == 15_000
     assert audit["family_counts"] == {
-        "brainstorming_creativity": 1_800,
-        "conversation_empathy": 150,
-        "context_clarification": 1_800,
-        "critique_revision": 1_800,
-        "explanation_learning": 400,
-        "extraction_classification": 2_000,
-        "grounded_qa": 1_800,
+        "brainstorming_creativity": 1_400,
+        "conversation_empathy": 500,
+        "context_clarification": 1_450,
+        "critique_revision": 1_400,
+        "explanation_learning": 650,
+        "extraction_classification": 1_700,
+        "grounded_qa": 1_950,
         "planning_comparison": 200,
-        "practical_action": 600,
-        "reasoning_verification": 1_800,
-        "safety_uncertainty": 100,
-        "summarization_synthesis": 2_000,
-        "troubleshooting": 300,
-        "writing_transformation": 250,
+        "practical_action": 750,
+        "reasoning_verification": 2_000,
+        "safety_uncertainty": 400,
+        "summarization_synthesis": 1_700,
+        "troubleshooting": 500,
+        "writing_transformation": 400,
     }
     assert audit["model_generated_dialogue_rows"] == 0
     assert audit["payload_contract_match_ratio"] == 1.0

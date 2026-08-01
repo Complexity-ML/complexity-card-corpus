@@ -4,7 +4,7 @@
     {
       "id": "grounded_qa",
       "label": "Grounded question answering",
-      "target": 1800,
+      "target": 1950,
       "domains": [
         {"id":"product_specs","label":"Product specifications","subject":"a product-specification excerpt","context":"The answer must come only from the stated features, limits, and compatibility notes."},
         {"id":"policy_excerpt","label":"Policy excerpt","subject":"a short policy excerpt","context":"Defined terms, exceptions, and effective dates determine what the text supports."},
@@ -99,7 +99,7 @@
     {
       "id": "summarization_synthesis",
       "label": "Summarization and synthesis",
-      "target": 2000,
+      "target": 1700,
       "domains": [
         {"id":"meeting_transcript","label":"Meeting transcript","subject":"a meeting transcript","context":"The source mixes decisions, open questions, owners, and conversational detail."},
         {"id":"research_notes","label":"Research notes","subject":"a set of research notes","context":"Findings, hypotheses, limitations, and follow-up ideas appear at different levels of confidence."},
@@ -194,7 +194,7 @@
     {
       "id": "extraction_classification",
       "label": "Extraction and classification",
-      "target": 2000,
+      "target": 1700,
       "domains": [
         {"id":"receipt","label":"Receipt","subject":"a purchase receipt","context":"Dates, amounts, merchant details, taxes, and line items appear in semi-structured text."},
         {"id":"event_listing","label":"Event listing","subject":"an event listing","context":"Title, location, schedule, eligibility, and registration details need consistent fields."},
@@ -289,7 +289,7 @@
     {
       "id": "reasoning_verification",
       "label": "Reasoning and verification",
-      "target": 1800,
+      "target": 2000,
       "domains": [
         {"id":"shopping_arithmetic","label":"Shopping arithmetic","subject":"a small shopping calculation","context":"Prices, quantities, discounts, and a stated budget provide all necessary values."},
         {"id":"schedule_math","label":"Schedule arithmetic","subject":"a scheduling calculation","context":"Start times, durations, breaks, and deadlines determine the feasible timeline."},
@@ -384,7 +384,7 @@
     {
       "id": "critique_revision",
       "label": "Critique and revision",
-      "target": 1800,
+      "target": 1400,
       "domains": [
         {"id":"email_draft","label":"Email draft","subject":"a draft email","context":"The text has a clear purpose but may contain unnecessary friction or ambiguity."},
         {"id":"argument","label":"Argument","subject":"a short written argument","context":"The central claim, evidence, assumptions, and counterpoint can be inspected separately."},
@@ -479,7 +479,7 @@
     {
       "id": "brainstorming_creativity",
       "label": "Brainstorming and constrained creativity",
-      "target": 1800,
+      "target": 1400,
       "domains": [
         {"id":"names","label":"Names and labels","subject":"a set of names for a small project","context":"The options should be memorable, distinct, and appropriate for a stated audience."},
         {"id":"lesson_activity","label":"Learning activity","subject":"a short learning activity","context":"The activity should connect one learning objective to observable participation."},
@@ -574,7 +574,7 @@
     {
       "id": "context_clarification",
       "label": "Context tracking and clarification",
-      "target": 1800,
+      "target": 1450,
       "domains": [
         {"id":"ambiguous_request","label":"Ambiguous request","subject":"an ambiguous request","context":"Several interpretations are possible and one choice would materially change the answer."},
         {"id":"missing_reference","label":"Missing reference","subject":"a request that refers to missing material","context":"The requested work depends on a document, image, value, or earlier message that is not available."},

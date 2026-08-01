@@ -20,7 +20,9 @@ from .chat_template import (
     render_system_prefix,
     render_user_turn,
 )
+from .english_morphology import correct_indefinite_articles
 from .tokenize import directory_sha256, load_encoding
+from .training_cards import TrainingCards, deal_training_cards
 
 
 INSTRUCTION_SCHEMA = pa.schema(
@@ -108,30 +110,63 @@ def _card_sections(messages: list[dict[str, str]]) -> dict[str, str] | None:
 def _render_natural_instruction(
     messages: list[dict[str, str]],
     example_id: str,
+    cards: TrainingCards | None = None,
 ) -> str:
     sections = _card_sections(messages)
     if sections is None:
         return _merged_user_content(messages)
-    variants = (
-        (
-            "Task:\n{goal}\n\nContext:\n{situation}\n\n"
-            "Available information:\n{data}\n\nRequirement:\n{rule}"
-        ),
-        (
-            "Please complete this task:\n{goal}\n\nHere is the context:\n"
-            "{situation}\n\nUse the following information:\n{data}\n\n"
-            "Keep this requirement:\n{rule}"
-        ),
-        (
-            "{goal}\n\nSituation:\n{situation}\n\nFacts provided:\n{data}"
-            "\n\nConstraint:\n{rule}"
-        ),
-        (
-            "Requested result:\n{goal}\n\nRelevant context:\n{situation}"
-            "\n\nEvidence and values:\n{data}\n\nInstruction boundary:\n{rule}"
-        ),
+    cards = cards or deal_training_cards(
+        task="unknown",
+        mode="chat" if len(messages) > 2 else "instruct",
+        example_id=example_id,
     )
-    return variants[_stable_index(example_id, len(variants))].format(**sections)
+    goal = sections["goal"]
+    lower_goal = goal[:1].lower() + goal[1:]
+    values = {**sections, "lower_goal": lower_goal}
+    full = {
+        "direct": "{goal}\n\nContext: {situation}\n\nUse these facts: {data}\n\nRequirement: {rule}",
+        "polite": "Could you help with this request? {goal}\n\n{situation}\n\nThe available information is: {data}\n\nPlease keep this limit: {rule}",
+        "compact": "{goal}\n\n{data}\n\nKeep to this condition: {rule}",
+        "context_first": "{situation}\n\nGiven this context, {lower_goal}\n\nRelevant information: {data}\n\n{rule}",
+        "conversational": "I need help with this: {lower_goal}\n\nHere is what happened: {situation}\n\nWhat we know: {data}\n\nPlease keep in mind that {rule}",
+        "follow_up": "Following up on the context below, {lower_goal}\n\n{situation}\n\nUse this information: {data}\n\nThe remaining condition is: {rule}",
+        "plain": "{goal}\n\n{situation}\n\n{data}\n\n{rule}",
+    }
+    rendered = full[cards.surface].format(**values)
+    if cards.dialogue_state == "correction":
+        rendered = (
+            f"One detail in the earlier request conflicts with the record. "
+            f"{sections['situation']}\n\n"
+            f"{goal}\n\nUse only this recorded information: {sections['data']}\n\n"
+            f"Keep this condition: {sections['rule']} Do not assume the conflict "
+            "is resolved unless the information says so."
+        )
+    elif cards.dialogue_state == "constraint_update" and cards.surface != "compact":
+        rendered = (
+            f"There is one additional constraint: {sections['rule']}\n\n"
+            f"{goal}\n\n{sections['situation']}\n\n"
+            f"Use this information: {sections['data']}"
+        )
+    elif cards.dialogue_state == "clarification_resolved" and cards.surface != "compact":
+        rendered = (
+            f"The scope is now clear. {goal}\n\n{sections['situation']}\n\n"
+            f"Relevant information: {sections['data']}\n\n"
+            f"Keep this requirement: {sections['rule']}"
+        )
+
+    if cards.context_density == "minimal" and cards.uncertainty == "answerable":
+        rendered = f"{goal}\n\n{sections['data']}"
+    elif cards.context_density == "focused":
+        rendered = f"{goal}\n\n{sections['data']}\n\n{sections['rule']}"
+    if cards.noise == "secondary_detail":
+        notes = (
+            "The record identifier is included only for traceability.",
+            "The order in which the facts were copied does not determine the answer.",
+            "Formatting differences in the source do not change the stated values.",
+            "An administrative label in the record is not part of the requested result.",
+        )
+        rendered += "\n\n" + notes[_stable_index(f"noise-note:{example_id}", len(notes))]
+    return correct_indefinite_articles(rendered)
 
 
 def _final_assistant_target(messages: list[dict[str, str]]) -> str:
@@ -545,10 +580,12 @@ def build_instruction_dataset(
 def _encode_messages(
     messages: list[dict[str, str]],
     example_id: str,
+    task: str,
+    answer_json: str,
     encoding,
     eos_id: int,
     chat_template: dict[str, Any],
-) -> tuple[list[int], list[int]]:
+) -> tuple[list[int], list[int], TrainingCards]:
     """Project a card conversation into one direct SFT exchange.
 
     The authored parquet keeps its complete card hand and two- or four-message
@@ -557,7 +594,19 @@ def _encode_messages(
     acknowledgements and hand identifiers are deliberately omitted.
     """
 
-    user_content = _render_natural_instruction(messages, example_id)
+    try:
+        metadata = json.loads(answer_json) if answer_json else {}
+    except json.JSONDecodeError:
+        metadata = {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    cards = deal_training_cards(
+        task=task,
+        mode="chat" if len(messages) > 2 else "instruct",
+        example_id=example_id,
+        metadata=metadata,
+    )
+    user_content = _render_natural_instruction(messages, example_id, cards)
     final_assistant = _final_assistant_target(messages)
     full_ids: list[int] = []
     target_labels: list[int] = []
@@ -586,7 +635,7 @@ def _encode_messages(
     target_labels.append(eos_id)
     # Causal alignment: logits at position t predict token t+1. Supervision is
     # active only when that next token belongs to an assistant response.
-    return full_ids[:-1], target_labels[1:]
+    return full_ids[:-1], target_labels[1:], cards
 
 
 def tokenize_instruction_dataset(
@@ -629,18 +678,23 @@ def tokenize_instruction_dataset(
         examples_path = root / "examples.jsonl"
         offset = 0
         supervised_tokens = 0
+        conditioning_counts: dict[str, Counter[str]] = defaultdict(Counter)
         with inputs_path.open("wb") as inputs_handle, labels_path.open("wb") as labels_handle, examples_path.open("w", encoding="utf-8") as examples_handle:
             for row in partition_rows:
                 has_card_hand = _card_sections(row["messages"]) is not None
-                input_ids, labels = _encode_messages(
+                input_ids, labels, conditioning_cards = _encode_messages(
                     row["messages"],
                     row["example_id"],
+                    row["task"],
+                    row["answer_json"],
                     encoding,
                     eos_id,
                     chat_template,
                 )
                 np.asarray(input_ids, dtype=TOKEN_DTYPE).tofile(inputs_handle)
                 np.asarray(labels, dtype=LABEL_DTYPE).tofile(labels_handle)
+                for card_name, value in conditioning_cards.as_dict().items():
+                    conditioning_counts[card_name][value] += 1
                 supervised = sum(label != IGNORE_INDEX for label in labels)
                 examples_handle.write(
                     json.dumps(
@@ -651,6 +705,7 @@ def tokenize_instruction_dataset(
                                 "card_hand" if has_card_hand else "conversation"
                             ),
                             "training_representation": "natural_instruction",
+                            "conditioning_cards": conditioning_cards.as_dict(),
                             "cards": (
                                 ["situation", "data", "rule", "goal"]
                                 if has_card_hand
@@ -686,6 +741,10 @@ def tokenize_instruction_dataset(
             "input_ids_sha256": file_sha256(inputs_path),
             "labels_sha256": file_sha256(labels_path),
             "examples_sha256": file_sha256(examples_path),
+            "conditioning_card_counts": {
+                name: dict(sorted(counts.items()))
+                for name, counts in sorted(conditioning_counts.items())
+            },
         }
         (root / "sft.idx.json").write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
         manifests[partition] = metadata

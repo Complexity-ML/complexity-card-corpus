@@ -7,17 +7,10 @@ from collections import Counter
 from typing import Any
 
 from .english_morphology import correct_indefinite_articles
+from .scenario_language import QUESTION_FRAME_IDS, uses_question_surface
 
 
 SURFACE_WORD = re.compile(r"[A-Za-z]+(?:['’][A-Za-z]+)?")
-QUESTION_FAMILIES = frozenset(
-    {
-        "conversation_empathy",
-        "explanation_learning",
-        "grounded_qa",
-        "reasoning_verification",
-    }
-)
 TRANSITIONS = frozenset(
     {
         "after", "although", "before", "finally", "first", "following",
@@ -143,7 +136,7 @@ def audit_scenario_surface(rows: list[dict[str, Any]]) -> dict[str, Any]:
         if correct_indefinite_articles(text) != text:
             issues.append({"scenario_id": scenario_id, "kind": "indefinite_article"})
 
-        should_question = row["family"] in QUESTION_FAMILIES
+        should_question = uses_question_surface(row["narrative_frame"])
         if should_question != text.endswith("?") or text.count("?") != int(should_question):
             issues.append({"scenario_id": scenario_id, "kind": "question_contract"})
 
@@ -168,7 +161,7 @@ def audit_scenario_surface(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "issue_count": len(issues),
         "semantic_anchors_checked": anchors_checked,
         "semantic_anchor_match_rate": round(anchors_matched / anchors_checked, 6),
-        "question_families": sorted(QUESTION_FAMILIES),
+        "question_frames": sorted(QUESTION_FRAME_IDS),
         "frame_family_cells": len(frame_family_cells),
         "stats": scenario_surface_stats(rows),
         "scope": (

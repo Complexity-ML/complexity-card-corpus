@@ -831,7 +831,10 @@ def _extraction(row: dict[str, Any], variant: int) -> TaskHand:
         ),
     }
     raw, fields = cases[row["domain"]]
-    data = f"Raw {row['domain'].replace('_', ' ')} record: {raw}."
+    record_label = row["domain"].replace("_", " ")
+    if not record_label.endswith("record"):
+        record_label = f"{record_label} record"
+    data = f"Raw {record_label}: {raw}."
     goal = f"Extract {', '.join(fields)} as JSON. Use null for an absent value."
     answer = json.dumps(fields, separators=(",", ":"))
     return TaskHand(data, goal, answer, ("json", "requested_fields", "missing_is_null"))

@@ -160,6 +160,21 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
         "naturalize_card_hand_target_final_assistant"
     )
     for partition, metadata in manifest["partitions"].items():
+        assert set(metadata["conditioning_card_counts"]) == {
+            "surface",
+            "dialogue_state",
+            "output",
+            "evidence",
+            "reasoning",
+            "style",
+            "context_density",
+            "noise",
+            "uncertainty",
+        }
+        assert all(
+            sum(counts.values()) == metadata["examples"]
+            for counts in metadata["conditioning_card_counts"].values()
+        )
         input_ids = np.fromfile(
             tmp_path / "tokenized" / partition / "input_ids.bin",
             dtype="<u4",
@@ -201,6 +216,17 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
             assert "card hand" not in decoded.lower()
             assert example["hand_id"] == source["example_id"]
             assert example["training_representation"] == "natural_instruction"
+            assert set(example["conditioning_cards"]) == {
+                "surface",
+                "dialogue_state",
+                "output",
+                "evidence",
+                "reasoning",
+                "style",
+                "context_density",
+                "noise",
+                "uncertainty",
+            }
             has_card_hand = any(
                 "SITUATION CARD" in message["content"]
                 for message in source["messages"]

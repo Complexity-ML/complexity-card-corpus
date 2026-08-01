@@ -393,6 +393,8 @@ def _apply_vocabulary_placements(
         placements_by_cell[(placement["family"], placement["domain"])].append(placement)
 
     assigned: dict[str, dict[str, str]] = {}
+    cell_offsets: Counter[tuple[str, str]] = Counter()
+    overflow: list[dict[str, str]] = []
     for cell, cell_placements in placements_by_cell.items():
         cell_scenarios = sorted(
             scenarios_by_cell[cell],
@@ -400,18 +402,91 @@ def _apply_vocabulary_placements(
                 f"vocabulary-scenario:{row['scenario_id']}".encode()
             ).digest(),
         )
-        if len(cell_placements) > len(cell_scenarios):
-            raise ValueError(
-                f"vocabulary placement for {cell} exceeds scenario capacity"
-            )
         ordered_placements = sorted(
             cell_placements,
             key=lambda row: hashlib.sha256(
                 f"vocabulary-token:{row['token']}".encode()
             ).digest(),
         )
-        for scenario, placement in zip(cell_scenarios, ordered_placements):
+        primary_count = min(len(cell_scenarios), len(ordered_placements))
+        for scenario, placement in zip(
+            cell_scenarios[:primary_count], ordered_placements[:primary_count]
+        ):
             assigned[scenario["scenario_id"]] = placement
+        cell_offsets[cell] = primary_count
+        overflow.extend(ordered_placements[primary_count:])
+
+    # Rebalancing the scenario registry must not silently drop vocabulary.
+    # Keep every statistically selected cell when it has capacity, then move
+    # only the overflow to a documented alternative context. If all recorded
+    # alternatives are full, stay inside the same task family and choose its
+    # least-filled domain deterministically.
+    for placement in sorted(
+        overflow,
+        key=lambda row: hashlib.sha256(
+            f"vocabulary-overflow:{row['token']}".encode()
+        ).digest(),
+    ):
+        source_cell = (placement["family"], placement["domain"])
+        alternatives: list[tuple[int, float, tuple[str, str]]] = []
+        try:
+            usages = json.loads(placement.get("statistical_usages_json", "[]"))
+        except json.JSONDecodeError:
+            usages = []
+        for usage in usages:
+            cell = (str(usage.get("family", "")), str(usage.get("domain", "")))
+            if (
+                cell != source_cell
+                and cell in scenarios_by_cell
+                and cell_offsets[cell] < len(scenarios_by_cell[cell])
+            ):
+                alternatives.append(
+                    (
+                        int(usage.get("rank", 10_000)),
+                        -float(usage.get("score", 0.0)),
+                        cell,
+                    )
+                )
+
+        if alternatives:
+            target_cell = min(alternatives)[2]
+            fallback_kind = "statistical_alternative"
+        else:
+            family_cells = [
+                cell
+                for cell, cell_scenarios in scenarios_by_cell.items()
+                if cell[0] == placement["family"]
+                and cell_offsets[cell] < len(cell_scenarios)
+            ]
+            if not family_cells:
+                raise ValueError(
+                    "vocabulary placement has no compatible scenario capacity "
+                    f"for {placement['token']!r} in {placement['family']!r}"
+                )
+            target_cell = min(
+                family_cells,
+                key=lambda cell: (
+                    cell_offsets[cell] / len(scenarios_by_cell[cell]),
+                    hashlib.sha256(
+                        f"vocabulary-family-fallback:{placement['token']}:{cell}".encode()
+                    ).digest(),
+                ),
+            )
+            fallback_kind = "family_capacity_fallback"
+
+        target_scenarios = sorted(
+            scenarios_by_cell[target_cell],
+            key=lambda row: hashlib.sha256(
+                f"vocabulary-scenario:{row['scenario_id']}".encode()
+            ).digest(),
+        )
+        scenario = target_scenarios[cell_offsets[target_cell]]
+        cell_offsets[target_cell] += 1
+        reassigned = dict(placement)
+        reassigned["assignment_method"] = (
+            f"{placement['assignment_method']}:{fallback_kind}"
+        )
+        assigned[scenario["scenario_id"]] = reassigned
 
     result: list[dict[str, Any]] = []
     for scenario in scenarios:
@@ -988,8 +1063,20 @@ def build_post_training_corpus(
     if observed_lexical_focus != requested_lexical_focus:
         missing = sorted(requested_lexical_focus - observed_lexical_focus)
         raise ValueError(f"vocabulary placement coverage is incomplete: {missing[:5]}")
-    lexical_methods = Counter(row["assignment_method"] for row in placements)
-    lexical_families = Counter(row["family"] for row in placements)
+    realized_placements: dict[str, tuple[str, str]] = {}
+    for row in rows:
+        answer = json.loads(row["answer_json"])
+        if answer["lexical_focus"]:
+            realized_placements[answer["lexical_focus"]] = (
+                answer["lexical_assignment_method"],
+                answer["family"],
+            )
+    lexical_methods = Counter(
+        method for method, _family in realized_placements.values()
+    )
+    lexical_families = Counter(
+        family for _method, family in realized_placements.values()
+    )
     audit["vocabulary_placement"] = {
         "requested_tokens": len(requested_lexical_focus),
         "observed_tokens": len(observed_lexical_focus),
