@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
@@ -60,6 +61,14 @@ TOKEN_DTYPE = np.dtype("<u4")
 LABEL_DTYPE = np.dtype("<i4")
 IGNORE_INDEX = -100
 
+_CARD_SECTION = re.compile(
+    r"(?m)^(SITUATION|DATA|RULE|GOAL) CARD\s*$"
+)
+_HAND_PREFIX = re.compile(
+    r"^(?:For\s+hand|Hand)\s+[A-Za-z0-9]+\s*(?:—|:|-)\s*",
+    re.IGNORECASE,
+)
+
 
 def _stable_index(value: str, size: int) -> int:
     return int.from_bytes(hashlib.sha256(value.encode()).digest()[:8], "big") % size
@@ -67,6 +76,71 @@ def _stable_index(value: str, size: int) -> int:
 
 def _pick(value: str, choices: tuple[str, ...]) -> str:
     return choices[_stable_index(value, len(choices))]
+
+
+def _merged_user_content(messages: list[dict[str, str]]) -> str:
+    return "\n\n".join(
+        message["content"].strip()
+        for message in messages
+        if message["role"] == "user"
+    )
+
+
+def _card_sections(messages: list[dict[str, str]]) -> dict[str, str] | None:
+    """Extract authored cards without exposing their storage labels."""
+
+    merged = _merged_user_content(messages)
+    parts = _CARD_SECTION.split(merged)
+    sections = {
+        parts[index].lower(): parts[index + 1].strip()
+        for index in range(1, len(parts) - 1, 2)
+    }
+    required = {"situation", "data", "rule", "goal"}
+    if not sections:
+        return None
+    if set(sections) != required:
+        raise ValueError(
+            "SFT card hand must contain situation, data, rule, and goal"
+        )
+    return sections
+
+
+def _render_natural_instruction(
+    messages: list[dict[str, str]],
+    example_id: str,
+) -> str:
+    sections = _card_sections(messages)
+    if sections is None:
+        return _merged_user_content(messages)
+    variants = (
+        (
+            "Task:\n{goal}\n\nContext:\n{situation}\n\n"
+            "Available information:\n{data}\n\nRequirement:\n{rule}"
+        ),
+        (
+            "Please complete this task:\n{goal}\n\nHere is the context:\n"
+            "{situation}\n\nUse the following information:\n{data}\n\n"
+            "Keep this requirement:\n{rule}"
+        ),
+        (
+            "{goal}\n\nSituation:\n{situation}\n\nFacts provided:\n{data}"
+            "\n\nConstraint:\n{rule}"
+        ),
+        (
+            "Requested result:\n{goal}\n\nRelevant context:\n{situation}"
+            "\n\nEvidence and values:\n{data}\n\nInstruction boundary:\n{rule}"
+        ),
+    )
+    return variants[_stable_index(example_id, len(variants))].format(**sections)
+
+
+def _final_assistant_target(messages: list[dict[str, str]]) -> str:
+    response = next(
+        message["content"].strip()
+        for message in reversed(messages)
+        if message["role"] == "assistant"
+    )
+    return _HAND_PREFIX.sub("", response, count=1)
 
 
 def _example_id(
@@ -470,29 +544,21 @@ def build_instruction_dataset(
 
 def _encode_messages(
     messages: list[dict[str, str]],
+    example_id: str,
     encoding,
     eos_id: int,
     chat_template: dict[str, Any],
 ) -> tuple[list[int], list[int]]:
     """Project a card conversation into one direct SFT exchange.
 
-    The authored parquet keeps its complete two- or four-message conversation.
-    For model training, every user card fragment is joined into one prompt and
-    only the final assistant answer is supervised.  Intermediate acknowledgements
-    are deliberately omitted so the model does not learn to answer a complete
-    card hand with a generic "Understood" turn.
+    The authored parquet keeps its complete card hand and two- or four-message
+    conversation. For model training, the cards are rendered as a natural
+    instruction and only the final assistant answer is supervised. Intermediate
+    acknowledgements and hand identifiers are deliberately omitted.
     """
 
-    user_content = "\n\n".join(
-        message["content"].strip()
-        for message in messages
-        if message["role"] == "user"
-    )
-    final_assistant = next(
-        message["content"].strip()
-        for message in reversed(messages)
-        if message["role"] == "assistant"
-    )
+    user_content = _render_natural_instruction(messages, example_id)
+    final_assistant = _final_assistant_target(messages)
     full_ids: list[int] = []
     target_labels: list[int] = []
     system_tokens = encoding.encode(
@@ -565,8 +631,10 @@ def tokenize_instruction_dataset(
         supervised_tokens = 0
         with inputs_path.open("wb") as inputs_handle, labels_path.open("wb") as labels_handle, examples_path.open("w", encoding="utf-8") as examples_handle:
             for row in partition_rows:
+                has_card_hand = _card_sections(row["messages"]) is not None
                 input_ids, labels = _encode_messages(
                     row["messages"],
+                    row["example_id"],
                     encoding,
                     eos_id,
                     chat_template,
@@ -578,6 +646,16 @@ def tokenize_instruction_dataset(
                     json.dumps(
                         {
                             "example_id": row["example_id"],
+                            "hand_id": row["example_id"],
+                            "source_representation": (
+                                "card_hand" if has_card_hand else "conversation"
+                            ),
+                            "training_representation": "natural_instruction",
+                            "cards": (
+                                ["situation", "data", "rule", "goal"]
+                                if has_card_hand
+                                else []
+                            ),
                             "task": row["task"],
                             "offset": offset,
                             "num_tokens": len(input_ids),
@@ -618,8 +696,8 @@ def tokenize_instruction_dataset(
         "chat_template_id": CHAT_TEMPLATE_ID,
         "chat_template_sha256": file_sha256(chat_template_path),
         "serialization": (
-            "System:\\n<system>\\n\\nUser:\\n<all user card fragments>\\n\\n"
-            "Assistant:\\n<final assistant answer><eos>"
+            "System:\\n<system>\\n\\nUser:\\n<natural instruction rendered "
+            "from card attributes>\\n\\nAssistant:\\n<final answer without hand id><eos>"
         ),
         "training_projection": chat_template["training_projection"],
         "partitions": manifests,

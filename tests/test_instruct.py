@@ -15,7 +15,7 @@ from complexity_card_corpus.instruct import (
 )
 from complexity_card_corpus.chat_template import (
     CHAT_TEMPLATE_ID,
-    render_inference_prompt,
+    render_system_prefix,
 )
 from complexity_card_corpus.package import package_instructions_for_hugging_face
 from complexity_card_corpus.tokenize import load_encoding
@@ -157,7 +157,7 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
     assert template["id"] == CHAT_TEMPLATE_ID
     assert template["assistant_only_loss"] is True
     assert template["training_projection"] == (
-        "merge_user_turns_target_final_assistant"
+        "naturalize_card_hand_target_final_assistant"
     )
     for partition, metadata in manifest["partitions"].items():
         input_ids = np.fromfile(
@@ -192,13 +192,25 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
             )
             decoded = load_encoding(tokenizer)[0].decode(local_inputs.tolist())
             source = source_rows[example["example_id"]]
-            merged_user_content = "\n\n".join(
-                message["content"]
+            assert decoded.startswith(render_system_prefix(template) + "User:\n")
+            assert "\n\nAssistant:\n" in decoded
+            assert "SITUATION CARD" not in decoded
+            assert "DATA CARD" not in decoded
+            assert "RULE CARD" not in decoded
+            assert "GOAL CARD" not in decoded
+            assert "card hand" not in decoded.lower()
+            assert example["hand_id"] == source["example_id"]
+            assert example["training_representation"] == "natural_instruction"
+            has_card_hand = any(
+                "SITUATION CARD" in message["content"]
                 for message in source["messages"]
                 if message["role"] == "user"
             )
-            assert decoded.startswith(
-                render_inference_prompt(merged_user_content, template)
+            assert example["source_representation"] == (
+                "card_hand" if has_card_hand else "conversation"
+            )
+            assert example["cards"] == (
+                ["situation", "data", "rule", "goal"] if has_card_hand else []
             )
             intermediate_assistant_messages = [
                 message["content"]
@@ -208,6 +220,7 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
             assert not any(
                 message in decoded for message in intermediate_assistant_messages
             )
+            assert "For hand " not in decoded
         assert int(supervised.sum()) == metadata["supervised_tokens"]
 
     package = package_instructions_for_hugging_face(

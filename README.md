@@ -344,9 +344,10 @@ The tokenized release also carries `chat_template.json`. Its
 other user content, the assistant prefix, and EOS identically for training,
 evaluation, export, and inference. The authored two- and four-message records
 remain unchanged in Parquet. During tokenization, their user card fragments are
-merged into one complete prompt and only the final assistant answer is
-supervised; intermediate acknowledgement turns are omitted. Cards therefore
-remain part of the user content while the template provides the model envelope.
+rendered into a natural instruction and only the final assistant answer is
+supervised; intermediate acknowledgement turns and visible hand identifiers are
+omitted. Card names, the hand identifier, and the four-card contract remain
+available as metadata for audit and reproducibility without becoming model text.
 
 ## Repository layout
 
