@@ -222,9 +222,15 @@ def _naturalize_assistant_target(
         return direct.strip()
     elif task == "writing_transformation":
         direct = re.sub(
-            r"^(?:Support reply|Project update|Internal note|Public notice|Short brief)\s+[A-Z0-9]+:\s*",
+            r"^Here is the revised text:\s*",
             "",
             response,
+            flags=re.IGNORECASE,
+        )
+        direct = re.sub(
+            r"^(?:Support reply|Project update|Internal note|Public notice|Short brief)\s+[A-Z0-9]+:\s*",
+            "",
+            direct,
             flags=re.IGNORECASE,
         )
         direct = re.sub(
@@ -280,10 +286,20 @@ def _naturalize_assistant_target(
             )
         return response
     elif task == "troubleshooting":
+        # ``check:`` is an authoring label elsewhere in the corpus, but this
+        # family also used it inside the otherwise natural phrase "perform
+        # this check:". Keep the meaning while ensuring the model-facing
+        # target cannot teach the same visible rubric token.
+        direct = re.sub(
+            r"\bperform this check:\s*",
+            "perform this test: ",
+            response,
+            flags=re.IGNORECASE,
+        )
         direct = re.sub(
             r"\bDirect check:\s*(?:confirm that\s*)?",
             "Confirm that ",
-            response,
+            direct,
             flags=re.IGNORECASE,
         )
         direct = re.sub(

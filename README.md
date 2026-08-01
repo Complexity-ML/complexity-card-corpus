@@ -476,15 +476,16 @@ train/evaluation overlap. The same output directory contains
 exact-response cleanup, family capping and structural repetition control.
 
 The current strict projection is intentionally **not release-ready**. It retains
-9,433 train examples with 508,193 supervised tokens after removing 26,083 exact
-answer duplicates, 787 exact prompt conflicts, and repeated normalized answer
-shapes. It contains 2,637 genuine multi-turn examples (27.96%) and only 34
-synthetic multi-turn card hands. Exact train prompt and answer uniqueness are
-both 100%, and recurrent fallback labels no longer create artificial diversity.
-The remaining failures are explicit:
-practical action and conversation empathy are still overrepresented; critique,
-grounded QA and explanation remain underrepresented; only 275 answers exceed
-80 words; and supervised volume remains below the 3–10 million token target.
+17,767 train examples with 1,143,546 supervised tokens after removing 11,764
+exact answer duplicates, 306 exact prompt duplicates, repeated normalized
+answer shapes, and excess rows from the largest families. The separate shards
+contain 28 independently authored evaluation examples and 672 deterministic
+diagnostic cases. Exact train prompt and answer uniqueness are both 100%, and
+the training/evaluation normalized-structure overlap is zero. The remaining
+failures are explicit: there are no genuine multi-turn conversations yet; the
+192 retained multi-turn examples are synthetic card dialogues; conversation
+empathy represents only 1.41% of training rows; four families reach the 2,500
+row cap; and supervised volume remains below the 3–10 million token target.
 These gaps must be addressed by authoring more genuinely distinct answers and
 conversations in the weak families, not by loosening deduplication or restoring
 generic resolution paragraphs.

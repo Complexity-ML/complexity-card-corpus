@@ -741,6 +741,46 @@ def test_every_generalist_contract_has_a_direct_projection_without_build() -> No
         )
 
 
+def test_troubleshooting_projection_naturalizes_inline_check_label() -> None:
+    _prompt, target, _cards = _project_sft_exchange(
+        [
+            {"role": "user", "content": "Help diagnose the sync failure."},
+            {
+                "role": "assistant",
+                "content": (
+                    "1. Preserve the log. 2. In an isolated profile, perform "
+                    "this check: Read the remote folder listing without "
+                    "modifying it. 3. Compare the new log with the control."
+                ),
+            },
+        ],
+        example_id="unit:troubleshooting:inline-check",
+        task="troubleshooting",
+        answer_json="{}",
+    )
+    assert "check:" not in target.lower()
+    assert "perform this test:" in target.lower()
+
+
+def test_writing_projection_removes_revised_text_rubric() -> None:
+    _prompt, target, _cards = _project_sft_exchange(
+        [
+            {"role": "user", "content": "Rewrite this public notice."},
+            {
+                "role": "assistant",
+                "content": (
+                    "Here is the revised text: The east entrance will be "
+                    "closed on day 21 for inspection."
+                ),
+            },
+        ],
+        example_id="unit:writing:revised-text",
+        task="writing_transformation",
+        answer_json="{}",
+    )
+    assert target == "The east entrance will be closed on day 21 for inspection."
+
+
 def test_inline_sentence_preserves_a_named_subject() -> None:
     assert _inline_sentence("Mina will finish the review.") == (
         "Mina will finish the review."
