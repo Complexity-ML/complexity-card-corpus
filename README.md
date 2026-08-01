@@ -422,11 +422,22 @@ data/forge/                          editable large-deck blueprints
 data/scenario-forge/                 semantic scenario registry
 data/evaluation/                     independently authored held-out exchanges
 data/vocabulary/                     statistical multi-usage dictionary
-src/complexity_card_corpus/          build, language, audit and CLI modules
+src/complexity_card_corpus/          CLI and compact cross-stage utilities
+src/complexity_card_corpus/tasks/    the 14 assistant-family card contracts
+src/complexity_card_corpus/scenarios/ scenario schema, compiler, audit and build
+src/complexity_card_corpus/posttrain/ readable conversation rendering and review
+src/complexity_card_corpus/sft/      natural projection, selection and tokenization
+src/complexity_card_corpus/surfaces/ conversation-surface templates, rendering and audit
+src/complexity_card_corpus/vocabulary/ lexical mining, statistics, dictionary and placement
 tests/                               regression and release-boundary tests
+docs/code-architecture.md            module boundaries and dependency direction
 docs/post-training-reference-audit.md aggregate methodology reference
 build/                               generated local artifacts (ignored)
 ```
+
+Public implementation entry points live directly in their stage subpackages.
+See [`docs/code-architecture.md`](docs/code-architecture.md) before adding a new
+pipeline stage.
 
 The public release excludes locally inspected third-party corpora and their
 derivatives. Private structural comparisons may inform audits, but external

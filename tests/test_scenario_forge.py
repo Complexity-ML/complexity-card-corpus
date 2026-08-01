@@ -6,10 +6,12 @@ from pathlib import Path
 import pyarrow.parquet as pq
 import pytest
 
-from complexity_card_corpus.scenario_forge import (
+from complexity_card_corpus.scenario_integrity import (
+    verification_hash as _verification_hash,
+)
+from complexity_card_corpus.scenarios import (
     SCENARIO_PROVENANCE,
     ScenarioForgeRegistry,
-    _verification_hash,
     audit_scenarios,
     build_scenario_forge,
     compile_scenarios,

@@ -7,19 +7,26 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 
-import complexity_card_corpus.post_training as post_training
 from complexity_card_corpus.english_morphology import (
     correct_indefinite_articles,
     indefinite_article,
 )
-from complexity_card_corpus.post_training import (
+from complexity_card_corpus.posttrain import (
     REVIEW_GRADES,
-    _apply_vocabulary_placements,
     audit_human_review,
     build_post_training_corpus,
 )
-from complexity_card_corpus.scenario_forge import build_scenario_forge
-from complexity_card_corpus.task_cards import deal_task_hand
+from complexity_card_corpus.posttrain.constants import (
+    _FORBIDDEN_ASSISTANT_META_PHRASES,
+    _FORBIDDEN_USER_META_PHRASES,
+)
+from complexity_card_corpus.posttrain.metrics import _masked_response
+from complexity_card_corpus.posttrain.rendering import (
+    _apply_vocabulary_placements,
+    _intent_for_subject,
+)
+from complexity_card_corpus.scenarios import build_scenario_forge
+from complexity_card_corpus.tasks import deal_task_hand
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -374,12 +381,12 @@ def test_masked_response_removes_identifiers_and_numeric_slots() -> None:
         "fallback_surface": "pause",
         "domain_context": "official support",
     }
-    left = post_training._masked_response(
+    left = _masked_response(
         "Hand A1B2C3 — Ask support to reconcile A1B2C3-A and A1B2C3-B "
         "before 14:00 on day 17 for $42.",
         answer,
     )
-    right = post_training._masked_response(
+    right = _masked_response(
         "Hand D4E5F6 — Ask support to reconcile D4E5F6-A and D4E5F6-B "
         "before 09:00 on day 24 for $88.",
         answer,
@@ -404,21 +411,15 @@ def test_indefinite_articles_follow_common_english_sound_rules() -> None:
 
 def test_intent_subject_composition_places_prepositional_complements_last() -> None:
     assert (
-        post_training._intent_for_subject(
-            "restructure for action", "a set of meeting notes"
-        )
+        _intent_for_subject("restructure for action", "a set of meeting notes")
         == "restructure a set of meeting notes for action"
     )
     assert (
-        post_training._intent_for_subject(
-            "clarify the immediate need", "a tense conversation"
-        )
+        _intent_for_subject("clarify the immediate need", "a tense conversation")
         == "clarify the immediate need in a tense conversation"
     )
     assert (
-        post_training._intent_for_subject(
-            "adapt tone for the audience", "a project update"
-        )
+        _intent_for_subject("adapt tone for the audience", "a project update")
         == "adapt the tone of a project update for the audience"
     )
 
@@ -503,10 +504,8 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
     assert result["audit"]["natural_language_gate"] == {
         "assistant_meta_instruction_hits": 0,
         "user_meta_request_hits": 0,
-        "forbidden_assistant_phrases": list(
-            post_training._FORBIDDEN_ASSISTANT_META_PHRASES
-        ),
-        "forbidden_user_phrases": list(post_training._FORBIDDEN_USER_META_PHRASES),
+        "forbidden_assistant_phrases": list(_FORBIDDEN_ASSISTANT_META_PHRASES),
+        "forbidden_user_phrases": list(_FORBIDDEN_USER_META_PHRASES),
     }
     role_stats = result["audit"]["role_text_stats"]
     expected_user_messages = sum(

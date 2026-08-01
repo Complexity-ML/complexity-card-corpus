@@ -11,7 +11,7 @@ import pyarrow as pa
 import pytest
 
 from complexity_card_corpus.build import file_sha256
-from complexity_card_corpus.lexical_mine import (
+from complexity_card_corpus.vocabulary import (
     audit_source_overlap,
     build_lexical_mine,
 )
@@ -339,12 +339,10 @@ def test_v2_parquet_registry_aggregates_messages_and_deletes_raw(
         delete_raw=True,
     )
 
-    assert manifest["audit"]["source_stats"]["example/quality-chat"][
-        "documents"
-    ] == 4
-    conversation_roles = manifest["audit"]["source_stats"][
-        "example/quality-chat"
-    ]["conversation_roles"]
+    assert manifest["audit"]["source_stats"]["example/quality-chat"]["documents"] == 4
+    conversation_roles = manifest["audit"]["source_stats"]["example/quality-chat"][
+        "conversation_roles"
+    ]
     assert set(conversation_roles) == {"assistant", "user"}
     assert conversation_roles["user"]["documents"] == 2
     assert conversation_roles["assistant"]["documents"] == 2

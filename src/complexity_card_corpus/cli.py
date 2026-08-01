@@ -9,26 +9,26 @@ import pyarrow.parquet as pq
 from .build import build_corpus
 from .conversation_blueprint import build_conversation_blueprints
 from .conversation_mine import build_conversation_mine, fetch_conversation_sources
-from .conversation_surface import (
+from .surfaces import (
     build_conversation_surface,
     build_conversation_surface_pilot,
 )
 from .forge import write_forged_dataset
-from .instruct import build_instruction_dataset, tokenize_instruction_dataset
-from .lexical_mine import (
+from .sft import build_instruction_dataset, tokenize_instruction_dataset
+from .vocabulary import (
     audit_source_overlap,
     build_lexical_mine,
+    build_vocabulary_placement,
     fetch_lexical_sources,
 )
 from .package import (
     package_for_hugging_face,
     package_instructions_for_hugging_face,
 )
-from .post_training import audit_human_review, build_post_training_corpus
-from .scenario_forge import build_scenario_forge
+from .posttrain import audit_human_review, build_post_training_corpus
+from .scenarios import build_scenario_forge
 from .tokenize import tokenize_documents
 from .vocabulary_gap import build_vocabulary_gap
-from .vocabulary_placement import build_vocabulary_placement
 from .vocabulary_wordnet_audit import audit_vocabulary_with_wordnet
 
 

@@ -9,20 +9,24 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from complexity_card_corpus.build import CARD_SCHEMA, DOCUMENT_SCHEMA, RELATION_SCHEMA
-from complexity_card_corpus.instruct import (
+from complexity_card_corpus.sft import (
     IGNORE_INDEX,
-    _balance_task_families,
-    _deduplicate_exact_responses,
-    _deduplicate_structural_rows,
-    _inline_sentence,
-    _naturalize_assistant_target,
-    _normalized_structure,
-    _project_sft_exchange,
-    _project_sft_conversation,
     build_instruction_dataset,
     load_heldout_evaluation,
     tokenize_instruction_dataset,
 )
+from complexity_card_corpus.sft.language import _inline_sentence
+from complexity_card_corpus.sft.projection import (
+    _project_sft_conversation,
+    _project_sft_exchange,
+)
+from complexity_card_corpus.sft.selection import (
+    _balance_task_families,
+    _deduplicate_exact_responses,
+    _deduplicate_structural_rows,
+    _normalized_structure,
+)
+from complexity_card_corpus.sft.target import _naturalize_assistant_target
 from complexity_card_corpus.training_cards import TrainingCards
 from complexity_card_corpus.chat_template import (
     CHAT_TEMPLATE_ID,

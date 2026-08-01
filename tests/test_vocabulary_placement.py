@@ -4,7 +4,7 @@ from collections import Counter, defaultdict
 import json
 from pathlib import Path
 
-from complexity_card_corpus.vocabulary_placement import (
+from complexity_card_corpus.vocabulary.dictionary import (
     _masked_dictionary,
     _write_masked_dictionary,
 )
@@ -50,9 +50,7 @@ def test_masked_dictionary_keeps_matrix_and_multiple_statistical_usages() -> Non
 
     assert result["matrix"]["shape"] == [1, 2]
     entry = result["words"]["wrench"]
-    assert entry["selected"]["classification_status"] == (
-        "statistically_supported"
-    )
+    assert entry["selected"]["classification_status"] == ("statistically_supported")
     assert entry["cell_score_vector"] == [9.0, 4.0]
     assert [usage["family"] for usage in entry["statistical_usages"]] == [
         "practical_action",
@@ -62,9 +60,7 @@ def test_masked_dictionary_keeps_matrix_and_multiple_statistical_usages() -> Non
         "The selected generation use places this term in home repair "
         "contexts for practical action."
     )
-    assert entry["statistical_usages"][0]["usage_kind"] == (
-        "selected_generation"
-    )
+    assert entry["statistical_usages"][0]["usage_kind"] == ("selected_generation")
     assert entry["masked_context"]["neighbors"][0]["token"] == "tool"
     assert "tool" in entry["short_definition"]
     assert result["audit"]["source_text_retained"] is False

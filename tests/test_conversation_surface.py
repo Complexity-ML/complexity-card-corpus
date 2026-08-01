@@ -7,10 +7,10 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from complexity_card_corpus.conversation_blueprint import BLUEPRINT_SCHEMA
-from complexity_card_corpus.conversation_surface import (
-    _task_messages,
+from complexity_card_corpus.surfaces import (
     build_conversation_surface_pilot,
 )
+from complexity_card_corpus.surfaces.rendering import _task_messages
 
 
 TASK_DOMAINS = (
@@ -22,12 +22,38 @@ TASK_DOMAINS = (
     "ride_booking",
 )
 EMOTIONS = (
-    "afraid", "angry", "annoyed", "anticipating", "anxious", "apprehensive",
-    "ashamed", "caring", "confident", "content", "devastated", "disappointed",
-    "disgusted", "embarrassed", "excited", "faithful", "furious", "grateful",
-    "guilty", "hopeful", "impressed", "jealous", "joyful", "lonely",
-    "nostalgic", "prepared", "proud", "sad", "sentimental", "surprised",
-    "terrified", "trusting",
+    "afraid",
+    "angry",
+    "annoyed",
+    "anticipating",
+    "anxious",
+    "apprehensive",
+    "ashamed",
+    "caring",
+    "confident",
+    "content",
+    "devastated",
+    "disappointed",
+    "disgusted",
+    "embarrassed",
+    "excited",
+    "faithful",
+    "furious",
+    "grateful",
+    "guilty",
+    "hopeful",
+    "impressed",
+    "jealous",
+    "joyful",
+    "lonely",
+    "nostalgic",
+    "prepared",
+    "proud",
+    "sad",
+    "sentimental",
+    "surprised",
+    "terrified",
+    "trusting",
 )
 
 
@@ -35,14 +61,24 @@ def _blueprint(kind: str, category: str, index: int) -> dict:
     turns = (2, 4, 6, 8)[index % 4]
     task = kind == "task_oriented"
     task_stages = (
-        "state_goal", "acknowledge_goal", "provide_detail",
-        "ask_for_missing_detail", "choose_option", "present_bounded_options",
-        "confirm_choice", "confirm_next_step",
+        "state_goal",
+        "acknowledge_goal",
+        "provide_detail",
+        "ask_for_missing_detail",
+        "choose_option",
+        "present_bounded_options",
+        "confirm_choice",
+        "confirm_next_step",
     )
     empathy_stages = (
-        "share_situation", "acknowledge_emotion", "expand_feeling",
-        "invite_detail_without_assumption", "reflect_on_need",
-        "offer_grounded_support", "follow_up", "close_supportively",
+        "share_situation",
+        "acknowledge_emotion",
+        "expand_feeling",
+        "invite_detail_without_assumption",
+        "reflect_on_need",
+        "offer_grounded_support",
+        "follow_up",
+        "close_supportively",
     )
     stages = list((task_stages if task else empathy_stages)[:turns])
     if task and index % 5 == 0:
@@ -77,7 +113,9 @@ def _blueprint(kind: str, category: str, index: int) -> dict:
     }
 
 
-def test_surface_pilot_is_original_balanced_unique_and_deterministic(tmp_path: Path) -> None:
+def test_surface_pilot_is_original_balanced_unique_and_deterministic(
+    tmp_path: Path,
+) -> None:
     blueprints = tmp_path / "blueprints"
     blueprints.mkdir()
     rows = []
@@ -85,17 +123,13 @@ def test_surface_pilot_is_original_balanced_unique_and_deterministic(tmp_path: P
         rows.extend(_blueprint("task_oriented", domain, index) for index in range(48))
     for emotion in EMOTIONS:
         rows.extend(
-            _blueprint("empathetic_conversation", emotion, index)
-            for index in range(10)
+            _blueprint("empathetic_conversation", emotion, index) for index in range(10)
         )
     pq.write_table(
         pa.Table.from_pylist(rows, schema=BLUEPRINT_SCHEMA),
         blueprints / "blueprints.parquet",
     )
-    scenarios = (
-        Path(__file__).parents[1]
-        / "data/conversation/original/scenarios.json"
-    )
+    scenarios = Path(__file__).parents[1] / "data/conversation/original/scenarios.json"
 
     first = build_conversation_surface_pilot(
         blueprints, scenarios, tmp_path / "first", pilot_size=128, seed=7
@@ -104,7 +138,10 @@ def test_surface_pilot_is_original_balanced_unique_and_deterministic(tmp_path: P
         blueprints, scenarios, tmp_path / "second", pilot_size=128, seed=7
     )
 
-    assert first["files"]["conversations.parquet"]["sha256"] == second["files"]["conversations.parquet"]["sha256"]
+    assert (
+        first["files"]["conversations.parquet"]["sha256"]
+        == second["files"]["conversations.parquet"]["sha256"]
+    )
     assert first["surface_text"]["model_generated"] is False
     assert first["surface_text"]["source_utterances_accessed"] is False
     assert first["counts"]["by_task"] == {
@@ -129,8 +166,7 @@ def test_surface_pilot_is_original_balanced_unique_and_deterministic(tmp_path: P
     assert all(row["messages"][0]["role"] == "user" for row in output_rows)
     assert all(row["messages"][-1]["role"] == "assistant" for row in output_rows)
     assert all(
-        json.loads(row["answer_json"])["dialogue_stages"][-1]
-        != "acknowledge_goal"
+        json.loads(row["answer_json"])["dialogue_stages"][-1] != "acknowledge_goal"
         for row in output_rows
         if row["task"] == "practical_dialogue" and len(row["messages"]) == 2
     )
@@ -144,8 +180,7 @@ def test_surface_pilot_is_original_balanced_unique_and_deterministic(tmp_path: P
 def test_response_style_changes_the_selected_surface_form() -> None:
     scenarios = json.loads(
         (
-            Path(__file__).parents[1]
-            / "data/conversation/original/scenarios.json"
+            Path(__file__).parents[1] / "data/conversation/original/scenarios.json"
         ).read_text()
     )
     blueprint = _blueprint("task_oriented", "coffee_ordering", 3)
