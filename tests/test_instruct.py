@@ -10,8 +10,12 @@ import pyarrow.parquet as pq
 from complexity_card_corpus.build import CARD_SCHEMA, DOCUMENT_SCHEMA, RELATION_SCHEMA
 from complexity_card_corpus.instruct import (
     IGNORE_INDEX,
+    _deduplicate_structural_rows,
     _naturalize_assistant_target,
+    _normalized_structure,
+    _project_sft_exchange,
     build_instruction_dataset,
+    load_heldout_evaluation,
     tokenize_instruction_dataset,
 )
 from complexity_card_corpus.training_cards import TrainingCards
@@ -19,6 +23,7 @@ from complexity_card_corpus.chat_template import (
     CHAT_TEMPLATE_ID,
     render_system_prefix,
 )
+from complexity_card_corpus.english_morphology import correct_indefinite_articles
 from complexity_card_corpus.package import package_instructions_for_hugging_face
 from complexity_card_corpus.tokenize import load_encoding
 
@@ -161,6 +166,14 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
     assert template["training_projection"] == (
         "naturalize_card_hand_target_final_assistant"
     )
+    projected_path = tmp_path / "tokenized/projected.parquet"
+    assert projected_path.exists()
+    projected_rows = pq.read_table(projected_path).to_pylist()
+    assert len(projected_rows) == manifest["total_examples"]
+    assert manifest["projected_parquet"]["examples"] == len(projected_rows)
+    assert {row["split"] for row in projected_rows} == {"train", "validation"}
+    assert all("SITUATION CARD" not in row["prompt"] for row in projected_rows)
+    assert all("Hand " not in row["response"] for row in projected_rows)
     for partition, metadata in manifest["partitions"].items():
         assert set(metadata["conditioning_card_counts"]) == {
             "surface",
@@ -368,7 +381,7 @@ def test_explanation_target_preserves_sentence_boundaries() -> None:
         example_id="example-3",
     )
     assert "RAM is temporary." in target
-    assert "A saved file remains after restart." in target
+    assert "a saved file remains after restart." in target.lower()
     assert target.endswith("Which copy survives?")
 
 
@@ -438,3 +451,217 @@ def test_safety_target_removes_card_contract_labels() -> None:
     assert "Boundary:" not in target
     assert "Do not share the code" in target
     assert "official support channel" in target
+
+
+def test_all_post_training_families_project_to_direct_answers() -> None:
+    source = Path("build/post-training/conversations.parquet")
+    if not source.exists():
+        return
+    rows = pq.read_table(source).to_pylist()
+    representatives = {}
+    for row in rows:
+        representatives.setdefault(row["task"], row)
+    assert len(representatives) == 14
+    forbidden = (
+        "hand ",
+        "next step:",
+        "owner:",
+        "timing:",
+        "core idea:",
+        "example:",
+        "check:",
+        "decision:",
+        "action:",
+        "open point:",
+        "weakness:",
+        "revision:",
+        "immediate action:",
+        "boundary:",
+        "each description states",
+        "remain feasible under the stated limits",
+        "the response should",
+    )
+    for task, row in representatives.items():
+        _prompt, answer, _cards = _project_sft_exchange(
+            row["messages"],
+            example_id=row["example_id"],
+            task=task,
+            answer_json=row["answer_json"],
+        )
+        lowered = answer.lower()
+        assert answer.strip(), task
+        assert not any(phrase in lowered for phrase in forbidden), (task, answer)
+
+
+def test_every_generalist_contract_has_a_direct_projection_without_build() -> None:
+    responses = {
+        "practical_action": (
+            "Next step: ask the office to confirm Thursday. "
+            "Owner: the office confirms it. Timing: before noon."
+        ),
+        "explanation_learning": (
+            "Core idea: a cache keeps reused data close. "
+            "Example: a browser stores a recent asset. Check: what can be reused?"
+        ),
+        "troubleshooting": (
+            "1. Preserve the log. 2. Change one setting. 3. Repeat the test. "
+            "Direct check: confirm that the error is absent. "
+            "Regression check: repeat the known-good operation."
+        ),
+        "writing_transformation": (
+            "Meeting A12345 — Decision: review complete. "
+            "Action: Mina adds captions. Open item: release remains undecided."
+        ),
+        "planning_comparison": (
+            "Choose A because it meets the limit. Sequence: verify it, then book it. "
+            "Fallback trigger: if A fails, compare again."
+        ),
+        "conversation_empathy": "It makes sense to feel uncertain about the change.",
+        "safety_uncertainty": (
+            "Immediate action: leave the room. Boundary: do not investigate. "
+            "Escalate to emergency services from outside."
+        ),
+        "grounded_qa": (
+            "The documented answer is: The office opens at ten. "
+            "This is limited to Source ABC123."
+        ),
+        "summarization_synthesis": (
+            "Decision: keep the case open. Action: Mina checks it tomorrow. "
+            "Open point: the cause remains unknown."
+        ),
+        "extraction_classification": '{"status": "pending"}',
+        "reasoning_verification": (
+            "Equation: 12 / 3 = 4. Total: 4 items. Check: 4 × 3 = 12."
+        ),
+        "critique_revision": (
+            "Weakness: the claim exceeds the evidence. "
+            "Revision: Three testers reported an improvement."
+        ),
+        "brainstorming_creativity": (
+            "1. Shared shelf. 2. Monthly exchange. 3. Request list. "
+            "Each description states how the option fits."
+        ),
+        "context_clarification": (
+            "Understood: the format is unknown. Would you prefer a table or prose?"
+        ),
+    }
+    forbidden = (
+        "hand ",
+        "next step:",
+        "owner:",
+        "timing:",
+        "core idea:",
+        "example:",
+        "check:",
+        "decision:",
+        "action:",
+        "open point:",
+        "weakness:",
+        "revision:",
+        "immediate action:",
+        "boundary:",
+        "sequence:",
+        "fallback trigger:",
+        "each description states",
+    )
+    for task, response in responses.items():
+        _prompt, target, _cards = _project_sft_exchange(
+            [
+                {"role": "user", "content": "Answer the request."},
+                {"role": "assistant", "content": response},
+            ],
+            example_id=f"unit:{task}",
+            task=task,
+            answer_json="{}",
+        )
+        assert target
+        assert not any(phrase in target.lower() for phrase in forbidden), (
+            task,
+            target,
+        )
+
+
+def test_structural_normalization_deduplicates_slot_variants() -> None:
+    first = "Mina should verify case A19 by day 12, then record the result."
+    second = "Mina should verify case B72 by day 27, then record the result."
+    assert _normalized_structure(first) == _normalized_structure(second)
+    rows = [
+        {"example_id": "b", "task": "planning_comparison", "target": second},
+        {"example_id": "a", "task": "planning_comparison", "target": first},
+        {
+            "example_id": "c",
+            "task": "planning_comparison",
+            "target": "Compare both options before choosing one.",
+        },
+    ]
+    kept, audit = _deduplicate_structural_rows(rows, target_key="target")
+    assert [row["example_id"] for row in kept] == ["a", "c"]
+    assert audit["dropped_structural_duplicates"] == 1
+
+
+def test_heldout_evaluation_is_separately_authored() -> None:
+    path = Path("data/evaluation/generalist-heldout-v1.json")
+    rows = load_heldout_evaluation(path)
+    assert len(rows) >= 28
+    assert {row["task"] for row in rows} == {
+        "practical_action",
+        "explanation_learning",
+        "troubleshooting",
+        "writing_transformation",
+        "planning_comparison",
+        "conversation_empathy",
+        "safety_uncertainty",
+        "grounded_qa",
+        "summarization_synthesis",
+        "extraction_classification",
+        "reasoning_verification",
+        "critique_revision",
+        "brainstorming_creativity",
+        "context_clarification",
+    }
+    assert all(row["split"] == "validation" for row in rows)
+    assert all(
+        json.loads(row["answer_json"])["evaluation_source"]
+        == "separately_authored"
+        for row in rows
+    )
+    assert len({_normalized_structure(row["response"]) for row in rows}) == len(rows)
+
+
+def test_tokenization_replaces_generated_validation_with_heldout(tmp_path: Path) -> None:
+    tokenizer = Path("/Users/boris/Dev/complexity-framework/tokenizer-o200k")
+    if not tokenizer.exists():
+        return
+    corpus = tmp_path / "corpus"
+    _tiny_corpus(corpus)
+    build_instruction_dataset(corpus, tmp_path / "instructions")
+    manifest = tokenize_instruction_dataset(
+        tmp_path / "instructions/instructions.parquet",
+        tokenizer,
+        tmp_path / "tokenized",
+        heldout_evaluation_path=Path(
+            "data/evaluation/generalist-heldout-v1.json"
+        ),
+    )
+    assert manifest["partitions"]["eval"]["examples"] == 28
+    assert manifest["train_eval_structure_overlap"] == 0
+    assert manifest["heldout_evaluation"]["method"] == "separately_authored"
+    projected_rows = pq.read_table(
+        tmp_path / "tokenized/projected.parquet"
+    ).to_pylist()
+    validation_rows = [row for row in projected_rows if row["split"] == "validation"]
+    assert len(validation_rows) == 28
+    assert all(row["example_id"].startswith("heldout:") for row in validation_rows)
+    eval_ids = {
+        json.loads(line)["example_id"]
+        for line in (tmp_path / "tokenized/eval/examples.jsonl").read_text().splitlines()
+    }
+    assert eval_ids
+    assert all(example_id.startswith("heldout:") for example_id in eval_ids)
+
+
+def test_article_correction_does_not_rewrite_identifier_suffixes() -> None:
+    text = "Compare E20939-A or E20939-B before choosing a option."
+    assert correct_indefinite_articles(text) == (
+        "Compare E20939-A or E20939-B before choosing an option."
+    )

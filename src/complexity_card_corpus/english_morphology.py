@@ -104,7 +104,7 @@ _CONSONANT_SOUND_PREFIXES = (
     "ufo",
 )
 _ARTICLE_PATTERN = re.compile(
-    r"\b(?P<article>a|an)\s+(?P<word>[A-Za-z][A-Za-z0-9'-]*)",
+    r"(?<![A-Za-z0-9-])(?P<article>a|an)\s+(?P<word>[A-Za-z][A-Za-z0-9'-]*)",
     re.IGNORECASE,
 )
 

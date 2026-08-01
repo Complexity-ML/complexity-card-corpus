@@ -59,6 +59,25 @@ INSTRUCTION_SCHEMA = pa.schema(
     ]
 )
 
+PROJECTED_SFT_SCHEMA = pa.schema(
+    [
+        ("example_id", pa.string()),
+        ("task", pa.string()),
+        ("mode", pa.string()),
+        ("difficulty", pa.string()),
+        ("domain", pa.string()),
+        ("language", pa.string()),
+        ("split", pa.string()),
+        ("prompt", pa.string()),
+        ("response", pa.string()),
+        ("structure_signature", pa.string()),
+        ("source_representation", pa.string()),
+        ("source", pa.string()),
+        ("license", pa.string()),
+        ("version", pa.string()),
+    ]
+)
+
 TOKEN_DTYPE = np.dtype("<u4")
 LABEL_DTYPE = np.dtype("<i4")
 IGNORE_INDEX = -100
@@ -207,8 +226,10 @@ def _inline_sentence(value: str) -> str:
 
     value = _sentence(value)
     initial = re.match(r"[A-Za-z]+", value)
-    if initial is not None and not initial.group(0).isupper():
-        value = value[:1].lower() + value[1:]
+    if initial is not None:
+        word = initial.group(0)
+        if not (len(word) > 1 and word.isupper()):
+            value = value[:1].lower() + value[1:]
     return value
 
 
@@ -228,30 +249,35 @@ def _naturalize_assistant_target(
 
     response = _final_assistant_target(messages)
     variant = _stable_index(
-        f"assistant-target:{example_id}:{cards.surface}:{cards.style}", 4
+        f"assistant-target:{example_id}:{cards.surface}:{cards.style}", 8
     )
     if task == "explanation_learning":
         fields = _labelled_fields(response, ("Core idea", "Example", "Check"))
         if set(fields) == {"Core idea", "Example", "Check"}:
             idea = re.sub(
-                r"^in plain terms,\s*", "", fields["Core idea"], flags=re.IGNORECASE
+                r"^(?:in plain terms,\s*|the key distinction is that\s+)",
+                "",
+                fields["Core idea"],
+                flags=re.IGNORECASE,
             )
             idea = _sentence(idea)
             example = _sentence(fields["Example"])
             check = _sentence(fields["Check"])
             templates = (
                 "{idea} For example, {example} {check}",
-                "In simple terms, {inline_idea} A concrete example is this: {example} To check the distinction: {check}",
-                "{idea} You can see this in practice: {example} Quick check: {check}",
-                "The key point is that {inline_idea} Consider this example: {example} {check}",
+                "In simple terms, {inline_idea} For example, {inline_example} {check}",
+                "{idea} You can see this in practice: {example} To check your understanding, {inline_check}",
+                "The key point is that {inline_idea} For instance, {inline_example} {check}",
             )
-            return templates[variant].format(
+            return templates[variant % len(templates)].format(
                 idea=idea,
                 inline_idea=_inline_sentence(idea),
                 example=(
                     _inline_sentence(example) if variant == 0 else example
                 ),
+                inline_example=_inline_sentence(example),
                 check=check,
+                inline_check=_inline_sentence(check),
             )
     elif task == "reasoning_verification":
         fields = _labelled_fields(response, ("Equation", "Total", "Check"))
@@ -268,7 +294,7 @@ def _naturalize_assistant_target(
                 "Using the supplied values gives {equation}. Therefore, {total}. To verify it, {check}.",
                 "{equation}. That gives {total}; checking from the other direction, {check}.",
             )
-            return templates[variant].format(
+            return templates[variant % len(templates)].format(
                 equation=fields["Equation"],
                 total=fields["Total"],
                 check=check,
@@ -281,11 +307,12 @@ def _naturalize_assistant_target(
                 "The decision is to {decision}. {action}. {open_point}",
                 "They decided to {decision}. Next, {action}. {open_point}",
                 "In summary, the decision is to {decision}; {action}. {open_point}",
-                "The recorded decision is to {decision}. The assigned action is: {action}. {open_point}",
+                "The recorded decision is to {decision}, and {inline_action} {open_point}",
             )
-            return templates[variant].format(
+            return templates[variant % len(templates)].format(
                 decision=fields["Decision"],
                 action=fields["Action"],
+                inline_action=_inline_sentence(fields["Action"]),
                 open_point=open_point,
             )
     elif task == "grounded_qa":
@@ -308,15 +335,27 @@ def _naturalize_assistant_target(
     elif task == "critique_revision":
         fields = _labelled_fields(response, ("Weakness", "Revision"))
         if set(fields) == {"Weakness", "Revision"}:
-            weakness = _sentence(fields["Weakness"])
+            weakness_text = re.sub(
+                r",?\s*which makes the original difficult to verify\.?$",
+                "",
+                fields["Weakness"],
+                flags=re.IGNORECASE,
+            )
+            weakness_text = re.sub(
+                r"\s+The revision must stay within the recorded facts\.?$",
+                "",
+                weakness_text,
+                flags=re.IGNORECASE,
+            )
+            weakness = _sentence(weakness_text)
             revision = _sentence(fields["Revision"])
             templates = (
-                "The main weakness is that {inline_weakness} A faithful revision would be: {revision}",
-                "The draft needs revision because {inline_weakness} A clearer version is: {revision}",
-                "The highest-impact issue is this: {weakness} Revised text: {revision}",
-                "The wording is not yet supported because {inline_weakness} A bounded revision is: {revision}",
+                "{revision} This fixes the main problem because {inline_weakness}",
+                "{revision} The draft previously failed because {inline_weakness}",
+                "{revision}",
+                "{revision} This avoids the unsupported part of the original because {inline_weakness}",
             )
-            return templates[variant].format(
+            return templates[variant % len(templates)].format(
                 weakness=weakness,
                 inline_weakness=_inline_sentence(weakness),
                 revision=revision,
@@ -333,10 +372,10 @@ def _naturalize_assistant_target(
             templates = (
                 "{action} {boundary} {escalation}",
                 "First, {inline_action} {boundary} Next, {inline_escalation}",
-                "The safest immediate step is clear: {action} {boundary} Then {inline_escalation}",
-                "{action} Keep this limit in mind: {inline_boundary} {escalation}",
+                "The safest immediate step is clear. {action} {boundary} Then {inline_escalation}",
+                "{action} {boundary} {escalation}",
             )
-            return templates[variant].format(
+            return templates[variant % len(templates)].format(
                 action=action,
                 inline_action=_inline_sentence(action),
                 boundary=boundary,
@@ -344,7 +383,362 @@ def _naturalize_assistant_target(
                 escalation=escalation,
                 inline_escalation=_inline_sentence(escalation),
             )
-    return response
+    elif task == "practical_action":
+        fields = _labelled_fields(response, ("Next step", "Owner", "Timing"))
+        if set(fields) == {"Next step", "Owner", "Timing"}:
+            step = _sentence(fields["Next step"])
+            owner = _sentence(fields["Owner"])
+            timing = _sentence(fields["Timing"])
+            if timing.lower().startswith("before "):
+                timing = "Complete this " + _inline_sentence(timing)
+            templates = (
+                "{step} {owner} {timing}",
+                "First, {step} {timing} {owner}",
+                "{timing} Before committing, {inline_step} {owner}",
+                "The safest workable move is clear. {step} {owner} {timing}",
+            )
+            return templates[variant % len(templates)].format(
+                step=step,
+                inline_step=_inline_sentence(step),
+                owner=owner,
+                timing=timing,
+            )
+    elif task == "context_clarification":
+        fields = _labelled_fields(response, ("Understood",))
+        if fields:
+            return _sentence(fields["Understood"])
+    elif task == "brainstorming_creativity":
+        direct = re.sub(
+            r"\s+(?:Each description states.*|The three retained ideas remain feasible.*|The alternatives emphasize.*)$",
+            "",
+            response,
+            flags=re.IGNORECASE,
+        )
+        return direct.strip()
+    elif task == "writing_transformation":
+        direct = re.sub(
+            r"^(?:Support reply|Project update|Internal note|Public notice|Short brief)\s+[A-Z0-9]+:\s*",
+            "",
+            response,
+            flags=re.IGNORECASE,
+        )
+        direct = re.sub(
+            r"^(?:Meeting|Status|Update)\s+[A-Z0-9]+\s*[—:-]\s*",
+            "",
+            direct,
+            flags=re.IGNORECASE,
+        )
+        fields = _labelled_fields(direct, ("Decision", "Action", "Open item"))
+        if set(fields) == {"Decision", "Action", "Open item"}:
+            return " ".join(_sentence(fields[name]) for name in fields)
+        direct = re.sub(
+            r"\bRemaining work:\s*([A-Za-z])",
+            lambda match: match.group(1).upper(),
+            direct,
+            flags=re.IGNORECASE,
+        )
+        direct = re.sub(
+            r"\bBlocker:\s*([A-Za-z])",
+            lambda match: match.group(1).upper(),
+            direct,
+            flags=re.IGNORECASE,
+        )
+        return direct
+    elif task in {
+        "conversation_empathy",
+        "extraction_classification",
+    }:
+        return response
+    elif task == "planning_comparison":
+        match = re.fullmatch(
+            r"(.*?)\s+Sequence:\s*(.*?)\s+Fallback trigger:\s*(.*)",
+            response,
+            flags=re.DOTALL,
+        )
+        if match is not None:
+            choice = _sentence(match.group(1))
+            sequence = _sentence(match.group(2))
+            fallback = _sentence(match.group(3))
+            templates = (
+                "{choice} Then {inline_sequence} If that path fails, {inline_fallback}",
+                "{choice} {sequence} {fallback}",
+                "{choice} {sequence} {fallback}",
+                "{sequence} On those constraints, {inline_choice} If needed, {inline_fallback}",
+            )
+            return templates[variant % len(templates)].format(
+                choice=choice,
+                inline_choice=_inline_sentence(choice),
+                sequence=sequence,
+                inline_sequence=_inline_sentence(sequence),
+                fallback=fallback,
+                inline_fallback=_inline_sentence(fallback),
+            )
+        return response
+    elif task == "troubleshooting":
+        direct = re.sub(
+            r"\bDirect check:\s*(?:confirm that\s*)?",
+            "Confirm that ",
+            response,
+            flags=re.IGNORECASE,
+        )
+        direct = re.sub(
+            r"\bRegression check:\s*(?:repeat\s*)?",
+            "Afterward, repeat ",
+            direct,
+            flags=re.IGNORECASE,
+        )
+        steps = [
+            match.group(1).strip()
+            for match in re.finditer(
+                r"(?:^|\s)\d+\.\s*(.*?)(?=\s+\d+\.\s|$)",
+                direct,
+                flags=re.DOTALL,
+            )
+        ]
+        if len(steps) >= 3:
+            if variant % 4 == 1:
+                return "First, " + " Next, ".join(
+                    _inline_sentence(step) for step in steps
+                )
+            if variant % 4 == 2:
+                return "\n".join(f"- {_sentence(step)}" for step in steps)
+            if variant % 4 == 3:
+                return " ".join(_sentence(step) for step in steps)
+        return direct
+    return re.sub(
+        r"^(?:Next step|Owner|Timing|Core idea|Example|Check|Decision|Action|Open point|Weakness|Revision|Immediate action|Boundary):\s*",
+        "",
+        response,
+        flags=re.IGNORECASE,
+    )
+
+
+_STRUCTURE_SLOT = re.compile(
+    r"\b(?:[A-Z0-9]{5,}|[A-Z]+\d+[A-Z0-9]*|(?i:day)\s+\d+|\d{1,2}:\d{2}|\$\d+(?:\.\d+)?|\d+(?:\.\d+)?)\b",
+)
+
+
+def _normalized_structure(text: str) -> str:
+    """Normalize volatile slots while retaining syntax and answer shape."""
+
+    normalized = _STRUCTURE_SLOT.sub("<slot>", text)
+    normalized = re.sub(r"[\"'“”][^\"'“”]{1,80}[\"'“”]", "<quoted>", normalized)
+    normalized = re.sub(r"(?m)^\s*\d+[.)]\s*", "<item> ", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip().lower()
+    return normalized
+
+
+def _deduplicate_structural_rows(
+    rows: list[dict[str, Any]],
+    *,
+    target_key: str = "_projected_target",
+    max_per_structure: int = 1,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Bound deterministic examples per task and normalized answer shape."""
+
+    if max_per_structure < 1:
+        raise ValueError("max_per_structure must be positive")
+
+    kept: list[dict[str, Any]] = []
+    counts: Counter[tuple[str, str]] = Counter()
+    retained: Counter[tuple[str, str]] = Counter()
+    for row in sorted(rows, key=lambda item: item["example_id"]):
+        signature = _normalized_structure(row[target_key])
+        key = (row["task"], signature)
+        counts[key] += 1
+        if retained[key] >= max_per_structure:
+            continue
+        retained[key] += 1
+        copy = dict(row)
+        copy["_structure_signature"] = signature
+        kept.append(copy)
+    return kept, {
+        "input_examples": len(rows),
+        "kept_examples": len(kept),
+        "dropped_structural_duplicates": len(rows) - len(kept),
+        "distinct_task_structures": len(counts),
+        "maximum_retained_per_structure": max_per_structure,
+        "maximum_examples_per_structure_before_dedup": max(counts.values(), default=0),
+    }
+
+
+def _project_sft_exchange(
+    messages: list[dict[str, str]],
+    *,
+    example_id: str,
+    task: str,
+    answer_json: str,
+) -> tuple[str, str, TrainingCards]:
+    try:
+        metadata = json.loads(answer_json) if answer_json else {}
+    except json.JSONDecodeError:
+        metadata = {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    cards = deal_training_cards(
+        task=task,
+        mode="chat" if len(messages) > 2 else "instruct",
+        example_id=example_id,
+        metadata=metadata,
+    )
+    prompt = _render_natural_instruction(messages, example_id, cards)
+    if metadata.get("evaluation_source") == "separately_authored":
+        target = _final_assistant_target(messages)
+    else:
+        target = _naturalize_assistant_target(
+            messages,
+            task=task,
+            cards=cards,
+            example_id=example_id,
+        )
+    return prompt, correct_indefinite_articles(target), cards
+
+
+def load_heldout_evaluation(path: Path) -> list[dict[str, Any]]:
+    """Load independently authored evaluation exchanges into the common schema."""
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    examples = payload.get("examples", [])
+    if not examples:
+        raise ValueError("held-out evaluation contains no examples")
+    rows: list[dict[str, Any]] = []
+    for item in examples:
+        messages = [
+            {"role": "user", "content": item["prompt"].strip()},
+            {"role": "assistant", "content": item["response"].strip()},
+        ]
+        rows.append(
+            {
+                "example_id": f"heldout:{item['id']}",
+                "task": item["task"],
+                "mode": "instruct",
+                "difficulty": item.get("difficulty", "medium"),
+                "dataset_id": payload["dataset_id"],
+                "domain": item["domain"],
+                "language": "en",
+                "split": "validation",
+                "messages": messages,
+                "prompt": messages[0]["content"],
+                "response": messages[1]["content"],
+                "rendered_text": _render_messages(messages),
+                "source_keys": [item["id"]],
+                "evidence": item.get("evidence", []),
+                "answer_json": json.dumps(
+                    {
+                        "evaluation_source": "separately_authored",
+                        "use_verbatim_target": True,
+                    },
+                    sort_keys=True,
+                ),
+                "source": payload["source"],
+                "source_urls": [],
+                "license": payload["license"],
+                "version": payload["version"],
+            }
+        )
+    if len({row["example_id"] for row in rows}) != len(rows):
+        raise ValueError("held-out evaluation contains duplicate ids")
+    return rows
+
+
+_FORBIDDEN_SFT_TARGET_PHRASES = (
+    "hand ",
+    "next step:",
+    "owner:",
+    "timing:",
+    "core idea:",
+    "example:",
+    "check:",
+    "decision:",
+    "action:",
+    "open point:",
+    "open item:",
+    "weakness:",
+    "revision:",
+    "immediate action:",
+    "boundary:",
+    "sequence:",
+    "fallback trigger:",
+    "revised text:",
+    "assigned action:",
+    "remaining work:",
+    "blocker:",
+    "a concrete example is this:",
+    "consider this example:",
+    "keep this limit in mind:",
+    "each description states",
+    "remain feasible under the stated limits",
+    "the response should",
+    "the final review should",
+    "treat the task as complete",
+)
+
+_GENERALIST_POST_TRAINING_TASKS = {
+    "practical_action",
+    "explanation_learning",
+    "troubleshooting",
+    "writing_transformation",
+    "planning_comparison",
+    "conversation_empathy",
+    "safety_uncertainty",
+    "grounded_qa",
+    "summarization_synthesis",
+    "extraction_classification",
+    "reasoning_verification",
+    "critique_revision",
+    "brainstorming_creativity",
+    "context_clarification",
+}
+
+
+def _audit_sft_projection(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    hits: list[dict[str, str]] = []
+    by_task: dict[str, Counter[str]] = defaultdict(Counter)
+    for row in rows:
+        target = row["_projected_target"]
+        lowered = target.lower()
+        for phrase in _FORBIDDEN_SFT_TARGET_PHRASES:
+            if phrase in lowered:
+                hits.append(
+                    {
+                        "example_id": row["example_id"],
+                        "task": row["task"],
+                        "phrase": phrase,
+                    }
+                )
+        by_task[row["task"]][_normalized_structure(target)] += 1
+    if hits:
+        raise ValueError(f"model-facing answer contains a control rubric: {hits[0]}")
+    task_stats = {
+        task: {
+            "examples": sum(counts.values()),
+            "distinct_normalized_structures": len(counts),
+            "maximum_structure_share": round(
+                max(counts.values()) / sum(counts.values()), 6
+            ),
+        }
+        for task, counts in sorted(by_task.items())
+    }
+    underspecified = [
+        task
+        for task, stats in task_stats.items()
+        if task in _GENERALIST_POST_TRAINING_TASKS
+        and stats["examples"] > 1
+        and stats["distinct_normalized_structures"] < 2
+    ]
+    if underspecified:
+        raise ValueError(
+            "model-facing family has only one normalized structure: "
+            f"{underspecified}"
+        )
+    return {
+        "examples": len(rows),
+        "exact_answer_uniqueness_ratio": round(
+            len({row["_projected_target"] for row in rows}) / len(rows), 6
+        ),
+        "control_rubric_hits": 0,
+        "tasks": task_stats,
+    }
 
 
 def _example_id(
@@ -754,6 +1148,7 @@ def _encode_messages(
     encoding,
     eos_id: int,
     chat_template: dict[str, Any],
+    projection: tuple[str, str, TrainingCards] | None = None,
 ) -> tuple[list[int], list[int], TrainingCards]:
     """Project a card conversation into one direct SFT exchange.
 
@@ -763,25 +1158,14 @@ def _encode_messages(
     acknowledgements and hand identifiers are deliberately omitted.
     """
 
-    try:
-        metadata = json.loads(answer_json) if answer_json else {}
-    except json.JSONDecodeError:
-        metadata = {}
-    if not isinstance(metadata, dict):
-        metadata = {}
-    cards = deal_training_cards(
-        task=task,
-        mode="chat" if len(messages) > 2 else "instruct",
-        example_id=example_id,
-        metadata=metadata,
-    )
-    user_content = _render_natural_instruction(messages, example_id, cards)
-    final_assistant = _naturalize_assistant_target(
-        messages,
-        task=task,
-        cards=cards,
-        example_id=example_id,
-    )
+    if projection is None:
+        projection = _project_sft_exchange(
+            messages,
+            example_id=example_id,
+            task=task,
+            answer_json=answer_json,
+        )
+    user_content, final_assistant, cards = projection
     full_ids: list[int] = []
     target_labels: list[int] = []
     system_tokens = encoding.encode(
@@ -816,6 +1200,7 @@ def tokenize_instruction_dataset(
     instructions_path: Path,
     tokenizer_root: Path,
     output_root: Path,
+    heldout_evaluation_path: Path | None = None,
 ) -> dict[str, Any]:
     encoding, tokenizer_config = load_encoding(tokenizer_root)
     eos_token = tokenizer_config.get("eos_token", "<|endoftext|>")
@@ -825,14 +1210,61 @@ def tokenize_instruction_dataset(
         eos_id = encoding.eot_token
     chat_template = chat_template_contract()
     chat_template["eos_token"] = eos_token
-    rows = sorted(
+    source_rows = sorted(
         pq.read_table(instructions_path).to_pylist(),
         key=lambda row: row["example_id"],
     )
+    evaluation_sha256: str | None = None
+    if heldout_evaluation_path is not None:
+        source_rows = [row for row in source_rows if row["split"] == "train"]
+        source_rows.extend(load_heldout_evaluation(heldout_evaluation_path))
+        evaluation_sha256 = file_sha256(heldout_evaluation_path)
+
+    projected_rows: list[dict[str, Any]] = []
+    for row in source_rows:
+        prompt, target, cards = _project_sft_exchange(
+            row["messages"],
+            example_id=row["example_id"],
+            task=row["task"],
+            answer_json=row["answer_json"],
+        )
+        projected_rows.append(
+            {
+                **row,
+                "_projected_prompt": prompt,
+                "_projected_target": target,
+                "_conditioning_cards": cards,
+            }
+        )
+    projection_audit = _audit_sft_projection(projected_rows)
+
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for row in rows:
+    for row in projected_rows:
         partition = {"train": "train", "validation": "eval", "test": "test"}[row["split"]]
         grouped[partition].append(row)
+
+    deduplication: dict[str, Any] = {}
+    for partition, partition_rows in list(grouped.items()):
+        grouped[partition], deduplication[partition] = _deduplicate_structural_rows(
+            partition_rows,
+            max_per_structure=8 if partition == "train" else 1,
+        )
+
+    train_structures = {
+        (row["task"], row["_structure_signature"])
+        for row in grouped.get("train", [])
+    }
+    eval_structures = {
+        (row["task"], row["_structure_signature"])
+        for row in grouped.get("eval", [])
+    }
+    overlap = train_structures & eval_structures
+    if heldout_evaluation_path is not None and overlap:
+        sample = next(iter(overlap))
+        raise ValueError(
+            "held-out evaluation shares a normalized answer structure with training: "
+            f"{sample}"
+        )
 
     temporary = output_root.with_name(f"{output_root.name}.partial")
     if temporary.exists():
@@ -843,6 +1275,38 @@ def tokenize_instruction_dataset(
         json.dumps(chat_template, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+    projected_records = [
+        {
+            "example_id": row["example_id"],
+            "task": row["task"],
+            "mode": row["mode"],
+            "difficulty": row["difficulty"],
+            "domain": row["domain"],
+            "language": row["language"],
+            "split": "validation" if partition == "eval" else partition,
+            "prompt": row["_projected_prompt"],
+            "response": row["_projected_target"],
+            "structure_signature": row["_structure_signature"],
+            "source_representation": (
+                "card_hand" if _card_sections(row["messages"]) is not None else "conversation"
+            ),
+            "source": row["source"],
+            "license": row["license"],
+            "version": row["version"],
+        }
+        for partition, partition_rows in sorted(grouped.items())
+        for row in partition_rows
+    ]
+    projected_path = temporary / "projected.parquet"
+    pq.write_table(
+        pa.Table.from_pylist(projected_records, schema=PROJECTED_SFT_SCHEMA),
+        projected_path,
+        compression="zstd",
+        use_dictionary=True,
+        write_statistics=True,
+    )
+
     manifests: dict[str, Any] = {}
     for partition, partition_rows in sorted(grouped.items()):
         root = temporary / partition
@@ -864,6 +1328,11 @@ def tokenize_instruction_dataset(
                     encoding,
                     eos_id,
                     chat_template,
+                    projection=(
+                        row["_projected_prompt"],
+                        row["_projected_target"],
+                        row["_conditioning_cards"],
+                    ),
                 )
                 np.asarray(input_ids, dtype=TOKEN_DTYPE).tofile(inputs_handle)
                 np.asarray(labels, dtype=LABEL_DTYPE).tofile(labels_handle)
@@ -886,6 +1355,7 @@ def tokenize_instruction_dataset(
                                 else []
                             ),
                             "task": row["task"],
+                            "structure_signature": row["_structure_signature"],
                             "offset": offset,
                             "num_tokens": len(input_ids),
                             "supervised_tokens": supervised,
@@ -912,6 +1382,7 @@ def tokenize_instruction_dataset(
             "tokenizer": tokenizer_config["encoding_name"],
             "tokenizer_sha256": directory_sha256(tokenizer_root),
             "source_sha256": file_sha256(instructions_path),
+            "evaluation_source_sha256": evaluation_sha256,
             "input_ids_sha256": file_sha256(inputs_path),
             "labels_sha256": file_sha256(labels_path),
             "examples_sha256": file_sha256(examples_path),
@@ -933,6 +1404,27 @@ def tokenize_instruction_dataset(
             "from card attributes>\\n\\nAssistant:\\n<final answer without hand id><eos>"
         ),
         "training_projection": chat_template["training_projection"],
+        "projection_audit": projection_audit,
+        "structural_deduplication": deduplication,
+        "train_eval_structure_overlap": len(overlap),
+        "heldout_evaluation": (
+            {
+                "path": str(heldout_evaluation_path),
+                "sha256": evaluation_sha256,
+                "method": "separately_authored",
+            }
+            if heldout_evaluation_path is not None
+            else None
+        ),
+        "projected_parquet": {
+            "path": projected_path.name,
+            "examples": len(projected_records),
+            "bytes": projected_path.stat().st_size,
+            "sha256": file_sha256(projected_path),
+            "splits": dict(
+                sorted(Counter(row["split"] for row in projected_records).items())
+            ),
+        },
         "partitions": manifests,
         "total_examples": sum(item["examples"] for item in manifests.values()),
         "total_tokens": sum(item["num_tokens"] for item in manifests.values()),

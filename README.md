@@ -201,13 +201,26 @@ aggregated in each `sft.idx.json`. They never appear as literal card labels in
 the model text. Regression tests decode generated SFT streams and require zero
 `SITUATION CARD`, `DATA CARD`, `RULE CARD`, `GOAL CARD` or hand-ID prefixes. The
 same projection removes authoring labels such as `Core idea`, `Equation`,
-`Weakness`, `Immediate action` and `Open point`, while retaining their semantic
-content as ordinary assistant prose. In the current build, 12,626 of 30,000
-model-facing final answers are exact-text unique; this is a repetition audit,
-not a correctness score. The 30,000-example build spans all nine conditioning
+`Weakness`, `Immediate action` and `Open point`, plus generic completion rubrics
+and hand identifiers, while retaining their semantic content as direct
+assistant prose. Each family owns several answer structures: calculation,
+explanation, comparison, planning and conversation keep their native form
+instead of being forced into a universal report format.
+
+Before tokenization, volatile identifiers, dates, times, amounts, quoted values
+and list numbering are normalized into a structural signature. Training keeps
+at most eight examples per `(family, signature)` pair. On the current build,
+this reduces 28,500 generated training rows to 9,652 structurally bounded SFT
+examples instead of allowing repeated JSON or troubleshooting shapes to
+dominate. The 30,000-example readable build still spans all nine conditioning
 axes, with 7
 surface, 8 dialogue, 12 output, 14 reasoning, 4 evidence, 13 style, 3 density,
 2 noise and 5 uncertainty values.
+
+Evaluation does not reuse Scenario Forge's validation renderers. The separately
+authored `data/evaluation/generalist-heldout-v1.json` contains 28 exchanges—two
+per family—with independent prompts and answers. The tokenization audit requires
+zero normalized answer-structure overlap with retained training examples.
 
 ## Human review
 
@@ -359,6 +372,7 @@ uv run card-corpus tokenize \
 uv run card-corpus tokenize-instruct \
   --instructions build/post-training/conversations.parquet \
   --tokenizer /path/to/tokenizer-o200k \
+  --heldout-evaluation data/evaluation/generalist-heldout-v1.json \
   --output build/post-training-o200k
 ```
 
@@ -374,6 +388,13 @@ rendered into a natural instruction and only the final assistant answer is
 supervised; intermediate acknowledgement turns and visible hand identifiers are
 omitted. Card names, the hand identifier, and the four-card contract remain
 available as metadata for audit and reproducibility without becoming model text.
+When `--heldout-evaluation` is supplied, generated validation conversations are
+excluded from the binary evaluation shard and replaced by the separately
+authored set. `manifest.json` records structural deduplication counts, target
+diversity by family, the held-out file hash and train/evaluation overlap. The
+same output directory contains `projected.parquet`: the exact retained
+model-facing prompts and responses, with `train` and `validation` split labels,
+after target cleanup and structural deduplication.
 
 ## Repository layout
 
@@ -381,6 +402,7 @@ available as metadata for audit and reproducibility without becoming model text.
 data/source/                         original linked-card collections
 data/forge/                          editable large-deck blueprints
 data/scenario-forge/                 semantic scenario registry
+data/evaluation/                     independently authored held-out exchanges
 data/vocabulary/                     statistical multi-usage dictionary
 src/complexity_card_corpus/          build, language, audit and CLI modules
 tests/                               regression and release-boundary tests

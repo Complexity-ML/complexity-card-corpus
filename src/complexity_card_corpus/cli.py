@@ -178,6 +178,14 @@ def parser() -> argparse.ArgumentParser:
     tokenize_instruct.add_argument("--instructions", type=Path, required=True)
     tokenize_instruct.add_argument("--tokenizer", type=Path, required=True)
     tokenize_instruct.add_argument("--output", type=Path, required=True)
+    tokenize_instruct.add_argument(
+        "--heldout-evaluation",
+        type=Path,
+        help=(
+            "separately authored evaluation JSON; generated validation rows are "
+            "excluded when this option is provided"
+        ),
+    )
 
     package_instruct = commands.add_parser("package-instruct-hf")
     package_instruct.add_argument("--instructions", type=Path, required=True)
@@ -404,6 +412,7 @@ def main() -> None:
             args.instructions,
             args.tokenizer,
             args.output,
+            heldout_evaluation_path=args.heldout_evaluation,
         )
         print(
             json.dumps(
