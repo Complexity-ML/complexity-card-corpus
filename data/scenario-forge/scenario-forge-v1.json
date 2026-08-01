@@ -124,6 +124,7 @@
       "target": 650,
       "domains": [
         {"id":"computing","label":"Computing","subject":"a basic computing mechanism","context":"The learner needs a mental model rather than implementation trivia."},
+        {"id":"software_resilience","label":"Software resilience","subject":"a backup and recovery principle","context":"A restorable backup must precede risky software changes."},
         {"id":"data_literacy","label":"Data literacy","subject":"a data interpretation concept","context":"A chart or summary must be read without overstating what it proves."},
         {"id":"physical_science","label":"Physical science","subject":"a physical-science principle","context":"The explanation should connect an observable effect to a simple mechanism."},
         {"id":"life_science","label":"Life science","subject":"a life-science process","context":"The learner needs accurate scale and causality without anthropomorphic shortcuts."},
@@ -174,6 +175,7 @@
         },
         "domainIntents": {
           "computing": ["mechanism","contrast","worked_example","misconception","application"],
+          "software_resilience": ["mechanism","contrast","worked_example","misconception","application"],
           "data_literacy": ["mechanism","contrast","worked_example","misconception","application"],
           "physical_science": ["mechanism","contrast","worked_example","misconception","application"],
           "life_science": ["mechanism","contrast","worked_example","misconception","application"],
@@ -184,6 +186,7 @@
         },
         "domainConstraints": {
           "computing": ["beginner","concise","verified","example"],
+          "software_resilience": ["beginner","concise","verified","example"],
           "data_literacy": ["beginner","concise","verified","example","fact_inference"],
           "physical_science": ["beginner","concise","verified","example","fact_inference"],
           "life_science": ["beginner","concise","verified","example","fact_inference"],

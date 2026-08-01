@@ -140,6 +140,43 @@ def test_grounded_qa_situation_matches_the_supplied_source() -> None:
     assert "unknown" in (hand.rule or "").lower()
 
 
+def test_grounded_qa_facts_vary_across_scenarios_without_changing_contract() -> None:
+    answers = {
+        deal_task_hand(
+            _task_row(
+                "grounded_qa",
+                "travel_information",
+                scenario=f"{i:06x}grounded",
+            ),
+            0,
+        ).answer
+        for i in range(24)
+    }
+    assert len(answers) >= 20
+    assert all("Meal service is unknown" in answer for answer in answers)
+
+
+def test_safety_boundaries_match_the_risk_domain() -> None:
+    financial = " ".join(
+        deal_task_hand(
+            _task_row("safety_uncertainty", "financial_decision"),
+            variant,
+        ).answer
+        for variant in range(4)
+    ).lower()
+    medical = " ".join(
+        deal_task_hand(
+            _task_row("safety_uncertainty", "medical_information"),
+            variant,
+        ).answer
+        for variant in range(4)
+    ).lower()
+    assert "diagnos" not in financial
+    assert "fraud team" in financial
+    assert "diagnos" in medical
+    assert "fraud team" not in medical
+
+
 def test_reasoning_situation_does_not_invent_a_unit_mismatch() -> None:
     hand = deal_task_hand(_task_row("reasoning_verification", "shopping_arithmetic"), 0)
     assert "complete calculation" in (hand.situation or "").lower()
@@ -154,6 +191,43 @@ def test_explanation_preserves_sentence_initial_acronyms() -> None:
         )
         assert "RAM holds" in hand.answer
         assert "rAM" not in hand.answer
+
+
+def test_software_resilience_explains_why_backup_precedes_an_update() -> None:
+    hand = deal_task_hand(
+        _task_row("explanation_learning", "software_resilience"),
+        0,
+    )
+    answer = hand.answer.lower()
+    assert "backup" in answer
+    assert "restore" in answer or "recover" in answer
+    assert "before" in answer
+    assert "update" in answer
+
+
+def test_work_allocation_calculates_people_and_rounds() -> None:
+    hand = deal_task_hand(
+        _task_row("reasoning_verification", "work_allocation"),
+        0,
+    )
+    assert "24" in hand.data
+    assert "3 people" in hand.data
+    assert "two rounds" in hand.data
+    assert "8 items per person" in hand.answer
+    assert "4 items per person per round" in hand.answer
+
+
+def test_conflicting_service_reports_preserve_and_resolve_the_conflict() -> None:
+    hand = deal_task_hand(
+        _task_row("grounded_qa", "conflicting_service_reports"),
+        0,
+    )
+    answer = hand.answer.lower()
+    assert "conflict" in answer or "disagree" in answer
+    assert "time window" in answer
+    assert "scope" in answer
+    assert "direct check" in answer or "reproduce" in answer
+    assert "choose" not in answer or "do not choose" in answer
 
 
 def test_extraction_emits_exactly_the_requested_schema() -> None:

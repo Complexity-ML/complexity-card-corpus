@@ -204,6 +204,11 @@ _LESSONS = {
         "Closing an application frees its RAM, but its saved file remains on storage.",
         "Why does a saved file survive a restart while an unsaved edit may not?",
     ),
+    "software_resilience": (
+        "A backup is a separate restorable copy that preserves a known-good state if an update corrupts or removes working files.",
+        "Before updating an application, copy its data and configuration to another location and confirm that the copy can be restored.",
+        "Why should restore capability be checked before the update begins?",
+    ),
     "data_literacy": (
         "The mean uses every value; the median is the middle value after sorting.",
         "For 2, 3, and 100, the mean is 35 while the median is 3.",
@@ -573,12 +578,32 @@ def _safety(row: dict[str, Any], variant: int) -> TaskHand:
         "financial_decision": "Do not transfer funds. Contact the financial institution through an independently verified channel and ask its fraud team to review the request.",
         "physical_safety": "Leave the room without operating switches or investigating the source. From a safe location, contact local emergency or building-safety services.",
     }
-    boundaries = (
-        "Boundary: I cannot verify the report or safely replace qualified, local assessment.",
-        "Boundary: The available information is not enough to confirm the claim or remove the risk.",
-        "Boundary: I can support a protective next step, but I cannot authenticate the request or diagnose the situation.",
-        "Boundary: Treat the report as unverified and avoid any irreversible action based on it.",
-    )
+    boundaries = {
+        "privacy_security": (
+            "Boundary: I cannot verify the caller or replace the provider's security team.",
+            "Boundary: The available information is not enough to authenticate the request.",
+            "Boundary: I can support a protective next step, but I cannot authenticate the contact.",
+            "Boundary: Treat the contact as unverified and share no credential or one-time code.",
+        ),
+        "medical_information": (
+            "Boundary: I cannot diagnose the symptoms or replace qualified local assessment.",
+            "Boundary: The available information is not enough to confirm a diagnosis or remove the risk.",
+            "Boundary: I can support a protective next step, but I cannot diagnose the situation.",
+            "Boundary: Treat the symptoms as medically unassessed until a qualified clinician evaluates them.",
+        ),
+        "financial_decision": (
+            "Boundary: I cannot verify the offer or replace the institution's fraud team.",
+            "Boundary: The available information is not enough to establish that the request is legitimate.",
+            "Boundary: I can support a protective next step, but I cannot authenticate the request or guarantee a return.",
+            "Boundary: Treat the offer as unverified and avoid any irreversible transfer.",
+        ),
+        "physical_safety": (
+            "Boundary: I cannot identify the hazard remotely or replace qualified local responders.",
+            "Boundary: The available information is not enough to declare the room safe.",
+            "Boundary: I can support evacuation and escalation, but I cannot assess the source remotely.",
+            "Boundary: Treat the area as unsafe until qualified responders assess it.",
+        ),
+    }
     channels = {
         "privacy_security": (
             "Escalate through the provider's official app or published support number; share no code or password.",
@@ -607,7 +632,7 @@ def _safety(row: dict[str, Any], variant: int) -> TaskHand:
     }
     answer = (
         f"Immediate action: {actions[row['domain']]} "
-        f"{_card_pick(row, variant, 'safety-boundary', boundaries)} "
+        f"{_card_pick(row, variant, 'safety-boundary', boundaries[row['domain']])} "
         f"{_card_pick(row, variant, 'safety-channel', channels[row['domain']])}"
     )
     return TaskHand(data, goal, answer, ("protective_action", "boundary", "channel"))
@@ -616,21 +641,47 @@ def _safety(row: dict[str, Any], variant: int) -> TaskHand:
 def _grounded_qa(row: dict[str, Any], variant: int) -> TaskHand:
     code = _code(row)
     year = _number(f"year:{code}", 2014, 2022)
+    battery_hours = _number(f"battery:{code}", 7, 18)
+    return_days = _pick(f"return-days:{code}", ("14", "21", "30", "45"))
+    exposure_hours = _number(f"exposure-hours:{code}", 3, 9)
+    temperature_change = _number(f"temperature-change:{code}", 2, 7)
+    owner = _pick(f"project-owner:{code}", ("Nia", "Omar", "Maya", "Theo", "Lea", "Sam"))
+    delivery_day = _number(f"project-day:{code}", 12, 26)
+    train_number = _number(f"train-number:{code}", 180, 780)
+    departure_hour = _number(f"departure-hour:{code}", 6, 19)
+    departure_minute = _pick(f"departure-minute:{code}", ("05", "20", "35", "50"))
+    platform = _number(f"platform:{code}", 1, 12)
+    python_minor = _pick(f"python-minor:{code}", ("10", "11", "12", "13"))
+    release_major = _number(f"release-major:{code}", 2, 6)
+    release_minor = _number(f"release-minor:{code}", 0, 9)
+    longest_battery = _number(f"table-battery:{code}", 8, 14)
+    other_battery = max(4, longest_battery - _number(f"table-gap:{code}", 1, 4))
+    status_minute = _pick(f"status-minute:{code}", ("05", "10", "20", "35"))
+    ticket_minute = f"{(int(status_minute) + _number(f'ticket-gap:{code}', 1, 4)):02d}"
+    available_region = _pick(f"available-region:{code}", ("EU", "US", "Asia-Pacific"))
+    ticket_region = _pick(
+        f"ticket-region:{code}",
+        tuple(region for region in ("EU", "US", "Asia-Pacific") if region != available_region),
+    )
+    failed_operation = _pick(
+        f"failed-operation:{code}",
+        ("sign in", "upload a file", "open the dashboard", "submit a request"),
+    )
     cases = {
         "product_specs": (
-            "The Lumen Mini supports Wi-Fi 6 and USB-C charging. Its rated battery life is 11 hours. No water-resistance rating is listed.",
+            f"The Lumen Mini supports Wi-Fi 6 and USB-C charging. Its rated battery life is {battery_hours} hours. No water-resistance rating is listed.",
             "State the rated battery life and whether water resistance is documented.",
-            "The rated battery life is 11 hours. A water-resistance rating is unknown because the specification does not list one.",
+            f"The rated battery life is {battery_hours} hours. A water-resistance rating is unknown because the specification does not list one.",
         ),
         "policy_excerpt": (
-            "Returns are accepted within 30 days with proof of purchase. Opened safety equipment is excluded. The text gives no holiday extension.",
+            f"Returns are accepted within {return_days} days with proof of purchase. Opened safety equipment is excluded. The text gives no holiday extension.",
             "State the ordinary return window and whether a holiday extension is defined.",
-            "The ordinary return window is 30 days with proof of purchase. A holiday extension is unknown because the policy does not define one.",
+            f"The ordinary return window is {return_days} days with proof of purchase. A holiday extension is unknown because the policy does not define one.",
         ),
         "science_passage": (
-            f"A {year} trial exposed identical samples to light for six hours. The treated sample warmed by 4°C. The passage does not identify the molecular mechanism.",
+            f"A {year} trial exposed identical samples to light for {exposure_hours} hours. The treated sample warmed by {temperature_change}°C. The passage does not identify the molecular mechanism.",
             "State the observed temperature change and whether the mechanism is established.",
-            "The treated sample warmed by 4°C. The molecular mechanism is unknown because the passage reports no mechanism.",
+            f"The treated sample warmed by {temperature_change}°C. The molecular mechanism is unknown because the passage reports no mechanism.",
         ),
         "historical_note": (
             f"The archive records that the bridge opened in {year} under mayor Elena Voss. It does not name the original architect.",
@@ -638,24 +689,29 @@ def _grounded_qa(row: dict[str, Any], variant: int) -> TaskHand:
             f"The bridge opened in {year}. The original architect is unknown because the note does not name one.",
         ),
         "project_brief": (
-            "The brief assigns the prototype to Nia and sets delivery for day 18. Hosting approval remains pending, and no approver is named.",
+            f"The brief assigns the prototype to {owner} and sets delivery for day {delivery_day}. Hosting approval remains pending, and no approver is named.",
             "State the prototype owner and whether the hosting approver is known.",
-            "Nia owns the prototype. The hosting approver is unknown because the brief names none.",
+            f"{owner} owns the prototype. The hosting approver is unknown because the brief names none.",
         ),
         "travel_information": (
-            "Train 482 departs at 07:40 from platform 3. Bicycles require a reservation. The notice gives no information about onboard meals.",
+            f"Train {train_number} departs at {departure_hour:02d}:{departure_minute} from platform {platform}. Bicycles require a reservation. The notice gives no information about onboard meals.",
             "State the departure details and whether meal service is documented.",
-            "Train 482 departs at 07:40 from platform 3. Meal service is unknown because the notice does not mention it.",
+            f"Train {train_number} departs at {departure_hour:02d}:{departure_minute} from platform {platform}. Meal service is unknown because the notice does not mention it.",
         ),
         "technical_documentation": (
-            "Version 3.2 requires Python 3.12 and supports Linux arm64. Offline activation is not described in this excerpt.",
+            f"Version {release_major}.{release_minor} requires Python 3.{python_minor} and supports Linux arm64. Offline activation is not described in this excerpt.",
             "State the Python requirement and whether offline activation is supported by the excerpt.",
-            "The requirement is Python 3.12. Offline activation is unknown because the excerpt does not describe it.",
+            f"The requirement is Python 3.{python_minor}. Offline activation is unknown because the excerpt does not describe it.",
         ),
         "comparison_table": (
-            "Table: Cedar—$48, 9 hours, repairable yes; Flint—$42, 7 hours, repairable no; Vale—$45, battery value missing, repairable yes.",
+            f"Table: Cedar—$48, {longest_battery} hours, repairable yes; Flint—$42, {other_battery} hours, repairable no; Vale—$45, battery value missing, repairable yes.",
             "Identify the longest stated battery life and whether Vale's battery life can be compared.",
-            "Cedar has the longest stated battery life at 9 hours. Vale's battery life is unknown, so it cannot be compared on that field.",
+            f"Cedar has the longest stated battery life at {longest_battery} hours. Vale's battery life is unknown, so it cannot be compared on that field.",
+        ),
+        "conflicting_service_reports": (
+            f"At 09:{status_minute}, the public status check reports that the {available_region} service endpoint is available. At 09:{ticket_minute}, a support ticket reports that one {ticket_region} account cannot {failed_operation}. The reports cover different regions, scopes, times, and operations.",
+            "Explain what the two reports establish, what remains unknown, and the next direct verification step.",
+            f"The reports appear to conflict, but they describe different scopes and therefore do not establish one global service state; that remains unknown. Do not choose either report as universally correct. Compare the same time window, region, account scope, and operation, then reproduce the attempt to {failed_operation} with a direct check.",
         ),
     }
     passage, goal, supported = cases[row["domain"]]
@@ -899,6 +955,16 @@ def _reasoning(row: dict[str, Any], variant: int) -> TaskHand:
             f"{result}",
             f"A occupies slot {each - 1}, immediately before B at slot {each}",
         )
+    elif domain == "work_allocation":
+        data = (
+            f"Problem {code}: distribute 24 items equally among 3 people, "
+            "then divide each person's share equally across two rounds."
+        )
+        equation = "24 / 3 = 8; 8 / 2 = 4"
+        total, check = (
+            "8 items per person and 4 items per person per round",
+            "3 people × 2 rounds × 4 items = 24 items",
+        )
     else:
         result = units
         total_outcomes = units + each
@@ -1108,6 +1174,59 @@ def _brainstorm(row: dict[str, Any], variant: int) -> TaskHand:
     brief, answer = case_cards[
         _number(f"brainstorm-case:{row['scenario_id']}", 0, len(case_cards) - 1)
     ]
+    constraint_checks = {
+        "Make the options meaningfully different rather than cosmetic rewrites.": (
+            "The options differ in mechanism rather than wording alone."
+        ),
+        "Avoid ideas that create unnecessary safety, privacy, or exclusion risks.": (
+            "None of the options requires sensitive personal data or an avoidable safety risk."
+        ),
+        "Explain briefly how each retained option meets the named criteria.": (
+            "Each description states how its option fits the brief."
+        ),
+        "Keep every option feasible within the stated resources.": (
+            "All three options stay within the resources named in the brief."
+        ),
+        "Keep the intended audience visible in each option.": (
+            "Each option remains directed to the audience named in the brief."
+        ),
+        "Keep the proposal small enough to test and revise.": (
+            "The selected option can be tested at the stated scale before expansion."
+        ),
+    }
+    outcome_checks = {
+        "The remaining ideas are feasible within the available resources.": (
+            "The three retained ideas remain feasible under the stated limits."
+        ),
+        "The main trade-off of each leading option is visible.": (
+            "The alternatives emphasize different strengths, making the choice explicit."
+        ),
+        "Each retained option satisfies the stated criteria.": (
+            "Each retained option satisfies the stated criteria."
+        ),
+        "One idea is developed into a small testable proposal.": (
+            "The selected idea is the smallest concrete proposal to test first."
+        ),
+        "Compatible strengths are combined without preserving their conflicts.": (
+            "The selection keeps the most compatible strengths without combining conflicting requirements."
+        ),
+        "The candidate options differ in a meaningful and useful way.": (
+            "The candidate options differ in a way that changes how the brief would be carried out."
+        ),
+    }
+    answer = " ".join(
+        (
+            answer,
+            constraint_checks.get(
+                row.get("constraint", ""),
+                "The options remain bounded by the explicit brief.",
+            ),
+            outcome_checks.get(
+                row.get("desired_outcome", ""),
+                "The selected option is concrete enough to test first.",
+            ),
+        )
+    )
     data = f"Brief {code}: {brief}."
     goal = "Generate three meaningfully different options, test them against the brief, and select one."
     return TaskHand(data, goal, answer, ("three_options", "criteria", "selection"))

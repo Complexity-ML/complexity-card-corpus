@@ -178,6 +178,175 @@ def _final_assistant_target(messages: list[dict[str, str]]) -> str:
     return _HAND_PREFIX.sub("", response, count=1)
 
 
+def _labelled_fields(text: str, labels: tuple[str, ...]) -> dict[str, str]:
+    """Read authored completion fields without retaining their storage labels."""
+
+    pattern = re.compile(
+        r"(?<!\w)(" + "|".join(re.escape(label) for label in labels) + r"):\s*"
+    )
+    matches = list(pattern.finditer(text))
+    fields: dict[str, str] = {}
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        fields[match.group(1)] = text[match.end() : end].strip().rstrip(" .")
+    return fields
+
+
+def _sentence(value: str) -> str:
+    value = value.strip()
+    if not value:
+        return value
+    value = value[:1].upper() + value[1:]
+    if value[-1] not in ".!?":
+        value += "."
+    return value
+
+
+def _inline_sentence(value: str) -> str:
+    """Make a complete clause safe to insert after an inline lead-in."""
+
+    value = _sentence(value)
+    initial = re.match(r"[A-Za-z]+", value)
+    if initial is not None and not initial.group(0).isupper():
+        value = value[:1].lower() + value[1:]
+    return value
+
+
+def _naturalize_assistant_target(
+    messages: list[dict[str, str]],
+    *,
+    task: str,
+    cards: TrainingCards,
+    example_id: str,
+) -> str:
+    """Project card contracts into varied, direct assistant prose for SFT.
+
+    The authored corpus keeps explicit completion labels because they make the
+    source auditable. The model-facing projection deliberately removes those
+    labels so the model learns the answer rather than a single house format.
+    """
+
+    response = _final_assistant_target(messages)
+    variant = _stable_index(
+        f"assistant-target:{example_id}:{cards.surface}:{cards.style}", 4
+    )
+    if task == "explanation_learning":
+        fields = _labelled_fields(response, ("Core idea", "Example", "Check"))
+        if set(fields) == {"Core idea", "Example", "Check"}:
+            idea = re.sub(
+                r"^in plain terms,\s*", "", fields["Core idea"], flags=re.IGNORECASE
+            )
+            idea = _sentence(idea)
+            example = _sentence(fields["Example"])
+            check = _sentence(fields["Check"])
+            templates = (
+                "{idea} For example, {example} {check}",
+                "In simple terms, {inline_idea} A concrete example is this: {example} To check the distinction: {check}",
+                "{idea} You can see this in practice: {example} Quick check: {check}",
+                "The key point is that {inline_idea} Consider this example: {example} {check}",
+            )
+            return templates[variant].format(
+                idea=idea,
+                inline_idea=_inline_sentence(idea),
+                example=(
+                    _inline_sentence(example) if variant == 0 else example
+                ),
+                check=check,
+            )
+    elif task == "reasoning_verification":
+        fields = _labelled_fields(response, ("Equation", "Total", "Check"))
+        if set(fields) == {"Equation", "Total", "Check"}:
+            check = re.sub(
+                r"^(?:independently,\s*|inspect the supplied values, then note that\s*|use a second view of the values;\s*)",
+                "",
+                fields["Check"],
+                flags=re.IGNORECASE,
+            )
+            templates = (
+                "{equation}, so the result is {total}. As an independent check, {check}.",
+                "The result is {total}: {equation}. This is consistent because {check}.",
+                "Using the supplied values gives {equation}. Therefore, {total}. To verify it, {check}.",
+                "{equation}. That gives {total}; checking from the other direction, {check}.",
+            )
+            return templates[variant].format(
+                equation=fields["Equation"],
+                total=fields["Total"],
+                check=check,
+            )
+    elif task == "summarization_synthesis":
+        fields = _labelled_fields(response, ("Decision", "Action", "Open point"))
+        if set(fields) == {"Decision", "Action", "Open point"}:
+            open_point = _sentence(fields["Open point"])
+            templates = (
+                "The decision is to {decision}. {action}. {open_point}",
+                "They decided to {decision}. Next, {action}. {open_point}",
+                "In summary, the decision is to {decision}; {action}. {open_point}",
+                "The recorded decision is to {decision}. The assigned action is: {action}. {open_point}",
+            )
+            return templates[variant].format(
+                decision=fields["Decision"],
+                action=fields["Action"],
+                open_point=open_point,
+            )
+    elif task == "grounded_qa":
+        direct = re.sub(
+            r"^(?:Based on Source [A-Za-z0-9]+:|Source [A-Za-z0-9]+ supports this answer:|According to Source [A-Za-z0-9]+:)\s*",
+            "",
+            response,
+        )
+        direct = re.sub(
+            r"^The documented answer is:\s*",
+            "",
+            direct,
+        )
+        direct = re.sub(
+            r"\s+This is limited to Source [A-Za-z0-9]+\.?$",
+            "",
+            direct,
+        )
+        return direct
+    elif task == "critique_revision":
+        fields = _labelled_fields(response, ("Weakness", "Revision"))
+        if set(fields) == {"Weakness", "Revision"}:
+            weakness = _sentence(fields["Weakness"])
+            revision = _sentence(fields["Revision"])
+            templates = (
+                "The main weakness is that {inline_weakness} A faithful revision would be: {revision}",
+                "The draft needs revision because {inline_weakness} A clearer version is: {revision}",
+                "The highest-impact issue is this: {weakness} Revised text: {revision}",
+                "The wording is not yet supported because {inline_weakness} A bounded revision is: {revision}",
+            )
+            return templates[variant].format(
+                weakness=weakness,
+                inline_weakness=_inline_sentence(weakness),
+                revision=revision,
+            )
+    elif task == "safety_uncertainty":
+        match = re.fullmatch(
+            r"Immediate action:\s*(.*?)\s+Boundary:\s*(.*?)\s+(Escalate\b.*)",
+            response,
+        )
+        if match is not None:
+            action = _sentence(match.group(1))
+            boundary = _sentence(match.group(2))
+            escalation = _sentence(match.group(3))
+            templates = (
+                "{action} {boundary} {escalation}",
+                "First, {inline_action} {boundary} Next, {inline_escalation}",
+                "The safest immediate step is clear: {action} {boundary} Then {inline_escalation}",
+                "{action} Keep this limit in mind: {inline_boundary} {escalation}",
+            )
+            return templates[variant].format(
+                action=action,
+                inline_action=_inline_sentence(action),
+                boundary=boundary,
+                inline_boundary=_inline_sentence(boundary),
+                escalation=escalation,
+                inline_escalation=_inline_sentence(escalation),
+            )
+    return response
+
+
 def _example_id(
     task: str,
     dataset_id: str,
@@ -607,7 +776,12 @@ def _encode_messages(
         metadata=metadata,
     )
     user_content = _render_natural_instruction(messages, example_id, cards)
-    final_assistant = _final_assistant_target(messages)
+    final_assistant = _naturalize_assistant_target(
+        messages,
+        task=task,
+        cards=cards,
+        example_id=example_id,
+    )
     full_ids: list[int] = []
     target_labels: list[int] = []
     system_tokens = encoding.encode(

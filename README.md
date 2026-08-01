@@ -104,13 +104,13 @@ families:
 | Planning and comparison | 200 |
 | Conversation and empathy | 500 |
 | Safety and uncertainty | 400 |
-| Grounded question answering | 1,950 |
-| Summarization and synthesis | 1,700 |
-| Extraction and classification | 1,700 |
-| Reasoning and verification | 2,000 |
-| Critique and revision | 1,400 |
+| Grounded question answering | 2,260 |
+| Summarization and synthesis | 2,100 |
+| Extraction and classification | 2,100 |
+| Reasoning and verification | 2,540 |
+| Critique and revision | 600 |
 | Brainstorming and creativity | 1,400 |
-| Context clarification | 1,450 |
+| Context clarification | 600 |
 
 Each scenario combines a compatible family, domain, intent, state, outcome,
 constraint, risk-aware fallback and domain-specific trigger. The registry owns
@@ -200,7 +200,12 @@ These conditioning cards are recorded per example in `examples.jsonl` and
 aggregated in each `sft.idx.json`. They never appear as literal card labels in
 the model text. Regression tests decode generated SFT streams and require zero
 `SITUATION CARD`, `DATA CARD`, `RULE CARD`, `GOAL CARD` or hand-ID prefixes. The
-30,000-example build spans all nine conditioning axes, with 7
+same projection removes authoring labels such as `Core idea`, `Equation`,
+`Weakness`, `Immediate action` and `Open point`, while retaining their semantic
+content as ordinary assistant prose. In the current build, 12,626 of 30,000
+model-facing final answers are exact-text unique; this is a repetition audit,
+not a correctness score. The 30,000-example build spans all nine conditioning
+axes, with 7
 surface, 8 dialogue, 12 output, 14 reasoning, 4 evidence, 13 style, 3 density,
 2 noise and 5 uncertainty values.
 

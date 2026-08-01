@@ -4,7 +4,7 @@
     {
       "id": "grounded_qa",
       "label": "Grounded question answering",
-      "target": 1950,
+      "target": 2260,
       "domains": [
         {"id":"product_specs","label":"Product specifications","subject":"a product-specification excerpt","context":"The answer must come only from the stated features, limits, and compatibility notes."},
         {"id":"policy_excerpt","label":"Policy excerpt","subject":"a short policy excerpt","context":"Defined terms, exceptions, and effective dates determine what the text supports."},
@@ -13,7 +13,8 @@
         {"id":"project_brief","label":"Project brief","subject":"a project brief","context":"Goals, deliverables, owners, and unresolved dependencies are explicitly listed."},
         {"id":"travel_information","label":"Travel information","subject":"a travel-information notice","context":"Times, eligibility conditions, and service exceptions are stated in the notice."},
         {"id":"technical_documentation","label":"Technical documentation","subject":"a technical-documentation excerpt","context":"Supported behavior, prerequisites, and failure conditions are described directly."},
-        {"id":"comparison_table","label":"Comparison table","subject":"a compact comparison table","context":"Each option is described through the same named attributes and missing values remain visible."}
+        {"id":"comparison_table","label":"Comparison table","subject":"a compact comparison table","context":"Each option is described through the same named attributes and missing values remain visible."},
+        {"id":"conflicting_service_reports","label":"Conflicting service reports","subject":"two service reports with different scopes","context":"Align time, region, scope, and operation before comparison."}
       ],
       "intents": [
         {"id":"answer","label":"answer the direct question","goalTemplate":"Answer a direct question about {subject} from the supplied evidence."},
@@ -66,7 +67,8 @@
           "project_brief": ["answer","locate","compare","infer","unknown"],
           "travel_information": ["answer","locate","compare","infer","unknown"],
           "technical_documentation": ["answer","locate","compare","infer","unknown"],
-          "comparison_table": ["answer","locate","compare","infer","unknown"]
+          "comparison_table": ["answer","locate","compare","infer","unknown"],
+          "conflicting_service_reports": ["answer","locate","compare","infer","unknown"]
         },
         "domainConstraints": {
           "product_specs": ["source_only","cite_evidence","no_gap_fill","concise","fact_inference","conflict_visible"],
@@ -76,7 +78,8 @@
           "project_brief": ["source_only","cite_evidence","no_gap_fill","concise","fact_inference","conflict_visible"],
           "travel_information": ["source_only","cite_evidence","no_gap_fill","concise","fact_inference","conflict_visible"],
           "technical_documentation": ["source_only","cite_evidence","no_gap_fill","concise","fact_inference","conflict_visible"],
-          "comparison_table": ["source_only","cite_evidence","no_gap_fill","concise","fact_inference","conflict_visible"]
+          "comparison_table": ["source_only","cite_evidence","no_gap_fill","concise","fact_inference","conflict_visible"],
+          "conflicting_service_reports": ["source_only","cite_evidence","no_gap_fill","concise","fact_inference","conflict_visible"]
         },
         "stateOutcomes": {
           "complete": ["supported_answer","evidence_link","claim_comparison","source_boundary"],
@@ -99,7 +102,7 @@
     {
       "id": "summarization_synthesis",
       "label": "Summarization and synthesis",
-      "target": 1700,
+      "target": 2100,
       "domains": [
         {"id":"meeting_transcript","label":"Meeting transcript","subject":"a meeting transcript","context":"The source mixes decisions, open questions, owners, and conversational detail."},
         {"id":"research_notes","label":"Research notes","subject":"a set of research notes","context":"Findings, hypotheses, limitations, and follow-up ideas appear at different levels of confidence."},
@@ -194,7 +197,7 @@
     {
       "id": "extraction_classification",
       "label": "Extraction and classification",
-      "target": 1700,
+      "target": 2100,
       "domains": [
         {"id":"receipt","label":"Receipt","subject":"a purchase receipt","context":"Dates, amounts, merchant details, taxes, and line items appear in semi-structured text."},
         {"id":"event_listing","label":"Event listing","subject":"an event listing","context":"Title, location, schedule, eligibility, and registration details need consistent fields."},
@@ -289,7 +292,7 @@
     {
       "id": "reasoning_verification",
       "label": "Reasoning and verification",
-      "target": 2000,
+      "target": 2540,
       "domains": [
         {"id":"shopping_arithmetic","label":"Shopping arithmetic","subject":"a small shopping calculation","context":"Prices, quantities, discounts, and a stated budget provide all necessary values."},
         {"id":"schedule_math","label":"Schedule arithmetic","subject":"a scheduling calculation","context":"Start times, durations, breaks, and deadlines determine the feasible timeline."},
@@ -298,7 +301,8 @@
         {"id":"table_comparison","label":"Table comparison","subject":"a numerical comparison table","context":"Several options share comparable measurements with occasional missing values."},
         {"id":"sequence_pattern","label":"Sequence pattern","subject":"a short sequence problem","context":"A limited sequence supports one simple pattern that must be checked against every term."},
         {"id":"logical_constraints","label":"Logical constraints","subject":"a compact constraint problem","context":"A small set of explicit rules determines which combinations are possible."},
-        {"id":"simple_probability","label":"Simple probability","subject":"a basic probability question","context":"A finite set of equally described outcomes provides the stated sample space."}
+        {"id":"simple_probability","label":"Simple probability","subject":"a basic probability question","context":"A finite set of equally described outcomes provides the stated sample space."},
+        {"id":"work_allocation","label":"Work allocation","subject":"an equal allocation across people and rounds","context":"The counts define an even allocation."}
       ],
       "intents": [
         {"id":"calculate","label":"calculate the requested result","goalTemplate":"Calculate the requested result for {subject}."},
@@ -351,7 +355,8 @@
           "table_comparison": ["calculate","compare","constraint","explain","verify"],
           "sequence_pattern": ["calculate","compare","constraint","explain","verify"],
           "logical_constraints": ["calculate","compare","constraint","explain","verify"],
-          "simple_probability": ["calculate","compare","constraint","explain","verify"]
+          "simple_probability": ["calculate","compare","constraint","explain","verify"],
+          "work_allocation": ["calculate","compare","constraint","explain","verify"]
         },
         "domainConstraints": {
           "shopping_arithmetic": ["show_work","given_values","units","precision","independent_check","missing_value"],
@@ -361,7 +366,8 @@
           "table_comparison": ["show_work","given_values","units","precision","independent_check","missing_value"],
           "sequence_pattern": ["show_work","given_values","units","precision","independent_check","missing_value"],
           "logical_constraints": ["show_work","given_values","units","precision","independent_check","missing_value"],
-          "simple_probability": ["show_work","given_values","units","precision","independent_check","missing_value"]
+          "simple_probability": ["show_work","given_values","units","precision","independent_check","missing_value"],
+          "work_allocation": ["show_work","given_values","units","precision","independent_check","missing_value"]
         },
         "stateOutcomes": {
           "ready": ["correct_result","clear_comparison","constraint_status","checkable_steps","verified_result"],
@@ -384,7 +390,7 @@
     {
       "id": "critique_revision",
       "label": "Critique and revision",
-      "target": 1400,
+      "target": 600,
       "domains": [
         {"id":"email_draft","label":"Email draft","subject":"a draft email","context":"The text has a clear purpose but may contain unnecessary friction or ambiguity."},
         {"id":"argument","label":"Argument","subject":"a short written argument","context":"The central claim, evidence, assumptions, and counterpoint can be inspected separately."},
@@ -574,7 +580,7 @@
     {
       "id": "context_clarification",
       "label": "Context tracking and clarification",
-      "target": 1450,
+      "target": 600,
       "domains": [
         {"id":"ambiguous_request","label":"Ambiguous request","subject":"an ambiguous request","context":"Several interpretations are possible and one choice would materially change the answer."},
         {"id":"missing_reference","label":"Missing reference","subject":"a request that refers to missing material","context":"The requested work depends on a document, image, value, or earlier message that is not available."},
