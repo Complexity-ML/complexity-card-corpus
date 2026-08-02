@@ -18,9 +18,26 @@ class TrainingCards:
     context_density: str
     noise: str
     uncertainty: str
+    response_order: str = "source"
+    response_bridge: str = "plain"
+    response_layout: str = "paragraph"
+    response_opening: str = "bare"
 
     def as_dict(self) -> dict[str, str]:
         return asdict(self)
+
+    @property
+    def response_structure_signature(self) -> str:
+        """Return the invisible response-card hand used by the SFT renderer."""
+
+        return "|".join(
+            (
+                self.response_order,
+                self.response_bridge,
+                self.response_layout,
+                self.response_opening,
+            )
+        )
 
 
 def _stable_index(value: str, size: int) -> int:
@@ -68,6 +85,71 @@ _STYLE_BY_TASK = {
     "safety_uncertainty": ("calm", "direct", "cautious"),
     "writing_transformation": ("natural", "audience_aware", "concise"),
 }
+
+
+_RESPONSE_ORDERS_BY_TASK = {
+    "explanation_learning": (
+        "idea>example>check",
+        "idea>check>example",
+        "example>idea>check",
+        "check>idea>example",
+    ),
+    "reasoning_verification": (
+        "equation>total>check",
+        "total>equation>check",
+        "equation>check>total",
+        "check>equation>total",
+    ),
+    "summarization_synthesis": (
+        "decision>action>open_point",
+        "action>decision>open_point",
+        "open_point>decision>action",
+        "decision>open_point>action",
+    ),
+    "critique_revision": (
+        "revision>weakness",
+        "weakness>revision",
+        "revision",
+    ),
+    "safety_uncertainty": (
+        "action>boundary>escalation",
+        "action>escalation>boundary",
+    ),
+    "practical_action": (
+        "step>owner>timing>guard",
+        "timing>step>owner>guard",
+        "guard>step>owner>timing",
+        "step>timing>guard>owner",
+    ),
+    "planning_comparison": (
+        "criteria>choice>sequence>fallback",
+        "choice>criteria>sequence>fallback",
+        "sequence>criteria>choice>fallback",
+        "criteria>sequence>choice>fallback",
+    ),
+    "troubleshooting": ("steps",),
+}
+
+_RESPONSE_LAYOUTS_BY_TASK = {
+    "brainstorming_creativity": ("paragraph", "bullets", "numbered"),
+    "explanation_learning": ("paragraph", "paragraph", "line_breaks"),
+    "planning_comparison": ("paragraph", "paragraph", "line_breaks"),
+    "practical_action": ("paragraph", "paragraph", "line_breaks"),
+    "reasoning_verification": ("paragraph", "paragraph", "line_breaks"),
+    "summarization_synthesis": ("paragraph", "paragraph", "line_breaks"),
+    "troubleshooting": ("numbered", "bullets", "paragraph"),
+}
+
+_RESPONSE_BRIDGES = (
+    "plain",
+    "compact",
+    "guided",
+    "analytic",
+    "conversational",
+    "stepwise",
+)
+
+_RESPONSE_OPENINGS = ("bare", "direct", "result_first", "contextual")
 
 
 def _source_text(metadata: dict[str, Any]) -> str:
@@ -180,4 +262,20 @@ def deal_training_cards(
             ("none", "none", "none", "none", "secondary_detail"),
         ),
         uncertainty=_uncertainty_card(task, evidence, metadata),
+        response_order=_pick(
+            f"response-order:{example_id}",
+            _RESPONSE_ORDERS_BY_TASK.get(task, ("source",)),
+        ),
+        response_bridge=_pick(
+            f"response-bridge:{example_id}",
+            _RESPONSE_BRIDGES,
+        ),
+        response_layout=_pick(
+            f"response-layout:{example_id}",
+            _RESPONSE_LAYOUTS_BY_TASK.get(task, ("paragraph",)),
+        ),
+        response_opening=_pick(
+            f"response-opening:{example_id}",
+            _RESPONSE_OPENINGS,
+        ),
     )

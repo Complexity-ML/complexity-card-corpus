@@ -26,7 +26,9 @@ flowchart LR
 - `posttrain/` turns scenarios into inspectable instruction and chat rows.
   Rendering, metrics, human-review selection and artifact writing are separate.
 - `sft/` removes storage labels, creates natural model-facing exchanges,
-  performs deduplication and family balancing, and writes token/label shards.
+  composes compatible response-structure cards in `response_cards.py`, performs
+  exact/structural deduplication and per-family hand balancing, and writes
+  token/label shards.
 - `surfaces/` realizes original task-oriented and empathetic conversations from
   blueprints. Templates, rendering logic, audits and artifact writing are
   independent modules.

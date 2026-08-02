@@ -47,6 +47,10 @@ def test_training_cards_are_deterministic_and_complete() -> None:
         "context_density",
         "noise",
         "uncertainty",
+        "response_order",
+        "response_bridge",
+        "response_layout",
+        "response_opening",
     }
 
 
@@ -144,3 +148,22 @@ def test_training_card_staticity_is_measured_without_ids_or_rendered_text() -> N
     for axis in ("surface", "dialogue_state", "style", "context_density", "noise"):
         assert audit["axes"][axis]["unique_values"] >= 2
         assert audit["axes"][axis]["normalized_entropy"] > 0.45
+
+
+def test_discursive_families_receive_many_response_structure_hands() -> None:
+    for task in (
+        "explanation_learning",
+        "planning_comparison",
+        "practical_action",
+        "reasoning_verification",
+        "summarization_synthesis",
+    ):
+        hands = {
+            deal_training_cards(
+                task=task,
+                mode="instruct",
+                example_id=f"response-structure:{task}:{index}",
+            ).response_structure_signature
+            for index in range(512)
+        }
+        assert len(hands) >= 40, (task, len(hands))

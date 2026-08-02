@@ -24,6 +24,7 @@ from complexity_card_corpus.sft.projection import (
     _project_sft_exchange,
 )
 from complexity_card_corpus.sft.selection import (
+    _balance_response_card_hands,
     _balance_task_families,
     _deduplicate_exact_prompts,
     _deduplicate_exact_responses,
@@ -296,6 +297,7 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
     projected_path = tmp_path / "tokenized/projected.parquet"
     assert projected_path.exists()
     projected_rows = pq.read_table(projected_path).to_pylist()
+    row_by_id = {row["example_id"]: row for row in projected_rows}
     assert len(projected_rows) == manifest["total_examples"]
     assert manifest["projected_parquet"]["examples"] == len(projected_rows)
     assert manifest["release_quality"]["checks"]["no_exact_duplicate_train_responses"]
@@ -337,6 +339,10 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
             "context_density",
             "noise",
             "uncertainty",
+            "response_order",
+            "response_bridge",
+            "response_layout",
+            "response_opening",
         }
         assert all(
             sum(counts.values()) == metadata["examples"]
@@ -396,7 +402,14 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
                 "context_density",
                 "noise",
                 "uncertainty",
+                "response_order",
+                "response_bridge",
+                "response_layout",
+                "response_opening",
             }
+            assert example["response_card_hand"] == row_by_id[
+                example["example_id"]
+            ]["response_card_hand"]
             has_card_hand = any(
                 "SITUATION CARD" in message["content"]
                 for message in source["messages"]
@@ -494,9 +507,10 @@ def test_grounded_target_starts_with_the_answer_not_a_source_wrapper() -> None:
         {
             "role": "assistant",
             "content": (
-                "For hand ABCDEF: The documented answer is: The two reports cover "
-                "different scopes. The global state is unknown. This is limited to "
-                "Source ABCDEF."
+                "For hand ABCDEF: Source ABCDEF supports this answer: "
+                "The documented answer is: The supplied record establishes this: "
+                "The two reports cover different scopes. The global state is unknown. "
+                "The answer remains limited to Source ABCDEF."
             ),
         },
     ]
@@ -609,7 +623,7 @@ def test_safety_target_removes_card_contract_labels() -> None:
     )
     assert "Immediate action:" not in target
     assert "Boundary:" not in target
-    assert "Do not share the code" in target
+    assert "do not share the code" in target.lower()
     assert "official support channel" in target
 
 
@@ -824,6 +838,78 @@ def test_structural_deduplication_allows_a_schema_specific_limit() -> None:
     assert len(kept) == 3
     assert audit["dropped_structural_duplicates"] == 1
     assert audit["maximum_retained_per_structure"] == 3
+
+
+def test_response_card_balance_caps_a_dominant_hand_without_upsampling() -> None:
+    hands = {}
+    index = 0
+    while len(hands) < 4:
+        cards = deal_training_cards(
+            task="reasoning_verification",
+            mode="instruct",
+            example_id=f"balance-hand:{index}",
+        )
+        hands.setdefault(cards.response_structure_signature, cards)
+        index += 1
+    cards = list(hands.values())
+    rows = [
+        {
+            "example_id": f"dominant-{item:02d}",
+            "task": "reasoning_verification",
+            "_conditioning_cards": cards[0],
+        }
+        for item in range(20)
+    ]
+    for hand_index, hand in enumerate(cards[1:], start=1):
+        rows.extend(
+            {
+                "example_id": f"minor-{hand_index}-{item:02d}",
+                "task": "reasoning_verification",
+                "_conditioning_cards": hand,
+            }
+            for item in range(5)
+        )
+    kept, audit = _balance_response_card_hands(rows, maximum_share=0.25)
+    counts = Counter(
+        row["_conditioning_cards"].response_structure_signature for row in kept
+    )
+    assert len(kept) == 20
+    assert set(counts.values()) == {5}
+    assert audit["dropped_overrepresented_response_hands"] == 15
+    assert (
+        audit["tasks"]["reasoning_verification"]["maximum_hand_share_after"]
+        == 0.25
+    )
+
+
+def test_response_cards_create_many_reasoning_shapes_from_one_answer() -> None:
+    messages = [
+        {"role": "user", "content": "Calculate it."},
+        {
+            "role": "assistant",
+            "content": (
+                "Equation: using the supplied values, 24 / 3 = 8. "
+                "Total: this gives 8 items per person. "
+                "Check: independently, 3 × 8 = 24."
+            ),
+        },
+    ]
+    targets = {
+        _naturalize_assistant_target(
+            messages,
+            task="reasoning_verification",
+            cards=deal_training_cards(
+                task="reasoning_verification",
+                mode="instruct",
+                example_id=f"reasoning-shape:{index}",
+            ),
+            example_id=f"reasoning-shape:{index}",
+        )
+        for index in range(128)
+    }
+    assert len(targets) >= 30
+    assert all("using the supplied values" not in target.lower() for target in targets)
+    assert all("Equation:" not in target for target in targets)
 
 
 def test_exact_response_deduplication_keeps_one_deterministic_example() -> None:

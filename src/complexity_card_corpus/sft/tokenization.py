@@ -31,6 +31,7 @@ from .projection import (
     _project_sft_conversation,
 )
 from .selection import (
+    _balance_response_card_hands,
     _balance_task_families,
     _deduplicate_exact_prompts,
     _deduplicate_exact_responses,
@@ -42,6 +43,7 @@ from .schema import IGNORE_INDEX, LABEL_DTYPE, PROJECTED_SFT_SCHEMA, TOKEN_DTYPE
 TRAIN_MAX_EXAMPLES_PER_FAMILY = 15_000
 TRAIN_MAX_PER_STRUCTURE = 8
 TRAIN_EXTRACTION_MAX_PER_STRUCTURE = 32
+TRAIN_MAX_RESPONSE_CARD_HAND_SHARE = 0.12
 
 SUPPLEMENT_TASK_ALIASES = {
     "empathetic_dialogue": "conversation_empathy",
@@ -240,6 +242,7 @@ def tokenize_instruction_dataset(
     exact_deduplication: dict[str, Any] = {}
     exact_prompt_deduplication: dict[str, Any] = {}
     family_balance: dict[str, Any] = {}
+    response_card_balance: dict[str, Any] = {}
     deduplication: dict[str, Any] = {}
     for partition, partition_rows in list(grouped.items()):
         partition_rows, exact_deduplication[partition] = _deduplicate_exact_responses(
@@ -248,6 +251,21 @@ def tokenize_instruction_dataset(
         partition_rows, exact_prompt_deduplication[partition] = (
             _deduplicate_exact_prompts(partition_rows)
         )
+        if partition == "train":
+            partition_rows, response_card_balance[partition] = (
+                _balance_response_card_hands(
+                    partition_rows,
+                    maximum_share=TRAIN_MAX_RESPONSE_CARD_HAND_SHARE,
+                )
+            )
+        else:
+            response_card_balance[partition] = {
+                "input_examples": len(partition_rows),
+                "kept_examples": len(partition_rows),
+                "dropped_overrepresented_response_hands": 0,
+                "requested_maximum_share": None,
+                "tasks": {},
+            }
         structure_limit = TRAIN_MAX_PER_STRUCTURE if partition == "train" else 10_000
         per_task_limits = (
             {"extraction_classification": TRAIN_EXTRACTION_MAX_PER_STRUCTURE}
@@ -315,6 +333,9 @@ def tokenize_instruction_dataset(
             "prompt": row["_projected_prompt"],
             "response": row["_projected_target"],
             "structure_signature": row["_structure_signature"],
+            "response_card_hand": row[
+                "_conditioning_cards"
+            ].response_structure_signature,
             "source_representation": (
                 "card_hand"
                 if _card_sections(row["messages"]) is not None
@@ -385,6 +406,9 @@ def tokenize_instruction_dataset(
                                 else "natural_instruction"
                             ),
                             "conditioning_cards": conditioning_cards.as_dict(),
+                            "response_card_hand": (
+                                conditioning_cards.response_structure_signature
+                            ),
                             "cards": (
                                 ["situation", "data", "rule", "goal"]
                                 if has_card_hand
@@ -448,6 +472,7 @@ def tokenize_instruction_dataset(
         "exact_response_deduplication": exact_deduplication,
         "exact_prompt_deduplication": exact_prompt_deduplication,
         "family_balance": family_balance,
+        "response_card_balance": response_card_balance,
         "structural_deduplication": deduplication,
         "train_eval_structure_overlap": len(overlap),
         "heldout_evaluation": (
@@ -525,6 +550,17 @@ def tokenize_instruction_dataset(
     distinct_train_structures = len(
         {(row["task"], row["structure_signature"]) for row in train_records}
     )
+    card_hands_by_task: dict[str, Counter[str]] = defaultdict(Counter)
+    for row in train_records:
+        card_hands_by_task[row["task"]][row["response_card_hand"]] += 1
+    maximum_card_hand_share = max(
+        (
+            max(counts.values()) / sum(counts.values())
+            for counts in card_hands_by_task.values()
+            if counts
+        ),
+        default=0.0,
+    )
     quality_checks = {
         "no_exact_duplicate_train_responses": exact_train_responses == train_count,
         "no_exact_duplicate_train_prompts": exact_train_prompts == train_count,
@@ -562,6 +598,9 @@ def tokenize_instruction_dataset(
             distinct_train_structures / train_count if train_count else 0.0
         )
         >= 0.20,
+        "maximum_response_card_hand_share_at_most_12_percent": (
+            maximum_card_hand_share <= TRAIN_MAX_RESPONSE_CARD_HAND_SHARE
+        ),
         "heldout_evaluation_has_at_least_28_authored_examples": (
             manifests.get("eval", {}).get("examples", 0) >= 28
         ),
@@ -584,6 +623,10 @@ def tokenize_instruction_dataset(
         "distinct_train_structure_share": round(
             distinct_train_structures / train_count if train_count else 0.0, 6
         ),
+        "distinct_response_card_hands_by_family": {
+            task: len(counts) for task, counts in sorted(card_hands_by_task.items())
+        },
+        "maximum_response_card_hand_share": round(maximum_card_hand_share, 6),
         "multi_turn_examples": multi_turn_count,
         "multi_turn_share": round(
             multi_turn_count / train_count if train_count else 0.0, 6

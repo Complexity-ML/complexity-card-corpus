@@ -9,8 +9,21 @@ from .language import (
     _inline_sentence,
     _labelled_fields,
     _sentence,
-    _stable_index,
 )
+from .response_cards import card_variant, render_response_card_hand
+
+
+def _response_phrase(
+    cards: TrainingCards,
+    choices: tuple[str, ...],
+    *,
+    offset: int,
+) -> str:
+    return choices[card_variant(cards, len(choices), offset=offset)]
+
+
+def _clean_prefix(value: str, pattern: str) -> str:
+    return re.sub(pattern, "", value.strip(), flags=re.IGNORECASE).strip()
 
 
 def _naturalize_assistant_target(
@@ -28,9 +41,6 @@ def _naturalize_assistant_target(
     """
 
     response = _final_assistant_target(messages)
-    variant = _stable_index(
-        f"assistant-target:{example_id}:{cards.surface}:{cards.style}", 8
-    )
     if task == "explanation_learning":
         fields = _labelled_fields(response, ("Core idea", "Example", "Check"))
         if set(fields) == {"Core idea", "Example", "Check"}:
@@ -40,88 +50,209 @@ def _naturalize_assistant_target(
                 fields["Core idea"],
                 flags=re.IGNORECASE,
             )
-            idea = _sentence(idea)
-            example = _sentence(fields["Example"])
-            check = _sentence(fields["Check"])
-            templates = (
-                "{idea} For example, {example} {check}",
-                "In simple terms, {inline_idea} For example, {inline_example} {check}",
-                "{idea} You can see this in practice: {example} To check your understanding, {inline_check}",
-                "The key point is that {inline_idea} For instance, {inline_example} {check}",
+            idea = idea.strip().rstrip(" .")
+            example = fields["Example"].strip().rstrip(" .")
+            example = re.sub(
+                r"\s+(?:This applies the distinction directly|This turns the definition into a checkable case|The example makes the mechanism visible)\.?$",
+                "",
+                example,
+                flags=re.IGNORECASE,
             )
-            return templates[variant % len(templates)].format(
-                idea=idea,
-                inline_idea=_inline_sentence(idea),
-                example=_inline_sentence(example),
-                inline_example=_inline_sentence(example),
-                check=check,
-                inline_check=_inline_sentence(check),
+            check = _clean_prefix(
+                fields["Check"],
+                r"^(?:as a transfer test,\s*|to verify the idea,\s*)",
+            )
+            clauses = {
+                "idea": _response_phrase(
+                    cards,
+                    (
+                        _sentence(idea),
+                        f"In simple terms, {_inline_sentence(idea)}",
+                        f"The central idea is that {_inline_sentence(idea)}",
+                        f"What matters here is that {_inline_sentence(idea)}",
+                        f"The mechanism works this way: {_sentence(idea)}",
+                        _sentence(idea),
+                    ),
+                    offset=1,
+                ),
+                "example": _response_phrase(
+                    cards,
+                    (
+                        f"For example, {_inline_sentence(example)}",
+                        f"For instance, {_inline_sentence(example)}",
+                        f"In practice, {_inline_sentence(example)}",
+                        f"A concrete case makes this visible. {_sentence(example)}",
+                        _sentence(example),
+                        f"Consider this case: {_sentence(example)}",
+                    ),
+                    offset=2,
+                ),
+                "check": _response_phrase(
+                    cards,
+                    (
+                        _sentence(check),
+                        f"To test the distinction, {_inline_sentence(check)}",
+                        f"A useful transfer question is this: {_sentence(check)}",
+                        f"You can check the idea by asking: {_sentence(check)}",
+                        f"As a quick test, {_inline_sentence(check)}",
+                    ),
+                    offset=3,
+                ),
+            }
+            return render_response_card_hand(
+                clauses,
+                cards=cards,
             )
     elif task == "reasoning_verification":
         fields = _labelled_fields(response, ("Equation", "Total", "Check"))
         if set(fields) == {"Equation", "Total", "Check"}:
-            check = re.sub(
-                r"^(?:independently,\s*|inspect the supplied values, then note that\s*|use a second view of the values;\s*)",
-                "",
+            equation = _clean_prefix(
+                fields["Equation"],
+                r"^(?:using the supplied values,\s*|the direct calculation is\s+|represent the required operation as\s+|evaluating the quantities gives\s+|the numerical relation is\s+)",
+            )
+            total = _clean_prefix(
+                fields["Total"],
+                r"^(?:this gives\s+|the result is\s+|the computed value is\s+|therefore,\s*|the supplied values produce\s+)",
+            )
+            check = _clean_prefix(
                 fields["Check"],
-                flags=re.IGNORECASE,
+                r"^(?:independently,\s*|inspect the supplied values, then note that\s*|use a second view of the values;\s*|a second view confirms that\s*|verify the result by noting that\s*)",
             )
             check = re.sub(
                 r"\bA occupies slot (\d+), immediately before B at slot (\d+)",
                 r"slot \1 is occupied by A, immediately before B at slot \2",
                 check,
             )
-            templates = (
-                "{equation}, so the result is {total}. As an independent check, {check}.",
-                "The result is {total}: {equation}. This is consistent because {check}.",
-                "Using the supplied values gives {equation}. Therefore, {total}. To verify it, {check}.",
-                "{equation}. That gives {total}; checking from the other direction, {check}.",
-            )
-            return templates[variant % len(templates)].format(
-                equation=fields["Equation"],
-                total=fields["Total"],
-                check=check,
+            clauses = {
+                "equation": _response_phrase(
+                    cards,
+                    (
+                        _sentence(equation),
+                        f"Start with {_inline_sentence(equation)}",
+                        f"The calculation is {_inline_sentence(equation)}",
+                        f"Evaluating the quantities gives {_inline_sentence(equation)}",
+                        f"The numerical relation is {_inline_sentence(equation)}",
+                    ),
+                    offset=11,
+                ),
+                "total": _response_phrase(
+                    cards,
+                    (
+                        f"The result is {_inline_sentence(total)}",
+                        f"That gives {_inline_sentence(total)}",
+                        f"Therefore, {_inline_sentence(total)}",
+                        f"So the answer is {_inline_sentence(total)}",
+                        _sentence(total),
+                    ),
+                    offset=12,
+                ),
+                "check": _response_phrase(
+                    cards,
+                    (
+                        f"As an independent check, {_inline_sentence(check)}",
+                        f"A second calculation confirms that {_inline_sentence(check)}",
+                        f"This is consistent because {_inline_sentence(check)}",
+                        f"To verify the result, note that {_inline_sentence(check)}",
+                        _sentence(check),
+                    ),
+                    offset=13,
+                ),
+            }
+            return render_response_card_hand(
+                clauses,
+                cards=cards,
             )
     elif task == "summarization_synthesis":
         fields = _labelled_fields(response, ("Decision", "Action", "Open point"))
         if set(fields) == {"Decision", "Action", "Open point"}:
-            open_point = _sentence(fields["Open point"])
-            templates = (
-                "The decision is to {decision}. {action}. {open_point}",
-                "They decided to {decision}. Next, {action}. {open_point}",
-                "In summary, the decision is to {decision}; {action}. {open_point}",
-                "The recorded decision is to {decision}, and {inline_action} {open_point}",
+            decision = _clean_prefix(
+                fields["Decision"],
+                r"^(?:the record is to\s+|proceed by choosing to\s+|the agreed direction is to\s+)",
+            ).rstrip(" .")
+            action = fields["Action"].strip().rstrip(" .")
+            open_point = fields["Open point"].strip().rstrip(" .")
+            owned_action = re.fullmatch(
+                r"(.+), owned by ([A-Z][A-Za-z'-]+), is due by day (\d+)",
+                action,
             )
-            return templates[variant % len(templates)].format(
-                decision=fields["Decision"],
-                action=fields["Action"],
-                inline_action=_inline_sentence(fields["Action"]),
-                open_point=open_point,
+            if owned_action is not None:
+                work, owner, day = owned_action.groups()
+                action = f"{owner} will {work[:1].lower() + work[1:]} by day {day}"
+            owner_owns = re.fullmatch(
+                r"([A-Z][A-Za-z'-]+) owns (.+) for day (\d+)",
+                action,
+            )
+            if owner_owns is not None:
+                owner, work, day = owner_owns.groups()
+                action = f"{owner} will {work[:1].lower() + work[1:]} by day {day}"
+            clauses = {
+                "decision": _response_phrase(
+                    cards,
+                    (
+                        f"The decision is to {_inline_sentence(decision)}",
+                        f"They agreed to {_inline_sentence(decision)}",
+                        f"Proceed by choosing to {_inline_sentence(decision)}",
+                        f"The selected direction is to {_inline_sentence(decision)}",
+                        _sentence(decision),
+                    ),
+                    offset=21,
+                ),
+                "action": _response_phrase(
+                    cards,
+                    (
+                        _sentence(action),
+                        f"Next, {_inline_sentence(action)}",
+                        _sentence(action),
+                        f"For execution, {_inline_sentence(action)}",
+                    ),
+                    offset=22,
+                ),
+                "open_point": _response_phrase(
+                    cards,
+                    (
+                        _sentence(open_point),
+                        _sentence(open_point),
+                        _sentence(open_point),
+                        _sentence(open_point),
+                    ),
+                    offset=23,
+                ),
+            }
+            return render_response_card_hand(
+                clauses,
+                cards=cards,
             )
     elif task == "grounded_qa":
-        direct = re.sub(
-            r"^(?:Based on Source [A-Za-z0-9]+:|Source [A-Za-z0-9]+ supports this answer:|According to Source [A-Za-z0-9]+:)\s*",
-            "",
-            response,
+        direct = response
+        wrapper = re.compile(
+            r"^(?:Based on Source [A-Za-z0-9]+:|Source [A-Za-z0-9]+ supports this answer:|According to Source [A-Za-z0-9]+:|The supplied record establishes this:|Supported facts:|The documented answer is:)\s*",
+            flags=re.IGNORECASE,
         )
+        while True:
+            unwrapped = wrapper.sub("", direct)
+            if unwrapped == direct:
+                break
+            direct = unwrapped
         direct = re.sub(
-            r"^The documented answer is:\s*",
+            r"\s+(?:This is|The answer remains) limited to Source [A-Za-z0-9]+\.?$",
             "",
             direct,
-        )
-        direct = re.sub(
-            r"\s+This is limited to Source [A-Za-z0-9]+\.?$",
-            "",
-            direct,
+            flags=re.IGNORECASE,
         )
         return direct
     elif task == "critique_revision":
         fields = _labelled_fields(response, ("Weakness", "Revision"))
         if set(fields) == {"Weakness", "Revision"}:
             weakness_text = re.sub(
-                r",?\s*which makes the original difficult to verify\.?$",
+                r"\s+(?:Faithful|Bounded)\s*$",
                 "",
                 fields["Weakness"],
+                flags=re.IGNORECASE,
+            )
+            weakness_text = re.sub(
+                r",?\s*which makes the original difficult to verify\.?$",
+                "",
+                weakness_text,
                 flags=re.IGNORECASE,
             )
             weakness_text = re.sub(
@@ -130,18 +261,33 @@ def _naturalize_assistant_target(
                 weakness_text,
                 flags=re.IGNORECASE,
             )
-            weakness = _sentence(weakness_text)
-            revision = _sentence(fields["Revision"])
-            templates = (
-                "{revision} This fixes the main problem because {inline_weakness}",
-                "{revision} The draft previously failed because {inline_weakness}",
-                "{revision}",
-                "{revision} This avoids the unsupported part of the original because {inline_weakness}",
-            )
-            return templates[variant % len(templates)].format(
-                weakness=weakness,
-                inline_weakness=_inline_sentence(weakness),
-                revision=revision,
+            weakness = weakness_text.strip().rstrip(" .")
+            revision = fields["Revision"].strip().rstrip(" .")
+            clauses = {
+                "revision": _response_phrase(
+                    cards,
+                    (
+                        _sentence(revision),
+                        f"A grounded revision is: {_sentence(revision)}",
+                        f"Use this narrower wording: {_sentence(revision)}",
+                        f"The corrected version reads: {_sentence(revision)}",
+                    ),
+                    offset=31,
+                ),
+                "weakness": _response_phrase(
+                    cards,
+                    (
+                        f"The original overreaches because {_inline_sentence(weakness)}",
+                        f"This correction is needed because {_inline_sentence(weakness)}",
+                        f"The weakness is that {_inline_sentence(weakness)}",
+                        _sentence(weakness),
+                    ),
+                    offset=32,
+                ),
+            }
+            return render_response_card_hand(
+                clauses,
+                cards=cards,
             )
     elif task == "safety_uncertainty":
         match = re.fullmatch(
@@ -149,42 +295,104 @@ def _naturalize_assistant_target(
             response,
         )
         if match is not None:
-            action = _sentence(match.group(1))
-            boundary = _sentence(match.group(2))
-            escalation = _sentence(match.group(3))
-            templates = (
-                "{action} {boundary} {escalation}",
-                "First, {inline_action} {boundary} Next, {inline_escalation}",
-                "The safest immediate step is clear. {action} {boundary} Then {inline_escalation}",
-                "{action} {boundary} {escalation}",
-            )
-            return templates[variant % len(templates)].format(
-                action=action,
-                inline_action=_inline_sentence(action),
-                boundary=boundary,
-                inline_boundary=_inline_sentence(boundary),
-                escalation=escalation,
-                inline_escalation=_inline_sentence(escalation),
+            action = match.group(1).strip().rstrip(" .")
+            boundary = match.group(2).strip().rstrip(" .")
+            escalation = match.group(3).strip().rstrip(" .")
+            clauses = {
+                "action": _response_phrase(
+                    cards,
+                    (
+                        _sentence(action),
+                        f"First, {_inline_sentence(action)}",
+                        _sentence(action),
+                        f"Act on the immediate risk first. {_sentence(action)}",
+                        f"For immediate protection, {_inline_sentence(action)}",
+                        _sentence(action),
+                    ),
+                    offset=41,
+                ),
+                "boundary": _response_phrase(
+                    cards,
+                    (
+                        _sentence(boundary),
+                        f"Keep this limit in place. {_sentence(boundary)}",
+                        f"Do not go beyond this boundary. {_sentence(boundary)}",
+                        f"The safe scope remains limited. {_sentence(boundary)}",
+                    ),
+                    offset=42,
+                ),
+                "escalation": _response_phrase(
+                    cards,
+                    (
+                        _sentence(escalation),
+                        f"Then {_inline_sentence(escalation)}",
+                        f"For further help, {_inline_sentence(escalation)}",
+                        _sentence(escalation),
+                    ),
+                    offset=43,
+                ),
+            }
+            return render_response_card_hand(
+                clauses,
+                cards=cards,
             )
     elif task == "practical_action":
         fields = _labelled_fields(response, ("Next step", "Owner", "Timing"))
         if set(fields) == {"Next step", "Owner", "Timing"}:
-            step = _sentence(fields["Next step"])
-            owner = _sentence(fields["Owner"])
-            timing = _sentence(fields["Timing"])
-            if timing.lower().startswith("before "):
-                timing = "Complete this " + _inline_sentence(timing)
-            templates = (
-                "{step} {owner} {timing}",
-                "First, {inline_step} {timing} {owner}",
-                "{timing} Before committing, {inline_step} {owner}",
-                "The safest workable move is clear. {step} {owner} {timing}",
+            step = _clean_prefix(
+                fields["Next step"].strip().rstrip(" ."),
+                r"^(?:the next workable move is to\s+|start by choosing to\s+|start by\s+|first,\s*)",
             )
-            return templates[variant % len(templates)].format(
-                step=step,
-                inline_step=_inline_sentence(step),
-                owner=owner,
-                timing=timing,
+            owner = fields["Owner"].strip().rstrip(" .")
+            timing = fields["Timing"].strip().rstrip(" .")
+            if timing.lower().startswith("before "):
+                timing = "complete this " + timing
+            timing = re.sub(
+                r"(until\s+the\s+[^.]*[,;][^.]*\band\b[^.]*?)\s+is recorded\b",
+                r"\1 are recorded",
+                timing,
+                flags=re.IGNORECASE,
+            )
+            verified_prefix = timing.partition(" is verified")[0]
+            if "," in verified_prefix and " and " in verified_prefix:
+                timing = timing.replace(" is verified", " are verified", 1)
+            clauses = {
+                "step": _response_phrase(
+                    cards,
+                    (
+                        _sentence(step),
+                        f"Start by choosing to {_inline_sentence(step)}",
+                        f"The next workable move is to {_inline_sentence(step)}",
+                        f"First, {_inline_sentence(step)}",
+                        f"The immediate action is to {_inline_sentence(step)}",
+                        f"A practical first step is to {_inline_sentence(step)}",
+                        f"Begin with this action. {_sentence(step)}",
+                        f"Take the following step. {_sentence(step)}",
+                    ),
+                    offset=51,
+                ),
+                "owner": _response_phrase(
+                    cards,
+                    (
+                        _sentence(owner),
+                        f"Responsibility stays explicit. {_sentence(owner)}",
+                        f"For ownership, {_inline_sentence(owner)}",
+                    ),
+                    offset=52,
+                ),
+                "timing": _response_phrase(
+                    cards,
+                    (
+                        _sentence(timing),
+                        f"For timing, {_inline_sentence(timing)}",
+                        _sentence(timing),
+                    ),
+                    offset=53,
+                ),
+            }
+            return render_response_card_hand(
+                clauses,
+                cards=cards,
             )
         direct = re.sub(
             r"\bKeep the rationale attached to the action:\s*([a-z])",
@@ -212,6 +420,54 @@ def _naturalize_assistant_target(
         fields = _labelled_fields(response, ("Understood",))
         if fields:
             return _sentence(fields["Understood"])
+        direct = re.sub(
+            r"^(?:My current reading|What is clear|The supported interpretation is limited):\s*",
+            _response_phrase(
+                cards,
+                (
+                    "My current reading is that ",
+                    "The supported facts show that ",
+                    "What is clear so far is that ",
+                    "At this point, ",
+                    "The bounded interpretation is that ",
+                    "I can establish that ",
+                ),
+                offset=81,
+            ),
+            response,
+            flags=re.IGNORECASE,
+        )
+        direct = re.sub(
+            r"\b(?:One point to resolve|Before proceeding):\s*",
+            _response_phrase(
+                cards,
+                (
+                    "One detail would resolve this: ",
+                    "Before proceeding, ",
+                    "The remaining question is: ",
+                    "Please clarify one point: ",
+                ),
+                offset=82,
+            ),
+            direct,
+            flags=re.IGNORECASE,
+        )
+        direct = re.sub(
+            r"\b(?:Until confirmed|For now|Pending that answer|As a reversible default),\s*",
+            _response_phrase(
+                cards,
+                (
+                    "Until that is confirmed, ",
+                    "For now, ",
+                    "Pending the answer, ",
+                    "The reversible default is to ",
+                ),
+                offset=83,
+            ),
+            direct,
+            flags=re.IGNORECASE,
+        )
+        return direct
     elif task == "brainstorming_creativity":
         direct = re.sub(
             r"\s+(?:Each description states.*|The three retained ideas remain feasible.*|The alternatives emphasize.*)$",
@@ -219,10 +475,16 @@ def _naturalize_assistant_target(
             response,
             flags=re.IGNORECASE,
         )
+        direct = re.sub(
+            r"^(?:Candidate set|Options|Possible directions):\s*",
+            "",
+            direct,
+            flags=re.IGNORECASE,
+        )
         return direct.strip()
     elif task == "writing_transformation":
         direct = re.sub(
-            r"^Here is the revised text:\s*",
+            r"^(?:Here is the revised text|The concise version is):\s*",
             "",
             response,
             flags=re.IGNORECASE,
@@ -267,22 +529,105 @@ def _naturalize_assistant_target(
             flags=re.DOTALL,
         )
         if match is not None:
-            choice = _sentence(match.group(1))
-            sequence = _sentence(match.group(2))
-            fallback = _sentence(match.group(3))
-            templates = (
-                "{choice} Then {inline_sequence} If that path fails, {inline_fallback}",
-                "{choice} {sequence} {fallback}",
-                "{choice} {sequence} {fallback}",
-                "{sequence} On those constraints, {inline_choice} If needed, {inline_fallback}",
+            head = match.group(1).strip()
+            criteria_match = re.match(r"(.*?)(Choose\b.*)$", head, flags=re.DOTALL)
+            criteria = criteria_match.group(1).strip() if criteria_match else ""
+            choice = criteria_match.group(2).strip() if criteria_match else head
+            sequence = match.group(2).strip().rstrip(" .")
+            fallback = match.group(3).strip().rstrip(" .")
+            reject_variants = (
+                "Rule out {option} because",
+                "{option} is not viable because",
+                "{option} fails the constraints because",
+                "The criteria eliminate {option} because",
+                "Exclude {option} because",
+                "{option} does not qualify because",
             )
-            return templates[variant % len(templates)].format(
-                choice=choice,
-                inline_choice=_inline_sentence(choice),
-                sequence=sequence,
-                inline_sequence=_inline_sentence(sequence),
-                fallback=fallback,
-                inline_fallback=_inline_sentence(fallback),
+            reject_pattern = reject_variants[
+                card_variant(cards, len(reject_variants), offset=60)
+            ]
+            criteria = re.sub(
+                r"\bReject ([A-Z]) because\b",
+                lambda match: reject_pattern.format(option=match.group(1)),
+                criteria,
+            )
+            budget_variants = (
+                ("B fails the budget test", "C fails both"),
+                ("B is over budget", "C misses both"),
+                ("The budget rules out B", "The remaining constraints rule out C on both"),
+                ("Option B exceeds the budget", "Option C violates both"),
+                ("B does not meet the budget", "C does not satisfy both"),
+                ("The cost test eliminates B", "Two constraints eliminate C:"),
+            )
+            budget_b, budget_c = budget_variants[
+                card_variant(cards, len(budget_variants), offset=65)
+            ]
+            criteria = re.sub(
+                r"\bB fails the budget test\b",
+                budget_b,
+                criteria,
+            )
+            criteria = re.sub(
+                r"\bC fails both\b",
+                budget_c,
+                criteria,
+            )
+            hard_constraint_variants = (
+                "The hard constraints remove",
+                "The requirements rule out",
+                "Constraint checks eliminate",
+                "The comparison excludes",
+                "The non-negotiable limits remove",
+                "Applying every hard limit removes",
+            )
+            criteria = re.sub(
+                r"\bThe hard constraints remove\b",
+                hard_constraint_variants[
+                    card_variant(cards, len(hard_constraint_variants), offset=66)
+                ],
+                criteria,
+            )
+            clauses = {
+                "criteria": _response_phrase(
+                    cards,
+                    (
+                        _sentence(criteria),
+                        _sentence(criteria),
+                        _sentence(criteria),
+                    ),
+                    offset=61,
+                ) if criteria else "",
+                "choice": _response_phrase(
+                    cards,
+                    (
+                        _sentence(choice),
+                        f"On that basis, {_inline_sentence(choice)}",
+                        f"The viable choice is clear. {_sentence(choice)}",
+                    ),
+                    offset=62,
+                ),
+                "sequence": _response_phrase(
+                    cards,
+                    (
+                        _sentence(sequence),
+                        f"Then {_inline_sentence(sequence)}",
+                        f"Use this order: {_sentence(sequence)}",
+                    ),
+                    offset=63,
+                ),
+                "fallback": _response_phrase(
+                    cards,
+                    (
+                        _sentence(fallback),
+                        f"If the plan fails, {_inline_sentence(fallback)}",
+                        f"The fallback condition is simple. {_sentence(fallback)}",
+                    ),
+                    offset=64,
+                ),
+            }
+            return render_response_card_hand(
+                clauses,
+                cards=cards,
             )
         return response
     elif task == "troubleshooting":
@@ -317,14 +662,53 @@ def _naturalize_assistant_target(
             )
         ]
         if len(steps) >= 3:
-            if variant % 4 == 1:
-                return "First, " + " Next, ".join(
-                    _inline_sentence(step) for step in steps
+            rendered_steps = []
+            for index, step in enumerate(steps):
+                repeated_environment = re.match(
+                    r"^In an isolated test environment,\s*perform this test:\s*(.*)$",
+                    step,
+                    flags=re.IGNORECASE,
                 )
-            if variant % 4 == 2:
-                return "\n".join(f"- {_sentence(step)}" for step in steps)
-            if variant % 4 == 3:
-                return " ".join(_sentence(step) for step in steps)
+                if (
+                    repeated_environment is not None
+                    and "in an isolated test environment"
+                    in repeated_environment.group(1).lower()
+                ):
+                    step = repeated_environment.group(1)
+                if index == 0:
+                    rendered_steps.append(
+                        _response_phrase(
+                            cards,
+                            (
+                                _sentence(step),
+                                f"First, {_inline_sentence(step)}",
+                                f"Start with this safeguard: {_sentence(step)}",
+                                f"Protect the current state first. {_sentence(step)}",
+                                f"Start here: {_sentence(step)}",
+                                f"Before testing, {_inline_sentence(step)}",
+                                f"Preparation comes first. {_sentence(step)}",
+                                f"Establish a safe baseline. {_sentence(step)}",
+                            ),
+                            offset=71,
+                        )
+                    )
+                elif index and cards.response_bridge == "stepwise":
+                    rendered_steps.append(f"Next, {_inline_sentence(step)}")
+                else:
+                    rendered_steps.append(_sentence(step))
+            return render_response_card_hand(
+                {"steps": " ".join(rendered_steps)},
+                cards=cards,
+            ) if cards.response_layout == "paragraph" else (
+                "\n".join(
+                    (
+                        f"{index}. {text}"
+                        if cards.response_layout == "numbered"
+                        else f"- {text}"
+                    )
+                    for index, text in enumerate(rendered_steps, start=1)
+                )
+            )
         return direct
     return re.sub(
         r"^(?:Next step|Owner|Timing|Core idea|Example|Check|Decision|Action|Open point|Weakness|Revision|Immediate action|Boundary):\s*",

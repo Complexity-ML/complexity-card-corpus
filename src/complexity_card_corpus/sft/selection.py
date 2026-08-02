@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 from collections import Counter, defaultdict
 from typing import Any
@@ -151,4 +152,89 @@ def _balance_task_families(
         "before": before,
         "after": after,
         "shares": shares,
+    }
+
+
+def _balance_response_card_hands(
+    rows: list[dict[str, Any]],
+    *,
+    maximum_share: float = 0.12,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Prevent one invisible response-card hand from dominating a family.
+
+    The target size is solved independently for each task. Rows are discarded
+    only when a hand is overrepresented relative to the other hands actually
+    present; underrepresented hands are never duplicated.
+    """
+
+    if not 0 < maximum_share <= 1:
+        raise ValueError("maximum_share must be in (0, 1]")
+    tasks: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        tasks[row["task"]].append(row)
+
+    kept: list[dict[str, Any]] = []
+    task_audit: dict[str, Any] = {}
+    for task, task_rows in sorted(tasks.items()):
+        buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for row in task_rows:
+            cards = row["_conditioning_cards"]
+            buckets[cards.response_structure_signature].append(row)
+        counts = {hand: len(items) for hand, items in buckets.items()}
+        effective_share = max(maximum_share, 1 / len(buckets))
+        target = len(task_rows)
+        while target:
+            cap = max(1, math.floor(effective_share * target))
+            available = sum(min(count, cap) for count in counts.values())
+            if available >= target:
+                break
+            target = available
+        cap = max(1, math.floor(effective_share * target)) if target else 0
+        selected: list[dict[str, Any]] = []
+        for hand, hand_rows in sorted(buckets.items()):
+            ranked = sorted(
+                hand_rows,
+                key=lambda item: hashlib.sha256(
+                    f"response-hand:{task}:{hand}:{item['example_id']}".encode()
+                ).digest(),
+            )
+            selected.extend(ranked[:cap])
+        if len(selected) > target:
+            selected = sorted(
+                selected,
+                key=lambda item: hashlib.sha256(
+                    f"response-target:{task}:{item['example_id']}".encode()
+                ).digest(),
+            )[:target]
+        kept.extend(selected)
+        after = Counter(
+            row["_conditioning_cards"].response_structure_signature
+            for row in selected
+        )
+        task_audit[task] = {
+            "input_examples": len(task_rows),
+            "kept_examples": len(selected),
+            "distinct_hands": len(buckets),
+            "maximum_hand_count_before": max(counts.values(), default=0),
+            "maximum_hand_share_before": round(
+                max(counts.values(), default=0) / len(task_rows)
+                if task_rows
+                else 0.0,
+                6,
+            ),
+            "maximum_hand_count_after": max(after.values(), default=0),
+            "maximum_hand_share_after": round(
+                max(after.values(), default=0) / len(selected)
+                if selected
+                else 0.0,
+                6,
+            ),
+        }
+    kept.sort(key=lambda item: item["example_id"])
+    return kept, {
+        "input_examples": len(rows),
+        "kept_examples": len(kept),
+        "dropped_overrepresented_response_hands": len(rows) - len(kept),
+        "requested_maximum_share": maximum_share,
+        "tasks": task_audit,
     }

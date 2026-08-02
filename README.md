@@ -277,7 +277,9 @@ controls how those semantics become a natural request:
 - seven surface forms and eight dialogue states;
 - twelve output contracts and fourteen reasoning patterns;
 - evidence, uncertainty and context-density controls;
-- thirteen style variants plus bounded irrelevant-detail noise.
+- thirteen style variants plus bounded irrelevant-detail noise;
+- response-structure cards for opening, clause order, semantic bridge and
+  paragraph, line, bullet or numbered layout.
 
 These conditioning cards are recorded per example in `examples.jsonl` and
 aggregated in each `sft.idx.json`. They never appear as literal card labels in
@@ -286,24 +288,22 @@ the model text. Regression tests decode generated SFT streams and require zero
 same projection removes authoring labels such as `Core idea`, `Equation`,
 `Weakness`, `Immediate action` and `Open point`, plus generic completion rubrics
 and hand identifiers, while retaining their semantic content as direct
-assistant prose. Each family owns several answer structures: calculation,
-explanation, comparison, planning and conversation keep their native form
-instead of being forced into a universal report format.
+assistant prose. Each family owns semantic clauses and compatible structure
+decks: calculation, explanation, comparison, planning and conversation keep
+their native form instead of being forced into a universal report format. The
+structure hand changes only ordering and presentation; it cannot invent a fact
+or conclusion. A per-family audit caps any one response-card hand at 12% of the
+retained rows without duplicating rare hands.
 
 Before tokenization, exact repeated assistant responses are removed. Volatile
 identifiers, dates, times, amounts, quoted values and list numbering are then
-normalized into a structural signature, with at most 48 retained examples per
-`(family, signature)` pair. Extraction JSON uses a schema-aware ceiling of 512
-because repeated field order is part of the output contract rather than prose
-duplication. On the current strict build this yields 12,007 training examples,
-28 separately authored evaluation examples and 672 source-separated
-diagnostics. The tokenized artifact contains 750,116 supervised tokens in
-total, including 726,565 for training. The retained training set has 100% exact
-prompt and response uniqueness, 65.99% distinct normalized
-`(family, structure)` pairs, and a 27.80% multi-turn share. It still spans all
-nine conditioning axes, with 7
-surface, 8 dialogue, 12 output, 14 reasoning, 4 evidence, 13 style, 3 density,
-2 noise and 5 uncertainty values.
+normalized into a structural signature, with at most eight retained examples
+per `(family, signature)` pair. Extraction JSON uses a schema-aware ceiling of
+32 because repeated field order is part of the output contract rather than
+prose duplication. Exact counts and diversity measurements are emitted by each
+build in `manifest.json`; generated artifacts are not described with stale
+hard-coded counts in this README. The audit covers all thirteen conditioning
+axes, including the four response-structure cards.
 
 Evaluation does not reuse Scenario Forge's validation renderers. The v2 suite
 contains 700 exchanges, exactly 50 per family: 28 separately authored gold
@@ -497,20 +497,13 @@ train/evaluation overlap. The same output directory contains
 `projected.parquet`: the exact retained model-facing conversations after
 exact-response cleanup, family capping and structural repetition control.
 
-The current strict projection is intentionally **not release-ready**. It retains
-17,767 train examples with 1,143,546 supervised tokens after removing 11,764
-exact answer duplicates, 306 exact prompt duplicates, repeated normalized
-answer shapes, and excess rows from the largest families. The separate shards
-contain 28 independently authored evaluation examples and 672 deterministic
-diagnostic cases. Exact train prompt and answer uniqueness are both 100%, and
-the training/evaluation normalized-structure overlap is zero. The remaining
-failures are explicit: there are no genuine multi-turn conversations yet; the
-192 retained multi-turn examples are synthetic card dialogues; conversation
-empathy represents only 1.41% of training rows; four families reach the 2,500
-row cap; and supervised volume remains below the 3–10 million token target.
-These gaps must be addressed by authoring more genuinely distinct answers and
-conversations in the weak families, not by loosening deduplication or restoring
-generic resolution paragraphs.
+Release readiness is decided from the generated manifest, not the number of
+source rows. The required checks include exact prompt and answer uniqueness,
+zero train/evaluation normalized-structure overlap, bounded response-card-hand
+share, family coverage and supervised-token volume. Remaining gaps must be
+addressed by authoring genuinely distinct answers and conversations in weak
+families, not by loosening deduplication or restoring generic resolution
+paragraphs.
 
 ## Repository layout
 
