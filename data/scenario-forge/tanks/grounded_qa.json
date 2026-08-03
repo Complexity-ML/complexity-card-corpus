@@ -5,7 +5,7 @@
     {
       "id": "grounded_qa",
       "label": "Grounded question answering",
-      "target": 3660,
+      "weight": 7000,
       "domains": [
         {
           "id": "product_specs",

@@ -21,6 +21,7 @@ from complexity_card_corpus.posttrain.constants import (
     _FORBIDDEN_ASSISTANT_META_PHRASES,
     _FORBIDDEN_USER_META_PHRASES,
 )
+from complexity_card_corpus.posttrain.build import _parallel_conversation_rows
 from complexity_card_corpus.posttrain.metrics import _masked_response
 from complexity_card_corpus.posttrain.rendering import (
     _apply_vocabulary_placements,
@@ -100,6 +101,27 @@ def test_vocabulary_overflow_uses_compatible_capacity_without_dropping_words() -
     )
 
 
+def test_parallel_rendering_is_byte_for_byte_deterministic() -> None:
+    scenarios = compile_scenarios(
+        load_scenario_registry(REGISTRY),
+        target_scenarios=EXPECTED_SCENARIOS,
+    )[:16]
+    serial = _parallel_conversation_rows(
+        scenarios,
+        3,
+        vocabulary_placements=[],
+        workers=1,
+    )
+    parallel = _parallel_conversation_rows(
+        scenarios,
+        3,
+        vocabulary_placements=[],
+        workers=4,
+    )
+
+    assert parallel == serial
+
+
 def _task_row(
     family: str,
     domain: str,
@@ -131,7 +153,10 @@ def test_task_cards_do_not_invent_missing_trial_outcomes() -> None:
 
 def test_every_registered_domain_deals_a_valid_task_hand() -> None:
     registry = load_scenario_registry(REGISTRY)
-    scenarios = compile_scenarios(registry)
+    scenarios = compile_scenarios(
+        registry,
+        target_scenarios=EXPECTED_SCENARIOS,
+    )
     representatives: dict[tuple[str, str], dict] = {}
     for scenario in scenarios:
         representatives.setdefault(
@@ -168,7 +193,10 @@ def test_every_registered_domain_deals_a_valid_task_hand() -> None:
 
 def test_every_family_answer_deck_has_deep_generalist_reservoirs() -> None:
     registry = load_scenario_registry(REGISTRY)
-    scenarios = compile_scenarios(registry)
+    scenarios = compile_scenarios(
+        registry,
+        target_scenarios=EXPECTED_SCENARIOS,
+    )
     representatives: dict[tuple[str, str], dict] = {}
     for scenario in scenarios:
         representatives.setdefault(
@@ -556,7 +584,11 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
     tmp_path: Path,
 ) -> None:
     scenario_root = tmp_path / "scenarios"
-    build_scenario_forge(REGISTRY, scenario_root)
+    build_scenario_forge(
+        REGISTRY,
+        scenario_root,
+        target_scenarios=EXPECTED_SCENARIOS,
+    )
     output = tmp_path / "post-training"
     result = build_post_training_corpus(
         scenario_root / "scenarios.parquet",
@@ -564,6 +596,7 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
         variants_per_scenario=2,
         review_scenarios=140,
         seed=17,
+        target_rows=100_000,
     )
 
     rows = pq.read_table(output / "conversations.parquet").to_pylist()
@@ -692,7 +725,10 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
         for metrics in result["audit"]["family_metrics"].values()
     )
     scale = result["audit"]["scale_100k"]
-    assert required_distinct_surfaces_per_source_card(EXPECTED_SCENARIOS) == 4
+    assert (
+        required_distinct_surfaces_per_source_card(EXPECTED_SCENARIOS, 100_000)
+        == 4
+    )
     assert scale["target_rows"] == 100_000
     assert scale["source_cards"] == EXPECTED_SCENARIOS
     assert scale["required_distinct_surfaces_per_source_card"] == 4

@@ -24,20 +24,20 @@ from complexity_card_corpus.scenario_language import DynamicNarrativeComposer
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "data/scenario-forge/scenario-forge-v1.json"
 EXPECTED_FAMILY_COUNTS = {
-    "brainstorming_creativity": 2_920,
-    "conversation_empathy": 520,
-    "context_clarification": 2_880,
+    "brainstorming_creativity": 5_000,
+    "conversation_empathy": 2_500,
+    "context_clarification": 5_000,
     "critique_revision": 6_000,
-    "explanation_learning": 1_260,
-    "extraction_classification": 5_280,
-    "grounded_qa": 3_660,
-    "planning_comparison": 540,
-    "practical_action": 760,
-    "reasoning_verification": 3_240,
-    "safety_uncertainty": 400,
-    "summarization_synthesis": 3_600,
-    "troubleshooting": 1_220,
-    "writing_transformation": 1_040,
+    "explanation_learning": 4_000,
+    "extraction_classification": 7_000,
+    "grounded_qa": 7_000,
+    "planning_comparison": 3_000,
+    "practical_action": 3_500,
+    "reasoning_verification": 5_000,
+    "safety_uncertainty": 3_500,
+    "summarization_synthesis": 6_000,
+    "troubleshooting": 3_500,
+    "writing_transformation": 4_000,
 }
 EXPECTED_SCENARIOS = sum(EXPECTED_FAMILY_COUNTS.values())
 
@@ -63,7 +63,7 @@ def test_registry_keeps_one_editable_raw_data_tank_per_family() -> None:
         assert len(tank["families"]) == 1
         family = tank["families"][0]
         assert tank["tankId"] == family["id"] == tank_path.stem
-        assert family["target"] == EXPECTED_FAMILY_COUNTS[family["id"]]
+        assert family["weight"] == EXPECTED_FAMILY_COUNTS[family["id"]]
         # A tank must contain authored subject matter, not merely enough
         # Cartesian combinations to reach its generated-row target.
         assert len(family["domains"]) >= 8
@@ -90,9 +90,9 @@ def test_tank_hydration_audit_exposes_capacity_without_inventing_rows() -> None:
     assert set(audit["tanks"]) == set(EXPECTED_FAMILY_COUNTS)
     for family_id, tank in audit["tanks"].items():
         assert tank["path"] == f"tanks/{family_id}.json"
-        assert tank["target_scenarios"] == EXPECTED_FAMILY_COUNTS[family_id]
-        assert tank["compatible_signature_capacity"] >= tank["target_scenarios"]
-        assert tank["unused_signature_capacity"] >= 0
+        assert tank["allocation_weight"] == EXPECTED_FAMILY_COUNTS[family_id]
+        assert tank["compatible_signature_capacity"] >= tank["allocation_weight"]
+        assert tank["unused_signature_capacity_at_baseline"] >= 0
         assert tank["raw_atom_count"] == sum(tank["raw_atom_counts"].values())
         assert tank["raw_atom_count"] >= 40
         assert tank["raw_atom_counts"]["domains"] >= 8
@@ -102,7 +102,7 @@ def test_tank_hydration_audit_exposes_capacity_without_inventing_rows() -> None:
 
 def test_scenario_forge_compiles_semantic_cards_from_family_tanks() -> None:
     registry = load_scenario_registry(REGISTRY)
-    rows = compile_scenarios(registry)
+    rows = compile_scenarios(registry, target_scenarios=EXPECTED_SCENARIOS)
     audit = audit_scenarios(rows, registry)
 
     assert len(rows) == EXPECTED_SCENARIOS
@@ -190,7 +190,7 @@ def test_scenario_forge_compiles_semantic_cards_from_family_tanks() -> None:
         "connected_scenarios": EXPECTED_SCENARIOS,
         "minimum_card_degree": 2,
         "unique_cards": 629,
-        "unique_links": 6_923,
+        "unique_links": 6_941,
     }
     assert all(len(row["creation_hash"]) == 64 for row in rows)
     assert all(len(row["verification_hash"]) == 64 for row in rows)
@@ -208,8 +208,16 @@ def test_scenario_forge_compiles_semantic_cards_from_family_tanks() -> None:
 
 
 def test_scenario_forge_output_is_deterministic_and_inspectable(tmp_path: Path) -> None:
-    first = build_scenario_forge(REGISTRY, tmp_path / "first")
-    second = build_scenario_forge(REGISTRY, tmp_path / "second")
+    first = build_scenario_forge(
+        REGISTRY,
+        tmp_path / "first",
+        target_scenarios=EXPECTED_SCENARIOS,
+    )
+    second = build_scenario_forge(
+        REGISTRY,
+        tmp_path / "second",
+        target_scenarios=EXPECTED_SCENARIOS,
+    )
 
     for filename in ("scenarios.parquet", "scenarios.jsonl", "audit.json"):
         assert first["files"][filename]["sha256"] == second["files"][filename]["sha256"]
@@ -226,7 +234,10 @@ def test_scenario_forge_output_is_deterministic_and_inspectable(tmp_path: Path) 
 
 def test_scenario_forge_balances_every_family_across_domains() -> None:
     registry = load_scenario_registry(REGISTRY)
-    audit = audit_scenarios(compile_scenarios(registry), registry)
+    audit = audit_scenarios(
+        compile_scenarios(registry, target_scenarios=EXPECTED_SCENARIOS),
+        registry,
+    )
 
     for domain_counts in audit["domain_counts"].values():
         counts = list(domain_counts.values())
@@ -261,7 +272,7 @@ def test_weak_generalist_families_have_broad_linked_subject_decks() -> None:
 def test_scenario_registry_rejects_insufficient_semantic_capacity() -> None:
     payload = _expanded_registry_payload()
     family = payload["families"][0]
-    family["target"] = (
+    family["weight"] = (
         len(family["domains"])
         * len(family["intents"])
         * len(family["constraints"])
@@ -326,7 +337,7 @@ def test_scenario_registry_requires_fallback_for_every_risk_state_pair() -> None
 
 def test_audit_rejects_tampered_scenario_content() -> None:
     registry = load_scenario_registry(REGISTRY)
-    rows = compile_scenarios(registry)
+    rows = compile_scenarios(registry, target_scenarios=EXPECTED_SCENARIOS)
     rows[0]["situation"] = "Tampered after compilation."
 
     with pytest.raises(ValueError, match="verification hash mismatch"):
@@ -335,7 +346,7 @@ def test_audit_rejects_tampered_scenario_content() -> None:
 
 def test_audit_rejects_a_well_formed_but_false_source_graph() -> None:
     registry = load_scenario_registry(REGISTRY)
-    rows = compile_scenarios(registry)
+    rows = compile_scenarios(registry, target_scenarios=EXPECTED_SCENARIOS)
     row = rows[0]
     row["source_structure_links"][1] = row["source_structure_links"][1].replace(
         "->intent:",
@@ -352,7 +363,7 @@ def test_audit_rejects_a_well_formed_but_false_source_graph() -> None:
 
 def test_audit_rejects_semantically_incompatible_outcome() -> None:
     registry = load_scenario_registry(REGISTRY)
-    rows = compile_scenarios(registry)
+    rows = compile_scenarios(registry, target_scenarios=EXPECTED_SCENARIOS)
     row = next(
         value
         for value in rows
@@ -382,7 +393,7 @@ def test_audit_rejects_semantically_incompatible_outcome() -> None:
 
 def test_domain_intent_and_state_outcome_rules_are_realized() -> None:
     registry = load_scenario_registry(REGISTRY)
-    rows = compile_scenarios(registry)
+    rows = compile_scenarios(registry, target_scenarios=EXPECTED_SCENARIOS)
 
     assert not any(
         row["family"] == "safety_uncertainty"
@@ -405,7 +416,7 @@ def test_domain_intent_and_state_outcome_rules_are_realized() -> None:
 
 def test_validation_holds_out_complete_domain_intent_groups() -> None:
     registry = load_scenario_registry(REGISTRY)
-    rows = compile_scenarios(registry)
+    rows = compile_scenarios(registry, target_scenarios=EXPECTED_SCENARIOS)
 
     train_groups = {
         (row["family"], row["domain"], row["intent"])
@@ -425,7 +436,7 @@ def test_validation_holds_out_complete_domain_intent_groups() -> None:
 
 def test_safety_constraints_are_domain_specific() -> None:
     registry = load_scenario_registry(REGISTRY)
-    rows = compile_scenarios(registry)
+    rows = compile_scenarios(registry, target_scenarios=EXPECTED_SCENARIOS)
     safety = [row for row in rows if row["family"] == "safety_uncertainty"]
 
     assert not any(
@@ -447,7 +458,7 @@ def test_safety_constraints_are_domain_specific() -> None:
 
 def test_fallback_selection_uses_registry_priority() -> None:
     registry = load_scenario_registry(REGISTRY)
-    rows = compile_scenarios(registry)
+    rows = compile_scenarios(registry, target_scenarios=EXPECTED_SCENARIOS)
 
     critical_active = [
         row

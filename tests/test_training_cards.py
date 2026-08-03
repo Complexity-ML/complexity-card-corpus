@@ -176,7 +176,7 @@ def test_linked_dialogue_sampling_is_deterministic_and_progressive() -> None:
 
 
 def test_each_family_has_far_more_than_the_seven_surfaces_needed_for_100k() -> None:
-    assert required_distinct_surfaces_per_source_card(15_000) == 7
+    assert required_distinct_surfaces_per_source_card(15_000, 100_000) == 7
     for task in TASKS:
         hands = {
             tuple(

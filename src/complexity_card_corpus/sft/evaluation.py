@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 import hashlib
 import math
+import os
 import re
 from collections import Counter, defaultdict
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -298,6 +300,7 @@ def filter_sft_repetition_quality(
     target_key: str = "_projected_target",
     maximum_share: float = MAXIMUM_SFT_REPETITION_SHARE,
     minimum_examples: int = MINIMUM_REPETITION_AUDIT_EXAMPLES,
+    workers: int = 1,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Drop only compositions responsible for a repetition ceiling breach.
 
@@ -311,10 +314,63 @@ def filter_sft_repetition_quality(
         raise ValueError("maximum repetition share must be in (0, 1]")
     if minimum_examples < 1:
         raise ValueError("minimum repetition audit examples must be positive")
+    if workers < 1:
+        raise ValueError("workers must be positive")
 
     by_task: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         by_task[row["task"]].append(row)
+
+    if workers > 1 and len(by_task) > 1:
+        worker_count = min(workers, len(by_task), os.cpu_count() or 1)
+        arguments = [
+            (task_rows, prompt_key, target_key, maximum_share, minimum_examples)
+            for _task, task_rows in sorted(by_task.items())
+        ]
+
+        def collect(executor: ProcessPoolExecutor | ThreadPoolExecutor):
+            return list(executor.map(_filter_sft_repetition_task, arguments))
+
+        try:
+            with ProcessPoolExecutor(max_workers=worker_count) as executor:
+                results = collect(executor)
+        except (NotImplementedError, OSError, PermissionError):
+            with ThreadPoolExecutor(max_workers=worker_count) as executor:
+                results = collect(executor)
+
+        kept = sorted(
+            [row for task_rows, _selection in results for row in task_rows],
+            key=lambda row: row["example_id"],
+        )
+        selections = [selection for _task_rows, selection in results]
+        return kept, {
+            "method": "deterministic_overrepresented_signature_pruning",
+            "execution": "parallel_by_task",
+            "workers": worker_count,
+            "maximum_allowed_share": maximum_share,
+            "input_examples": len(rows),
+            "kept_examples": len(kept),
+            "dropped_examples": len(rows) - len(kept),
+            "tasks": {
+                task: stats
+                for selection in selections
+                for task, stats in selection["tasks"].items()
+            },
+            "input_audit": _combine_repetition_audits(
+                [selection["input_audit"] for selection in selections]
+            ),
+            "final_audit": _combine_repetition_audits(
+                [selection["final_audit"] for selection in selections]
+            ),
+        }
+
+    input_audit = audit_sft_repetition_quality(
+        rows,
+        prompt_key=prompt_key,
+        target_key=target_key,
+        maximum_share=maximum_share,
+        minimum_examples=minimum_examples,
+    )
 
     kept: list[dict[str, Any]] = []
     task_audit: dict[str, Any] = {}
@@ -461,12 +517,57 @@ def filter_sft_repetition_quality(
     )
     return kept, {
         "method": "deterministic_overrepresented_signature_pruning",
+        "execution": "serial_by_task",
+        "workers": 1,
         "maximum_allowed_share": maximum_share,
         "input_examples": len(rows),
         "kept_examples": len(kept),
         "dropped_examples": len(rows) - len(kept),
         "tasks": task_audit,
+        "input_audit": input_audit,
         "final_audit": final_audit,
+    }
+
+
+def _filter_sft_repetition_task(
+    arguments: tuple[list[dict[str, Any]], str, str, float, int],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    rows, prompt_key, target_key, maximum_share, minimum_examples = arguments
+    return filter_sft_repetition_quality(
+        rows,
+        prompt_key=prompt_key,
+        target_key=target_key,
+        maximum_share=maximum_share,
+        minimum_examples=minimum_examples,
+        workers=1,
+    )
+
+
+def _combine_repetition_audits(audits: list[dict[str, Any]]) -> dict[str, Any]:
+    if not audits:
+        return {
+            "maximum_allowed_share": MAXIMUM_SFT_REPETITION_SHARE,
+            "minimum_examples": MINIMUM_REPETITION_AUDIT_EXAMPLES,
+            "opening_and_closing_windows": list(SFT_REPETITION_WINDOWS),
+            "internal_span_words": max(SFT_REPETITION_WINDOWS),
+            "passed": True,
+            "violations": [],
+            "tasks": {},
+        }
+    first = audits[0]
+    violations = [item for audit in audits for item in audit["violations"]]
+    return {
+        "maximum_allowed_share": first["maximum_allowed_share"],
+        "minimum_examples": first["minimum_examples"],
+        "opening_and_closing_windows": first["opening_and_closing_windows"],
+        "internal_span_words": first["internal_span_words"],
+        "passed": not violations,
+        "violations": violations,
+        "tasks": {
+            task: stats
+            for audit in audits
+            for task, stats in audit["tasks"].items()
+        },
     }
 
 
@@ -521,7 +622,9 @@ def audit_sft_repetition_quality(
         for dimension, counts in sorted(counters.items()):
             if not counts:
                 continue
-            signature, count = counts.most_common(1)[0]
+            signature, count = min(
+                counts.items(), key=lambda item: (-item[1], item[0])
+            )
             share = count / total
             structured_prose_exempt = not _dimension_is_audited(task, dimension)
             audited = task_audited and not structured_prose_exempt

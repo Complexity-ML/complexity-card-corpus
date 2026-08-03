@@ -5,7 +5,7 @@
     {
       "id": "summarization_synthesis",
       "label": "Summarization and synthesis",
-      "target": 3600,
+      "weight": 6000,
       "domains": [
         {
           "id": "meeting_transcript",

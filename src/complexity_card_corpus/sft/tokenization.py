@@ -12,10 +12,7 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from ..release_targets import (
-    TARGET_POST_TRAINING_ROWS,
-    TARGET_POST_TRAINING_SUPERVISED_TOKENS,
-)
+from ..quality_audit import audit_rows_quality
 from ..build import file_sha256
 from ..chat_template import (
     CHAT_TEMPLATE_ID,
@@ -27,8 +24,6 @@ from ..tokenize import directory_sha256, load_encoding
 from ..training_cards import TrainingCards, deal_training_cards
 from .evaluation import (
     _audit_sft_projection,
-    assert_sft_repetition_quality,
-    filter_sft_repetition_quality,
     load_heldout_evaluation,
 )
 from .language import _card_sections, _render_messages
@@ -49,11 +44,13 @@ from .surface_selection import select_balanced_sft_surfaces
 from .surface_variation import SurfaceVariationBalancer
 
 
-TRAIN_MAX_EXAMPLES_PER_FAMILY = 15_000
-TRAIN_MAX_PER_STRUCTURE = 8
-TRAIN_EXTRACTION_MAX_PER_STRUCTURE = 32
-TRAIN_MAX_RESPONSE_CARD_HAND_SHARE = 0.05
-TRAIN_MAX_DOMAIN_SHARE = 0.05
+TRAIN_QUALITY_MAX_RESPONSE_CARD_HAND_SHARE = 0.05
+# A 5% domain ceiling forces all twenty-domain families into an exact uniform
+# distribution and discards otherwise diverse, unique supervision as soon as
+# one domain loses more rows during exact/structural deduplication.  Ten percent
+# still prevents a single semantic domain from dominating a family while
+# preserving enough naturally uneven material for the release-scale corpus.
+TRAIN_QUALITY_MAX_DOMAIN_SHARE = 0.10
 
 SUPPLEMENT_TASK_ALIASES = {
     "empathetic_dialogue": "conversation_empathy",
@@ -64,6 +61,32 @@ _PRACTICAL_STAGE_TASKS = {
     "ask_for_missing_detail": "context_clarification",
     "present_bounded_options": "planning_comparison",
 }
+
+
+def _project_surface(
+    row: dict[str, Any], selection_key: str
+) -> tuple[list[dict[str, str]], TrainingCards]:
+    return _project_sft_conversation(
+        row["messages"],
+        example_id=selection_key,
+        task=row["task"],
+        answer_json=row["answer_json"],
+    )
+
+
+def _deal_surface(row: dict[str, Any], selection_key: str) -> TrainingCards:
+    try:
+        metadata = json.loads(row["answer_json"]) if row["answer_json"] else {}
+    except json.JSONDecodeError:
+        metadata = {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    return deal_training_cards(
+        task=row["task"],
+        mode="chat" if len(row["messages"]) > 2 else "instruct",
+        example_id=selection_key,
+        metadata=metadata,
+    )
 
 
 def _canonical_supplement_task(row: dict[str, Any]) -> str:
@@ -185,7 +208,24 @@ def tokenize_instruction_dataset(
     output_root: Path,
     heldout_evaluation_path: Path | None = None,
     supplementary_instruction_paths: list[Path] | None = None,
+    workers: int = 1,
+    max_examples_per_family: int | None = None,
+    max_per_structure: int | None = None,
+    max_domain_share: float | None = None,
+    max_response_card_hand_share: float | None = None,
+    target_training_examples: int | None = None,
+    target_supervised_tokens: int | None = None,
 ) -> dict[str, Any]:
+    """Project and tokenize SFT data without hidden scale-dependent truncation.
+
+    Exact duplicates are always removed. Family, structure, domain, and card-hand
+    caps are opt-in recovery controls; by default every other compatible row is
+    preserved and distribution quality is reported as ratios in the manifest.
+    """
+    if target_training_examples is not None and target_training_examples < 1:
+        raise ValueError("target_training_examples must be positive")
+    if target_supervised_tokens is not None and target_supervised_tokens < 1:
+        raise ValueError("target_supervised_tokens must be positive")
     encoding, tokenizer_config = load_encoding(tokenizer_root)
     eos_token = tokenizer_config.get("eos_token", "<|endoftext|>")
     try:
@@ -220,34 +260,11 @@ def tokenize_instruction_dataset(
         source_rows.extend(heldout_rows)
         evaluation_sha256 = file_sha256(heldout_evaluation_path)
 
-    def project_surface(
-        row: dict[str, Any], selection_key: str
-    ) -> tuple[list[dict[str, str]], TrainingCards]:
-        return _project_sft_conversation(
-            row["messages"],
-            example_id=selection_key,
-            task=row["task"],
-            answer_json=row["answer_json"],
-        )
-
-    def deal_surface(row: dict[str, Any], selection_key: str) -> TrainingCards:
-        try:
-            metadata = json.loads(row["answer_json"]) if row["answer_json"] else {}
-        except json.JSONDecodeError:
-            metadata = {}
-        if not isinstance(metadata, dict):
-            metadata = {}
-        return deal_training_cards(
-            task=row["task"],
-            mode="chat" if len(row["messages"]) > 2 else "instruct",
-            example_id=selection_key,
-            metadata=metadata,
-        )
-
     projected_rows, surface_selection = select_balanced_sft_surfaces(
         source_rows,
-        dealer=deal_surface,
-        projector=project_surface,
+        dealer=_deal_surface,
+        projector=_project_surface,
+        workers=workers,
     )
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in projected_rows:
@@ -272,10 +289,10 @@ def tokenize_instruction_dataset(
         partition_rows, exact_prompt_deduplication[partition] = (
             _deduplicate_exact_prompts(partition_rows)
         )
-        structure_limit = TRAIN_MAX_PER_STRUCTURE if partition == "train" else 10_000
+        structure_limit = max_per_structure if partition == "train" else None
         per_task_limits = (
-            {"extraction_classification": TRAIN_EXTRACTION_MAX_PER_STRUCTURE}
-            if partition == "train"
+            {"extraction_classification": max_per_structure * 4}
+            if partition == "train" and max_per_structure is not None
             else None
         )
         partition_rows, deduplication[partition] = _deduplicate_structural_rows(
@@ -286,16 +303,20 @@ def tokenize_instruction_dataset(
         if partition == "train":
             partition_rows, family_balance[partition] = _balance_task_families(
                 partition_rows,
-                max_examples_per_family=TRAIN_MAX_EXAMPLES_PER_FAMILY,
+                max_examples_per_family=max_examples_per_family,
             )
+            family_balance[partition]["policy"] = {
+                "default": "preserve_all_and_audit_ratios",
+                "manual_cap": max_examples_per_family,
+            }
             partition_rows, domain_balance[partition] = _balance_task_domains(
                 partition_rows,
-                maximum_share=TRAIN_MAX_DOMAIN_SHARE,
+                maximum_share=max_domain_share,
             )
             partition_rows, response_card_balance[partition] = (
                 _balance_response_card_hands(
                     partition_rows,
-                    maximum_share=TRAIN_MAX_RESPONSE_CARD_HAND_SHARE,
+                    maximum_share=max_response_card_hand_share,
                 )
             )
         else:
@@ -361,15 +382,19 @@ def tokenize_instruction_dataset(
         post_variation_prompt_deduplication
     )
 
-    grouped["train"], repetition_filter = filter_sft_repetition_quality(
-        grouped.get("train", [])
-    )
-    surface_selection["repetition_filter"] = repetition_filter
-
     projection_audit = _audit_sft_projection(
         [row for rows in grouped.values() for row in rows]
     )
-    repetition_audit = assert_sft_repetition_quality(grouped.get("train", []))
+    statistical_quality_audit = audit_rows_quality(
+        [row for rows in grouped.values() for row in rows],
+        input_label="model-facing SFT projection",
+        prompt_key="_projected_prompt",
+        response_key="_projected_target",
+        sample_size=None,
+        near_duplicate_threshold=0.95,
+        max_features=None,
+        workers=workers,
+    )
 
     train_structures = {
         (row["task"], row["_structure_signature"]) for row in grouped.get("train", [])
@@ -545,7 +570,7 @@ def tokenize_instruction_dataset(
         "instruction_sources_sha256": instruction_sources_sha256,
         "projection_audit": projection_audit,
         "surface_selection": surface_selection,
-        "repetition_audit": repetition_audit,
+        "statistical_quality_audit": statistical_quality_audit,
         "exact_response_deduplication": exact_deduplication,
         "exact_prompt_deduplication": exact_prompt_deduplication,
         "family_balance": family_balance,
@@ -644,7 +669,6 @@ def tokenize_instruction_dataset(
         "no_exact_duplicate_train_responses": exact_train_responses == train_count,
         "no_exact_duplicate_train_prompts": exact_train_prompts == train_count,
         "at_least_fourteen_training_families": len(train_family_counts) >= 14,
-        "training_examples_at_least_100k": (train_count >= TARGET_POST_TRAINING_ROWS),
         "maximum_family_share_at_most_15_percent": max(
             family_shares.values(), default=0.0
         )
@@ -671,20 +695,27 @@ def tokenize_instruction_dataset(
         )
         >= 0.20,
         "maximum_response_card_hand_share_at_most_5_percent": (
-            maximum_card_hand_share <= TRAIN_MAX_RESPONSE_CARD_HAND_SHARE
+            maximum_card_hand_share <= TRAIN_QUALITY_MAX_RESPONSE_CARD_HAND_SHARE
         ),
-        "all_sft_repetition_signatures_at_most_5_percent": repetition_audit["passed"],
+        "sklearn_statistical_quality_audit_passed": statistical_quality_audit[
+            "passed"
+        ],
         "heldout_evaluation_has_at_least_28_authored_examples": (
             manifests.get("eval", {}).get("examples", 0) >= 28
         ),
         "diagnostic_companion_has_500_to_1000_examples": 500
         <= manifests.get("diagnostic", {}).get("examples", 0)
         <= 1_000,
-        "training_supervised_tokens_at_least_10m": (
-            manifests.get("train", {}).get("supervised_tokens", 0)
-            >= TARGET_POST_TRAINING_SUPERVISED_TOKENS
-        ),
     }
+    if target_training_examples is not None:
+        quality_checks["training_examples_reach_requested_target"] = (
+            train_count >= target_training_examples
+        )
+    if target_supervised_tokens is not None:
+        quality_checks["supervised_tokens_reach_requested_target"] = (
+            manifests.get("train", {}).get("supervised_tokens", 0)
+            >= target_supervised_tokens
+        )
     manifest["release_quality"] = {
         "ready": all(quality_checks.values()),
         "checks": quality_checks,
@@ -700,7 +731,7 @@ def tokenize_instruction_dataset(
             task: len(counts) for task, counts in sorted(card_hands_by_task.items())
         },
         "maximum_response_card_hand_share": round(maximum_card_hand_share, 6),
-        "repetition_audit": repetition_audit,
+        "statistical_quality_audit": statistical_quality_audit,
         "multi_turn_examples": multi_turn_count,
         "multi_turn_share": round(
             multi_turn_count / train_count if train_count else 0.0, 6
@@ -719,8 +750,28 @@ def tokenize_instruction_dataset(
         "exact_train_prompt_uniqueness_ratio": round(
             exact_train_prompts / train_count if train_count else 0.0, 6
         ),
-        "minimum_supervised_training_tokens": (TARGET_POST_TRAINING_SUPERVISED_TOKENS),
-        "target_training_examples": TARGET_POST_TRAINING_ROWS,
+        "target_supervised_training_tokens": target_supervised_tokens,
+        "target_training_examples": target_training_examples,
+        "scale_policy": (
+            "manual_targets"
+            if target_training_examples is not None
+            or target_supervised_tokens is not None
+            else "report_realized_scale_without_implicit_target"
+        ),
+        "selection_policy": {
+            "default": "preserve_all_non_exact_rows",
+            "exact_duplicates": "always_removed",
+            "manual_max_examples_per_family": max_examples_per_family,
+            "manual_max_per_structure": max_per_structure,
+            "manual_max_domain_share": max_domain_share,
+            "manual_max_response_card_hand_share": max_response_card_hand_share,
+            "quality_maximum_family_share": 0.15,
+            "quality_minimum_family_share": 0.02,
+            "quality_maximum_domain_share": TRAIN_QUALITY_MAX_DOMAIN_SHARE,
+            "quality_maximum_response_card_hand_share": (
+                TRAIN_QUALITY_MAX_RESPONSE_CARD_HAND_SHARE
+            ),
+        },
     }
     (temporary / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n"

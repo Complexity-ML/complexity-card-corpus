@@ -5,7 +5,7 @@
     {
       "id": "writing_transformation",
       "label": "Writing and transformation",
-      "target": 1040,
+      "weight": 4000,
       "domains": [
         {
           "id": "email",

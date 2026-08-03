@@ -5,7 +5,7 @@
     {
       "id": "extraction_classification",
       "label": "Extraction and classification",
-      "target": 5280,
+      "weight": 7000,
       "domains": [
         {
           "id": "receipt",

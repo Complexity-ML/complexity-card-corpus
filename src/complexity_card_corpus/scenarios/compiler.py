@@ -22,17 +22,113 @@ from .schema import (
 )
 
 
-def _domain_quotas(family: ScenarioFamilySpec, seed: int) -> dict[str, int]:
-    base, remainder = divmod(family.target, len(family.domains))
+def _domain_quotas(
+    family: ScenarioFamilySpec,
+    seed: int,
+    *,
+    target: int | None = None,
+    capacities: dict[str, int] | None = None,
+) -> dict[str, int]:
+    resolved_target = family.weight if target is None else target
     order = sorted(
         family.domains,
         key=lambda domain: _digest(f"{seed}:{family.family_id}:{domain.domain_id}"),
     )
-    extra = {domain.domain_id for domain in order[:remainder]}
-    return {
-        domain.domain_id: base + int(domain.domain_id in extra)
+    capacities = capacities or {
+        domain.domain_id: len(_semantic_combinations(family, domain, seed=seed))
         for domain in family.domains
     }
+    if resolved_target > sum(capacities.values()):
+        raise ValueError(
+            f"family {family.family_id} requests {resolved_target} scenarios but "
+            f"its domain capacity is {sum(capacities.values())}"
+        )
+    quotas = {domain.domain_id: 0 for domain in family.domains}
+    remaining = resolved_target
+    active = {domain.domain_id for domain in family.domains}
+    while remaining:
+        share = max(1, remaining // len(active))
+        progress = 0
+        for domain in order:
+            domain_id = domain.domain_id
+            if domain_id not in active:
+                continue
+            addition = min(share, capacities[domain_id] - quotas[domain_id])
+            quotas[domain_id] += addition
+            progress += addition
+            if progress == remaining:
+                break
+        remaining -= progress
+        active = {
+            domain_id
+            for domain_id in active
+            if quotas[domain_id] < capacities[domain_id]
+        }
+        if progress == 0:
+            raise ValueError(f"domain capacity exhausted for {family.family_id}")
+    return quotas
+
+
+def resolve_family_targets(
+    registry: ScenarioForgeRegistry,
+    target_scenarios: int,
+) -> dict[str, int]:
+    """Scale family targets by authored weights and compatible capacity.
+
+    Tank ``weight`` values control proportional allocation, not upper bounds.
+    A caller may request any total supported by the realized semantic capacity.
+    """
+
+    baseline = {family.family_id: family.weight for family in registry.families}
+    if target_scenarios < 1:
+        raise ValueError("target_scenarios must be positive")
+    capacities = {
+        family.family_id: family.semantic_signature_capacity()
+        for family in registry.families
+    }
+    if target_scenarios > sum(capacities.values()):
+        raise ValueError(
+            f"requested {target_scenarios} scenarios but compatible capacity is "
+            f"{sum(capacities.values())}"
+        )
+
+    allocated = {family_id: 0 for family_id in baseline}
+    remaining = target_scenarios
+    active = set(baseline)
+    while remaining:
+        if not active:
+            raise ValueError("semantic capacity was exhausted during allocation")
+        weight_total = sum(baseline[family_id] for family_id in active)
+        ideals = {
+            family_id: remaining * baseline[family_id] / weight_total
+            for family_id in active
+        }
+        progress = 0
+        for family_id in sorted(active):
+            available = capacities[family_id] - allocated[family_id]
+            addition = min(available, int(ideals[family_id]))
+            allocated[family_id] += addition
+            progress += addition
+        remaining -= progress
+        active = {
+            family_id
+            for family_id in active
+            if allocated[family_id] < capacities[family_id]
+        }
+        if not remaining:
+            break
+        if progress == 0 or remaining < len(active):
+            order = sorted(
+                active,
+                key=lambda family_id: (
+                    -(ideals.get(family_id, 0.0) % 1.0),
+                    _digest(f"{registry.seed}:family-target:{family_id}"),
+                ),
+            )
+            for family_id in order[:remaining]:
+                allocated[family_id] += 1
+            remaining = 0
+    return allocated
 
 
 def _assign_splits(
@@ -263,13 +359,38 @@ def _payload(
     return {**common, **family_specific[family.family_id]}
 
 
-def compile_scenarios(registry: ScenarioForgeRegistry) -> list[dict[str, Any]]:
+def compile_scenarios(
+    registry: ScenarioForgeRegistry,
+    *,
+    target_scenarios: int,
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     language = DynamicNarrativeComposer(seed=registry.seed)
+    family_targets = resolve_family_targets(registry, target_scenarios)
+    domain_targets: dict[str, dict[str, int]] = {}
     for family in registry.families:
-        quotas = _domain_quotas(family, registry.seed)
+        domain_combinations = {
+            domain.domain_id: _semantic_combinations(
+                family,
+                domain,
+                seed=registry.seed,
+            )
+            for domain in family.domains
+        }
+        quotas = _domain_quotas(
+            family,
+            registry.seed,
+            target=family_targets[family.family_id],
+            capacities={
+                domain_id: len(combinations)
+                for domain_id, combinations in domain_combinations.items()
+            },
+        )
+        domain_targets[family.family_id] = {
+            domain_id: count for domain_id, count in quotas.items() if count
+        }
         for domain in family.domains:
-            combinations = _semantic_combinations(family, domain, seed=registry.seed)
+            combinations = domain_combinations[domain.domain_id]
             for intent, constraint, state, outcome in combinations[
                 : quotas[domain.domain_id]
             ]:
@@ -368,5 +489,10 @@ def compile_scenarios(registry: ScenarioForgeRegistry) -> list[dict[str, Any]]:
     _assign_splits(rows, registry.validation_percent, registry.seed)
     for row in rows:
         row["verification_hash"] = _verification_hash(row)
-    audit_scenarios(rows, registry)
+    audit_scenarios(
+        rows,
+        registry,
+        expected_family_counts=family_targets,
+        expected_domain_counts=domain_targets,
+    )
     return rows

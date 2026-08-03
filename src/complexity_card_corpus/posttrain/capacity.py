@@ -3,8 +3,6 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from ..release_targets import TARGET_POST_TRAINING_ROWS
-
 PLANNED_DISTINCT_SURFACES_PER_SOURCE_CARD = 8
 
 
@@ -22,7 +20,7 @@ MAX_FAMILY_MASKED_TEMPLATE_SHARE = 0.05
 
 def required_distinct_surfaces_per_source_card(
     source_cards: int,
-    target_rows: int = TARGET_POST_TRAINING_ROWS,
+    target_rows: int,
 ) -> int:
     """Return the minimum pre-deduplication surface budget for a row target."""
 
@@ -38,7 +36,7 @@ def post_training_capacity_report(
     source_cards: int,
     configured_variants_per_source_card: int,
     audit: dict[str, Any],
-    target_rows: int = TARGET_POST_TRAINING_ROWS,
+    target_rows: int | None = None,
 ) -> dict[str, Any]:
     """Describe scale capacity without claiming that unbuilt rows exist.
 
@@ -49,9 +47,10 @@ def post_training_capacity_report(
 
     if configured_variants_per_source_card < 1:
         raise ValueError("configured_variants_per_source_card must be positive")
-    required_surfaces = required_distinct_surfaces_per_source_card(
-        source_cards,
-        target_rows,
+    required_surfaces = (
+        required_distinct_surfaces_per_source_card(source_cards, target_rows)
+        if target_rows is not None
+        else None
     )
     masked = audit["masked_response_diversity"]
     repetition = audit["response_repetition_gate"]
@@ -93,13 +92,17 @@ def post_training_capacity_report(
         "configured_variant_shortfall": max(
             0,
             required_surfaces - configured_variants_per_source_card,
-        ),
+        ) if required_surfaces is not None else None,
         "planned_distinct_surfaces_per_source_card": (
             PLANNED_DISTINCT_SURFACES_PER_SOURCE_CARD
         ),
         "planned_pre_deduplication_ceiling": planned_ceiling,
-        "planned_capacity_exceeds_target": planned_ceiling >= target_rows,
-        "current_configuration_can_reach_target": configured_ceiling >= target_rows,
+        "planned_capacity_exceeds_target": (
+            planned_ceiling >= target_rows if target_rows is not None else None
+        ),
+        "current_configuration_can_reach_target": (
+            configured_ceiling >= target_rows if target_rows is not None else None
+        ),
         "static_surface_hotspots": hotspots,
         "quality_thresholds": {
             "minimum_masked_skeleton_uniqueness": MIN_MASKED_SKELETON_UNIQUENESS,
@@ -113,9 +116,16 @@ def post_training_capacity_report(
         },
         "quality_gates": quality_gates,
         "surface_quality_ready": all(quality_gates.values()),
-        "target_generated": generated_rows >= target_rows,
+        "target_generated": (
+            generated_rows >= target_rows if target_rows is not None else None
+        ),
         "release_target_ready": (
             generated_rows >= target_rows and all(quality_gates.values())
+            if target_rows is not None
+            else None
+        ),
+        "scale_policy": (
+            "manual_target" if target_rows is not None else "realized_scale_only"
         ),
         "claim_scope": (
             "capacity contract only; planned or theoretical rows are not "

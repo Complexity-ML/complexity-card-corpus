@@ -329,10 +329,11 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
         ]["exact_prompt_uniqueness_ratio"]
         == 1.0
     )
-    assert manifest["release_quality"]["target_training_examples"] == 100_000
-    assert (
-        manifest["release_quality"]["checks"]["training_examples_at_least_100k"]
-        is False
+    assert manifest["release_quality"]["target_training_examples"] is None
+    assert manifest["release_quality"]["target_supervised_training_tokens"] is None
+    assert not any(
+        "requested_target" in check
+        for check in manifest["release_quality"]["checks"]
     )
     assert (
         "at_least_fourteen_training_families" in manifest["release_quality"]["checks"]
@@ -843,7 +844,11 @@ def test_structural_normalization_deduplicates_slot_variants() -> None:
             "target": "Compare both options before choosing one.",
         },
     ]
-    kept, audit = _deduplicate_structural_rows(rows, target_key="target")
+    kept, audit = _deduplicate_structural_rows(
+        rows,
+        target_key="target",
+        max_per_structure=1,
+    )
     assert [row["example_id"] for row in kept] == ["a", "c"]
     assert audit["dropped_structural_duplicates"] == 1
 
@@ -1085,6 +1090,41 @@ def test_sft_repetition_filter_drops_only_overrepresented_compositions() -> None
     assert [row["example_id"] for row in kept] == [
         row["example_id"] for row in filter_sft_repetition_quality(rows)[0]
     ]
+
+
+def test_parallel_repetition_filter_matches_serial_selection() -> None:
+    rows = []
+    for task in ("practical_action", "grounded_qa"):
+        for index in range(120):
+            marker = chr(ord("a") + index // 26) + chr(ord("a") + index % 26)
+            repeated = index < 12
+            rows.append(
+                {
+                    "example_id": f"parallel:{task}:{index:03d}",
+                    "task": task,
+                    "domain": f"domain-{index % 20}",
+                    "_projected_prompt": (
+                        "Use this recurring internal phrase to organize the request. "
+                        f"Prompt marker {marker}."
+                        if repeated
+                        else f"{marker} request for {task}."
+                    ),
+                    "_projected_target": (
+                        f"Answer marker {marker}. Use this recurring internal phrase "
+                        "to organize the response."
+                        if repeated
+                        else f"{marker} answer for {task}."
+                    ),
+                }
+            )
+
+    serial, serial_audit = filter_sft_repetition_quality(rows, workers=1)
+    parallel, parallel_audit = filter_sft_repetition_quality(rows, workers=4)
+
+    assert [row["example_id"] for row in parallel] == [
+        row["example_id"] for row in serial
+    ]
+    assert parallel_audit["final_audit"] == serial_audit["final_audit"]
 
 
 def test_sft_repetition_filter_preserves_twenty_domain_subcard_balance() -> None:
@@ -1462,6 +1502,28 @@ def test_family_balance_caps_only_dominant_families() -> None:
     kept, audit = _balance_task_families(rows, max_examples_per_family=3)
     assert Counter(row["task"] for row in kept) == {"a": 3, "b": 2}
     assert audit["dropped_for_family_balance"] == 4
+
+
+def test_family_balance_preserves_semantic_domain_coverage() -> None:
+    rows = [
+        {
+            "example_id": f"{domain}-{index}",
+            "task": "grounded_qa",
+            "domain": domain,
+        }
+        for domain in ("policy", "science", "travel", "technical")
+        for index in range(12)
+    ]
+
+    kept, audit = _balance_task_families(rows, max_examples_per_family=20)
+
+    assert Counter(row["domain"] for row in kept) == {
+        "policy": 5,
+        "science": 5,
+        "technical": 5,
+        "travel": 5,
+    }
+    assert audit["selection_strategy"] == "deterministic_domain_round_robin"
 
 
 def test_domain_balance_caps_a_dominant_domain_when_twenty_are_realized() -> None:

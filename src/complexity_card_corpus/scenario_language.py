@@ -12,12 +12,20 @@ from .english_morphology import (
 
 NARRATIVE_FRAME_IDS = tuple(f"frame_{index:02d}" for index in range(1, 25))
 QUESTION_FRAME_IDS = frozenset(
-    {"frame_02", "frame_06", "frame_10", "frame_14", "frame_18", "frame_22"}
+    {
+        "frame_02",
+        "frame_06",
+        "frame_10",
+        "frame_14",
+        "frame_18",
+        "frame_22",
+        "frame_24",
+    }
 )
 
 
 def uses_question_surface(frame_id: str) -> bool:
-    """Reserve one quarter of narrative frames for direct questions."""
+    """Reserve seven of twenty-four narrative frames for direct questions."""
 
     return frame_id in QUESTION_FRAME_IDS
 

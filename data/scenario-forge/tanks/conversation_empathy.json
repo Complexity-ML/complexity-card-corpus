@@ -5,7 +5,7 @@
     {
       "id": "conversation_empathy",
       "label": "Conversation and empathy",
-      "target": 520,
+      "weight": 2500,
       "domains": [
         {
           "id": "work_stress",

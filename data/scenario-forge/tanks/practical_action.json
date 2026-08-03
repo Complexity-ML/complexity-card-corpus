@@ -5,7 +5,7 @@
     {
       "id": "practical_action",
       "label": "Practical action",
-      "target": 760,
+      "weight": 3500,
       "domains": [
         {
           "id": "appointments",

@@ -6,6 +6,7 @@ from .build import (
     load_scenario_registry as load_scenario_registry,
 )
 from .compiler import compile_scenarios as compile_scenarios
+from .compiler import resolve_family_targets as resolve_family_targets
 from .schema import (
     SCENARIO_FORGE_VERSION as SCENARIO_FORGE_VERSION,
     SCENARIO_PROVENANCE as SCENARIO_PROVENANCE,
@@ -23,5 +24,6 @@ __all__ = [
     "audit_scenario_tanks",
     "build_scenario_forge",
     "compile_scenarios",
+    "resolve_family_targets",
     "load_scenario_registry",
 ]

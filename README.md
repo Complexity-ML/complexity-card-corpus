@@ -143,6 +143,12 @@ Each assistant family lives in its own
 contexts and compatibility rows are physical source data; increasing a target
 count alone does not count as hydration.
 
+The per-tank `weight` values are proportional allocation weights, not family
+ceilings. `build-scenario-forge --target-scenarios N` distributes the requested
+requested total across those weights and the compatible capacity actually
+present in each domain. The CLI requires that total explicitly; 65k is only
+the historical reproduction profile used by existing fixtures.
+
 The tank audit reports authored atom counts, compatible signature capacity and
 unused reserve independently:
 
@@ -387,13 +393,15 @@ Build Scenario Forge and the post-training review set:
 ```bash
 uv run card-corpus build-scenario-forge \
   --registry data/scenario-forge/scenario-forge-v1.json \
-  --output build/scenario-forge
+  --output build/scenario-forge \
+  --target-scenarios 80000
 
 uv run card-corpus build-post-training \
   --scenarios build/scenario-forge/scenarios.parquet \
   --vocabulary-placement data/vocabulary/vocabulary-placement-v1.csv \
   --output build/post-training \
-  --variants-per-scenario 4 \
+  --variants-per-scenario 8 \
+  --workers 8 \
   --review-scenarios 140
 ```
 
@@ -465,6 +473,31 @@ Run the complete test suite:
 uv run pytest -q
 ```
 
+Run the statistical quality audit after generation. It uses TF-IDF character
+n-grams and deterministic sampling to detect near duplicates, train/evaluation
+leakage, collapsed clusters, and ambiguous task-family surfaces:
+
+```bash
+uv run card-corpus audit-sklearn \
+  --conversations build/post-training/conversations.parquet \
+  --output build/post-training/sklearn-audit.json
+```
+
+Sampling, TF-IDF dimensions, clusters, and score batches scale from the
+realized corpus size. Every row is still checked for exact duplication, basic
+format validity, cluster assignment, family mismatch and surface outlier
+score. The fitted statistical reference grows from the corpus instead of
+remaining fixed at a 443k-row assumption.
+
+SFT projection has no default 15k family cap and no default normalized-shape,
+domain or response-hand truncation. It removes exact prompt/response duplicates
+and reports the remaining distributions as ratios. Destructive caps exist only
+as explicit `tokenize-instruct` recovery options for controlled ablations.
+
+This complements the inexpensive exact checks for schema validity, duplicate
+IDs and source-group leakage. Quality thresholds can fail a release without
+silently deleting otherwise valid data.
+
 ## Tokenization
 
 Readable artifacts can be converted with an o200k tokenizer after inspection
@@ -481,6 +514,7 @@ uv run card-corpus tokenize-instruct \
   --supplement build/conversation-surface-10k/conversations.parquet \
   --tokenizer /path/to/tokenizer-o200k \
   --heldout-evaluation data/evaluation/generalist-heldout-v2.json \
+  --workers 8 \
   --output build/post-training-o200k
 ```
 

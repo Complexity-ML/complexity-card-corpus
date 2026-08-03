@@ -28,14 +28,14 @@ def audit_scenario_tanks(registry_path: Path) -> dict[str, Any]:
             "fallbacks": len(family.fallbacks),
             "response_contract_rules": len(family.response_contract),
         }
-        reserve_ratio = capacity / family.target
+        reserve_ratio = capacity / family.weight
         tanks[family.family_id] = {
             "path": include_by_stem.get(family.family_id),
-            "target_scenarios": family.target,
+            "allocation_weight": family.weight,
             "raw_atom_count": sum(atom_counts.values()),
             "raw_atom_counts": atom_counts,
             "compatible_signature_capacity": capacity,
-            "unused_signature_capacity": capacity - family.target,
+            "unused_signature_capacity_at_baseline": capacity - family.weight,
             "capacity_reserve_ratio": round(reserve_ratio, 6),
             "hydrated_for_scale": reserve_ratio
             >= MIN_TANK_CAPACITY_RESERVE_RATIO,

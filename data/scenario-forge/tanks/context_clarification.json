@@ -5,7 +5,7 @@
     {
       "id": "context_clarification",
       "label": "Context tracking and clarification",
-      "target": 2880,
+      "weight": 5000,
       "domains": [
         {
           "id": "ambiguous_request",

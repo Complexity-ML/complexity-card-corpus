@@ -5,7 +5,7 @@
     {
       "id": "safety_uncertainty",
       "label": "Safety, refusal, and uncertainty",
-      "target": 400,
+      "weight": 3500,
       "domains": [
         {
           "id": "privacy_security",

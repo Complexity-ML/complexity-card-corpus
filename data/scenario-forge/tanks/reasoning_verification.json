@@ -5,7 +5,7 @@
     {
       "id": "reasoning_verification",
       "label": "Reasoning and verification",
-      "target": 3240,
+      "weight": 5000,
       "domains": [
         {
           "id": "shopping_arithmetic",

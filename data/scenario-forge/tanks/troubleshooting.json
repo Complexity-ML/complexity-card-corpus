@@ -5,7 +5,7 @@
     {
       "id": "troubleshooting",
       "label": "Troubleshooting",
-      "target": 1220,
+      "weight": 3500,
       "domains": [
         {
           "id": "software_install",

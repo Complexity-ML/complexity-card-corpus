@@ -5,7 +5,7 @@
     {
       "id": "planning_comparison",
       "label": "Planning and comparison",
-      "target": 540,
+      "weight": 3000,
       "domains": [
         {
           "id": "travel_plan",

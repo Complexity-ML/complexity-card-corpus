@@ -5,7 +5,7 @@
     {
       "id": "explanation_learning",
       "label": "Explanation and learning",
-      "target": 1260,
+      "weight": 4000,
       "domains": [
         {
           "id": "computing",

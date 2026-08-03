@@ -5,7 +5,7 @@
     {
       "id": "critique_revision",
       "label": "Critique and revision",
-      "target": 6000,
+      "weight": 6000,
       "domains": [
         {
           "id": "email_draft",

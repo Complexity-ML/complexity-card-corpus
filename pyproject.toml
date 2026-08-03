@@ -21,6 +21,7 @@ dependencies = [
   "numpy>=2.0",
   "pyarrow>=18",
   "pydantic>=2.10",
+  "scikit-learn>=1.5,<2",
   "tiktoken>=0.9",
 ]
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 import pyarrow.parquet as pq
@@ -26,6 +27,7 @@ from .package import (
     package_instructions_for_hugging_face,
 )
 from .posttrain import audit_human_review, build_post_training_corpus
+from .quality_audit import audit_dataset_quality
 from .scenarios import audit_scenario_tanks, build_scenario_forge
 from .tokenize import tokenize_documents
 from .vocabulary_gap import build_vocabulary_gap
@@ -53,6 +55,15 @@ def parser() -> argparse.ArgumentParser:
     scenario_forge = commands.add_parser("build-scenario-forge")
     scenario_forge.add_argument("--registry", type=Path, required=True)
     scenario_forge.add_argument("--output", type=Path, required=True)
+    scenario_forge.add_argument(
+        "--target-scenarios",
+        type=int,
+        required=True,
+        help=(
+            "requested total allocated dynamically by family weight and "
+            "semantic capacity"
+        ),
+    )
 
     tank_audit = commands.add_parser("audit-scenario-tanks")
     tank_audit.add_argument("--registry", type=Path, required=True)
@@ -60,7 +71,22 @@ def parser() -> argparse.ArgumentParser:
     post_training = commands.add_parser("build-post-training")
     post_training.add_argument("--scenarios", type=Path, required=True)
     post_training.add_argument("--output", type=Path, required=True)
-    post_training.add_argument("--variants-per-scenario", type=int, default=4)
+    post_training.add_argument("--variants-per-scenario", type=int, default=8)
+    post_training.add_argument(
+        "--target-rows",
+        type=int,
+        default=0,
+        help="optional scale objective; 0 reports realized rows without a target",
+    )
+    post_training.add_argument(
+        "--max-examples-per-family",
+        type=int,
+        default=0,
+        help=(
+            "optional recovery cap applied after exact deduplication; "
+            "0 preserves every valid row"
+        ),
+    )
     post_training.add_argument(
         "--review-scenarios",
         "--review-rows",
@@ -73,6 +99,12 @@ def parser() -> argparse.ArgumentParser:
         ),
     )
     post_training.add_argument("--seed", type=int, default=42)
+    post_training.add_argument(
+        "--workers",
+        type=int,
+        default=max(1, min(8, os.cpu_count() or 1)),
+        help="worker processes used for deterministic conversation rendering",
+    )
     post_training.add_argument(
         "--vocabulary-placement",
         type=Path,
@@ -189,6 +221,48 @@ def parser() -> argparse.ArgumentParser:
     tokenize_instruct.add_argument("--tokenizer", type=Path, required=True)
     tokenize_instruct.add_argument("--output", type=Path, required=True)
     tokenize_instruct.add_argument(
+        "--workers",
+        type=int,
+        default=max(1, min(8, os.cpu_count() or 1)),
+        help="worker processes used for projection and statistical auditing",
+    )
+    tokenize_instruct.add_argument(
+        "--max-examples-per-family",
+        type=int,
+        default=0,
+        help="optional recovery cap; 0 preserves every non-duplicate row",
+    )
+    tokenize_instruct.add_argument(
+        "--max-per-structure",
+        type=int,
+        default=0,
+        help="optional normalized-structure cap; 0 preserves every structure",
+    )
+    tokenize_instruct.add_argument(
+        "--max-domain-share",
+        type=float,
+        default=0,
+        help="optional destructive domain-balance cap; 0 is audit-only",
+    )
+    tokenize_instruct.add_argument(
+        "--max-response-card-hand-share",
+        type=float,
+        default=0,
+        help="optional destructive card-hand cap; 0 is audit-only",
+    )
+    tokenize_instruct.add_argument(
+        "--target-training-examples",
+        type=int,
+        default=0,
+        help="optional release target; 0 reports realized scale without a target",
+    )
+    tokenize_instruct.add_argument(
+        "--target-supervised-tokens",
+        type=int,
+        default=0,
+        help="optional release target; 0 reports realized scale without a target",
+    )
+    tokenize_instruct.add_argument(
         "--heldout-evaluation",
         type=Path,
         help=(
@@ -201,6 +275,34 @@ def parser() -> argparse.ArgumentParser:
     package_instruct.add_argument("--instructions", type=Path, required=True)
     package_instruct.add_argument("--tokenized", type=Path, required=True)
     package_instruct.add_argument("--output", type=Path, required=True)
+
+    sklearn_audit = commands.add_parser("audit-sklearn")
+    sklearn_audit.add_argument("--conversations", type=Path, required=True)
+    sklearn_audit.add_argument("--output", type=Path, required=True)
+    sklearn_audit.add_argument(
+        "--sample-size",
+        type=int,
+        default=0,
+        help="0 selects an adaptive value from the corpus size",
+    )
+    sklearn_audit.add_argument(
+        "--near-duplicate-threshold", type=float, default=0.95
+    )
+    sklearn_audit.add_argument(
+        "--max-features",
+        type=int,
+        default=0,
+        help="0 selects an adaptive TF-IDF vocabulary size",
+    )
+    sklearn_audit.add_argument(
+        "--clusters",
+        type=int,
+        default=0,
+        help="0 selects an adaptive MiniBatchKMeans cluster count",
+    )
+    sklearn_audit.add_argument(
+        "--workers", type=int, default=max(1, min(8, os.cpu_count() or 1))
+    )
 
     inspect = commands.add_parser("inspect")
     inspect.add_argument("--output", type=Path, required=True)
@@ -239,7 +341,11 @@ def main() -> None:
         )
         print(json.dumps(result, indent=2, sort_keys=True))
     elif args.command == "build-scenario-forge":
-        result = build_scenario_forge(args.registry, args.output)
+        result = build_scenario_forge(
+            args.registry,
+            args.output,
+            target_scenarios=args.target_scenarios,
+        )
         print(
             json.dumps(
                 {"counts": result["counts"], "audit": result["audit"]},
@@ -257,6 +363,9 @@ def main() -> None:
             review_scenarios=args.review_scenarios,
             seed=args.seed,
             vocabulary_placement_path=args.vocabulary_placement,
+            workers=args.workers,
+            target_rows=(args.target_rows or None),
+            max_examples_per_family=(args.max_examples_per_family or None),
         )
         print(
             json.dumps(
@@ -426,6 +535,15 @@ def main() -> None:
             args.output,
             heldout_evaluation_path=args.heldout_evaluation,
             supplementary_instruction_paths=args.supplement,
+            workers=args.workers,
+            max_examples_per_family=(args.max_examples_per_family or None),
+            max_per_structure=(args.max_per_structure or None),
+            max_domain_share=(args.max_domain_share or None),
+            max_response_card_hand_share=(
+                args.max_response_card_hand_share or None
+            ),
+            target_training_examples=(args.target_training_examples or None),
+            target_supervised_tokens=(args.target_supervised_tokens or None),
         )
         print(
             json.dumps(
@@ -454,6 +572,17 @@ def main() -> None:
                 indent=2,
             )
         )
+    elif args.command == "audit-sklearn":
+        result = audit_dataset_quality(
+            args.conversations,
+            args.output,
+            sample_size=args.sample_size or None,
+            near_duplicate_threshold=args.near_duplicate_threshold,
+            max_features=args.max_features or None,
+            cluster_count=args.clusters or None,
+            workers=args.workers,
+        )
+        print(json.dumps(result, indent=2, sort_keys=True))
     elif args.command == "inspect":
         print(json.dumps(_inspect(args.output), indent=2, ensure_ascii=False))
 

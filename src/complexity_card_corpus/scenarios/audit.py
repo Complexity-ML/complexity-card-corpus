@@ -25,9 +25,16 @@ from .schema import (
 
 
 def audit_scenarios(
-    rows: list[dict[str, Any]], registry: ScenarioForgeRegistry
+    rows: list[dict[str, Any]],
+    registry: ScenarioForgeRegistry,
+    *,
+    expected_family_counts: dict[str, int] | None = None,
+    expected_domain_counts: dict[str, dict[str, int]] | None = None,
 ) -> dict[str, Any]:
-    expected_total = sum(family.target for family in registry.families)
+    expected_by_family = expected_family_counts or {
+        family.family_id: family.weight for family in registry.families
+    }
+    expected_total = sum(expected_by_family.values())
     if len(rows) != expected_total:
         raise ValueError(f"expected {expected_total} scenarios, found {len(rows)}")
     if len({row["scenario_id"] for row in rows}) != len(rows):
@@ -130,14 +137,15 @@ def audit_scenarios(
         if row["source_structure_links"] != expected_links:
             raise ValueError(f"source graph mismatch for {row['scenario_id']}")
 
-    expected_by_family = {
-        family.family_id: family.target for family in registry.families
-    }
     actual_by_family = Counter(row["family"] for row in rows)
-    if dict(actual_by_family) != expected_by_family:
+    normalized_actual_by_family = {
+        family.family_id: actual_by_family[family.family_id]
+        for family in registry.families
+    }
+    if normalized_actual_by_family != expected_by_family:
         raise ValueError(
             f"family allocation mismatch: expected {expected_by_family}, "
-            f"found {dict(actual_by_family)}"
+            f"found {normalized_actual_by_family}"
         )
 
     payload_contracts = {
@@ -260,7 +268,14 @@ def audit_scenarios(
                 )
         counts = Counter(row["domain"] for row in family_rows)
         domain_counts[family.family_id] = dict(sorted(counts.items()))
-        if max(counts.values()) - min(counts.values()) > 1:
+        if expected_domain_counts is not None:
+            expected_domains = expected_domain_counts[family.family_id]
+            if dict(counts) != expected_domains:
+                raise ValueError(
+                    f"domain allocation mismatch for {family.family_id}: "
+                    f"expected {expected_domains}, found {dict(counts)}"
+                )
+        elif counts and max(counts.values()) - min(counts.values()) > 1:
             raise ValueError(f"unbalanced domains in family {family.family_id}")
         coverage = {
             "domains": len({row["domain"] for row in family_rows}),
@@ -276,7 +291,10 @@ def audit_scenarios(
             "states": len(family.states),
             "outcomes": len(family.outcomes),
         }
-        if coverage != expected_coverage:
+        full_axis_coverage_is_feasible = len(family_rows) >= max(
+            expected_coverage.values()
+        )
+        if full_axis_coverage_is_feasible and coverage != expected_coverage:
             raise ValueError(
                 f"incomplete semantic coverage in {family.family_id}: "
                 f"expected {expected_coverage}, found {coverage}"

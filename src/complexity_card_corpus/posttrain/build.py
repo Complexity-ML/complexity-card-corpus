@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import shutil
 from collections import Counter
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -17,9 +19,12 @@ from .capacity import post_training_capacity_report
 from .constants import DATASET_ID, DATASET_LICENSE, DATASET_SOURCE
 from .metrics import _audit
 from .rendering import (
+    _apply_vocabulary_placements,
     _balance_conversation_families,
     _conversation_rows,
+    _deduplicate_conversation_rows,
     _load_vocabulary_placements,
+    _render_conversation_rows,
 )
 from .review import _review_sample
 
@@ -28,31 +33,41 @@ def build_post_training_corpus(
     scenarios_path: Path,
     output_root: Path,
     *,
-    variants_per_scenario: int = 4,
+    variants_per_scenario: int = 8,
     review_scenarios: int = 140,
     seed: int = 42,
     vocabulary_placement_path: Path | None = None,
+    workers: int = 1,
+    target_rows: int | None = None,
+    max_examples_per_family: int | None = None,
 ) -> dict[str, Any]:
     if variants_per_scenario < 1:
         raise ValueError("variants_per_scenario must be positive")
+    if workers < 1:
+        raise ValueError("workers must be positive")
     scenarios = pq.read_table(scenarios_path).to_pylist()
     placements = (
         _load_vocabulary_placements(vocabulary_placement_path)
         if vocabulary_placement_path is not None
         else []
     )
-    rows = _conversation_rows(
+    rows = _parallel_conversation_rows(
         scenarios,
         variants_per_scenario,
         vocabulary_placements=placements,
+        workers=workers,
     )
-    rows, family_balance = _balance_conversation_families(rows)
+    rows, family_balance = _balance_conversation_families(
+        rows,
+        max_examples_per_family=max_examples_per_family,
+    )
     audit = _audit(rows)
     audit["family_balance"] = family_balance
     audit["scale_100k"] = post_training_capacity_report(
         source_cards=len(scenarios),
         configured_variants_per_source_card=variants_per_scenario,
         audit=audit,
+        target_rows=target_rows,
     )
     observed_lexical_focus = {
         json.loads(row["answer_json"])["lexical_focus"]
@@ -127,6 +142,8 @@ def build_post_training_corpus(
             else None
         ),
         "variants_per_scenario": variants_per_scenario,
+        "max_examples_per_family": max_examples_per_family,
+        "workers": workers,
         "audit": audit,
         "human_review": {
             "rows": len(review),
@@ -164,3 +181,55 @@ def build_post_training_corpus(
             )
         },
     }
+
+
+def _render_conversation_chunk(
+    arguments: tuple[list[dict[str, Any]], int],
+) -> list[dict[str, Any]]:
+    scenarios, variants_per_scenario = arguments
+    return _render_conversation_rows(scenarios, variants_per_scenario)
+
+
+def _parallel_conversation_rows(
+    scenarios: list[dict[str, Any]],
+    variants_per_scenario: int,
+    *,
+    vocabulary_placements: list[dict[str, str]],
+    workers: int,
+) -> list[dict[str, Any]]:
+    """Render in processes while retaining canonical global selection."""
+    if workers == 1 or len(scenarios) < 2:
+        return _conversation_rows(
+            scenarios,
+            variants_per_scenario,
+            vocabulary_placements=vocabulary_placements,
+        )
+
+    enriched = (
+        _apply_vocabulary_placements(scenarios, vocabulary_placements)
+        if vocabulary_placements
+        else scenarios
+    )
+    worker_count = min(workers, len(enriched), os.cpu_count() or 1)
+    chunk_size = (len(enriched) + worker_count - 1) // worker_count
+    chunks = [
+        enriched[start : start + chunk_size]
+        for start in range(0, len(enriched), chunk_size)
+    ]
+    arguments = [(chunk, variants_per_scenario) for chunk in chunks]
+
+    def collect(executor: ProcessPoolExecutor | ThreadPoolExecutor) -> list[dict[str, Any]]:
+        collected: list[dict[str, Any]] = []
+        for chunk_rows in executor.map(_render_conversation_chunk, arguments):
+            collected.extend(chunk_rows)
+        return collected
+
+    try:
+        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            raw_rows = collect(executor)
+    except (NotImplementedError, OSError, PermissionError):
+        # Some sandboxed macOS runtimes deny POSIX semaphore introspection.
+        # Normal local builds still take the process path above.
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            raw_rows = collect(executor)
+    return _deduplicate_conversation_rows(raw_rows)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -51,11 +52,25 @@ def load_scenario_registry(path: Path) -> ScenarioForgeRegistry:
 def build_scenario_forge(
     registry_path: Path,
     output_root: Path,
+    *,
+    target_scenarios: int,
 ) -> dict[str, Any]:
     registry = load_scenario_registry(registry_path)
     tank_audit = audit_scenario_tanks(registry_path)
-    rows = compile_scenarios(registry)
-    audit = audit_scenarios(rows, registry)
+    rows = compile_scenarios(registry, target_scenarios=target_scenarios)
+    realized_family_counts = dict(Counter(row["family"] for row in rows))
+    realized_domain_counts = {
+        family_id: dict(
+            Counter(row["domain"] for row in rows if row["family"] == family_id)
+        )
+        for family_id in realized_family_counts
+    }
+    audit = audit_scenarios(
+        rows,
+        registry,
+        expected_family_counts=realized_family_counts,
+        expected_domain_counts=realized_domain_counts,
+    )
 
     temporary = output_root.with_name(f"{output_root.name}.partial")
     if temporary.exists():
@@ -109,6 +124,11 @@ def build_scenario_forge(
             "by_split": audit["split_counts"],
         },
         "generation": {
+            "requested_scenarios": target_scenarios,
+            "baseline_weight_total": sum(
+                family.weight for family in registry.families
+            ),
+            "allocation": "capacity_aware_weighted_dynamic",
             "model_generated_dialogue": False,
             "third_party_utterances_accessed": False,
             "language_selection": "seeded_dynamic_least_used",

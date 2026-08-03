@@ -148,7 +148,7 @@ class ScenarioFamilySpec(BaseModel):
 
     family_id: str = Field(alias="id")
     label: str
-    target: int = Field(gt=0)
+    weight: int = Field(gt=0)
     domains: list[DomainSpec]
     intents: list[IntentSpec]
     constraints: list[SemanticAtom]
@@ -274,9 +274,9 @@ class ScenarioFamilySpec(BaseModel):
                     )
 
         signature_capacity = self.semantic_signature_capacity()
-        if self.target > signature_capacity:
+        if self.weight > signature_capacity:
             raise ValueError(
-                f"family {self.family_id} requests {self.target} scenarios but "
+                f"family {self.family_id} has baseline weight {self.weight} but "
                 f"its semantic signature capacity is {signature_capacity}"
             )
         return self

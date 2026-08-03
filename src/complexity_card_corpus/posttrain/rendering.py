@@ -83,7 +83,7 @@ def _render_messages(
             },
             {
                 "role": "assistant",
-                "content": hand.answer,
+                "content": str(hand.answer),
             },
         ]
 
@@ -110,7 +110,7 @@ def _render_messages(
         },
         {"role": "assistant", "content": acknowledgement},
         {"role": "user", "content": correct_indefinite_articles(follow_up)},
-        {"role": "assistant", "content": hand.answer},
+        {"role": "assistant", "content": str(hand.answer)},
     ]
 
 
@@ -141,9 +141,22 @@ def _conversation_rows(
     variants_per_scenario: int,
     vocabulary_placements: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
     if vocabulary_placements:
         scenarios = _apply_vocabulary_placements(scenarios, vocabulary_placements)
+    return _deduplicate_conversation_rows(
+        _render_conversation_rows(scenarios, variants_per_scenario)
+    )
+
+
+def _render_conversation_rows(
+    scenarios: list[dict[str, Any]], variants_per_scenario: int
+) -> list[dict[str, Any]]:
+    """Render independent scenario rows without global selection.
+
+    Keeping global response/transcript deduplication outside this function makes
+    it safe to execute scenario chunks in separate worker processes.
+    """
+    rows: list[dict[str, Any]] = []
     for scenario in scenarios:
         for variant in range(variants_per_scenario):
             hand = deal_task_hand(scenario, variant)
@@ -220,6 +233,13 @@ def _conversation_rows(
                     "version": "1.0.0",
                 }
             )
+    return rows
+
+
+def _deduplicate_conversation_rows(
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Apply the canonical global transcript and response selection."""
     deduplicated: list[dict[str, Any]] = []
     seen_transcripts: set[str] = set()
     seen_responses: set[str] = set()
@@ -242,14 +262,27 @@ def _conversation_rows(
 
 
 def _balance_conversation_families(
-    rows: list[dict[str, Any]], *, max_examples_per_family: int = 20_000
+    rows: list[dict[str, Any]], *, max_examples_per_family: int | None = None
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Cap dominant families after exact response deduplication."""
+    """Audit family counts and apply a cap only when explicitly requested."""
+
+    if max_examples_per_family is not None and max_examples_per_family < 1:
+        raise ValueError("max_examples_per_family must be positive")
 
     buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         buckets[row["task"]].append(row)
     before = dict(sorted((task, len(items)) for task, items in buckets.items()))
+    if max_examples_per_family is None:
+        kept = sorted(rows, key=lambda item: item["example_id"])
+        return kept, {
+            "before": before,
+            "after": before,
+            "maximum_examples_per_family": None,
+            "policy": "preserve_all_valid_rows",
+            "dropped": 0,
+        }
+
     kept: list[dict[str, Any]] = []
     for task, items in sorted(buckets.items()):
         ranked = sorted(
@@ -268,6 +301,7 @@ def _balance_conversation_families(
         "before": before,
         "after": after,
         "maximum_examples_per_family": max_examples_per_family,
+        "policy": "explicit_manual_cap",
         "dropped": len(rows) - len(kept),
     }
 
