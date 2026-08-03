@@ -17,6 +17,18 @@ sentence, phrase, source ordering or record identifier is included.
   so the CSV can be reviewed without opening the full dictionary.
 - `vocabulary-placement-audit-v1.json` records coverage, capacity, placement
   methods and classification status.
+- `vocabulary-definition-review-v1.csv` is the editable human-review queue
+  formed from the union of two local embedding audits. It preserves the current
+  statistical gloss, records both scores, and leaves proposed definitions and
+  decisions empty. The file is evidence for review, not an automatic rewrite.
+- `vocabulary-definition-proposals-v1.json` contains original draft definitions
+  for entries independently flagged by both local embedding models. These
+  drafts remain proposals until the CSV decision is changed by a reviewer.
+- `definition-proposals-review-v1.csv` compares those drafts with the current
+  statistical glosses using two pinned local embedding models. Its consensus
+  field is a diagnostic signal only. Accepted rows record the explicit operator
+  decision that promotes the corresponding original draft into the canonical
+  dictionary while retaining the prior `statistical_gloss`.
 - `vocabulary-wordnet-summary-v1.json` reports an optional external semantic
   proxy comparison. It contains no WordNet definitions.
 

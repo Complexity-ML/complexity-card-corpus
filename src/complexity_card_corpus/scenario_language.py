@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import random
 from collections import Counter
 from typing import Protocol
@@ -58,6 +59,19 @@ def upper_first(value: str) -> str:
     if not value:
         return value
     return value[:1].upper() + value[1:]
+
+
+def _surface_variant_index(
+    semantic_key: str,
+    channel: str,
+    frame_index: int,
+) -> int:
+    """Mix compatible prose decks without tying every sentence to one frame."""
+
+    digest = hashlib.sha256(f"{semantic_key}:{channel}".encode()).digest()
+    return (frame_index + int.from_bytes(digest[:4], "big")) % len(
+        NARRATIVE_FRAME_IDS
+    )
 
 
 class DynamicNarrativeComposer:
@@ -135,6 +149,17 @@ def _render_frame(
     fallback_text = fallback.label.rstrip(".")
     intent_forms = verb_forms(intent.label)
     intent_base = intent_forms["base"]
+    semantic_key = "|".join(
+        (
+            family_id,
+            domain.domain_id,
+            intent.label,
+            constraint.atom_id,
+            state.atom_id,
+            outcome.atom_id,
+            fallback.atom_id,
+        )
+    )
 
     triggers = (
         f"A decision about {subject} changes because {lower_first(state_text)}.",
@@ -241,30 +266,30 @@ def _render_frame(
         f"Preserve this requirement throughout {intent_base} in {domain.label}: {constraint_text}.",
     )
     outcomes = (
-        f"For {intent_base} in {domain.label}, success means {lower_first(outcome_text)}.",
-        f"Support for {intent_base} in {domain.label} is sufficient only if {lower_first(outcome_text)}.",
-        f"Completing {intent_base} in {domain.label} requires that {lower_first(outcome_text)}.",
-        f"The final check on {intent_base} in {domain.label} is whether {lower_first(outcome_text)}.",
-        f"A valid endpoint for {intent_base} in {domain.label} shows that {lower_first(outcome_text)}.",
-        f"In {domain.label}, {intent_base} is complete once {lower_first(outcome_text)}.",
-        f"A result from {intent_base} in {domain.label} is acceptable only if {lower_first(outcome_text)}.",
-        f"The completion rule for {intent_base} in {domain.label} is that {lower_first(outcome_text)}.",
-        f"Acceptance of {intent_base} in {domain.label} requires that {lower_first(outcome_text)}.",
-        f"The outcome of {intent_base} in {domain.label} is valid when {lower_first(outcome_text)}.",
-        f"Closing {intent_base} in {domain.label} requires that {lower_first(outcome_text)}.",
-        f"The case for {intent_base} in {domain.label} closes once {lower_first(outcome_text)}.",
-        f"The response may count as complete when {lower_first(outcome_text)}.",
-        f"A successful attempt to {intent_base} in {domain.label} establishes that {lower_first(outcome_text)}.",
-        f"Use this as the acceptance test for {intent_base} in {domain.label}: {lower_first(outcome_text)}.",
-        f"The requested result is achieved only when {lower_first(outcome_text)}.",
-        f"Completion of {intent_base} in {domain.label} can be verified once {lower_first(outcome_text)}.",
-        f"The endpoint remains valid provided that {lower_first(outcome_text)}.",
-        f"Judge the result of {intent_base} in {domain.label} by whether {lower_first(outcome_text)}.",
-        f"The final response succeeds if {lower_first(outcome_text)}.",
-        f"Evidence of completion for {intent_base} in {domain.label} appears when {lower_first(outcome_text)}.",
-        f"The outcome is ready for review after {lower_first(outcome_text)}.",
-        f"A complete answer about {intent_base} in {domain.label} demonstrates that {lower_first(outcome_text)}.",
-        f"The closing criterion is met whenever {lower_first(outcome_text)}.",
+        f"For {subject}, success means {lower_first(outcome_text)}.",
+        f"Accept {subject} only if {lower_first(outcome_text)}.",
+        f"Completion for {subject} requires that {lower_first(outcome_text)}.",
+        f"The final check for {subject} is whether {lower_first(outcome_text)}.",
+        f"A valid result for {subject} shows that {lower_first(outcome_text)}.",
+        f"Work on {subject} is complete once {lower_first(outcome_text)}.",
+        f"A result for {subject} is acceptable only if {lower_first(outcome_text)}.",
+        f"The completion rule for {subject} is that {lower_first(outcome_text)}.",
+        f"Acceptance for {subject} requires that {lower_first(outcome_text)}.",
+        f"The outcome for {subject} is valid when {lower_first(outcome_text)}.",
+        f"Closing {subject} requires that {lower_first(outcome_text)}.",
+        f"The case for {subject} closes once {lower_first(outcome_text)}.",
+        f"The response for {subject} is complete when {lower_first(outcome_text)}.",
+        f"A successful result for {subject} establishes that {lower_first(outcome_text)}.",
+        f"Use this acceptance test for {subject}: {lower_first(outcome_text)}.",
+        f"The requested result for {subject} is achieved only when {lower_first(outcome_text)}.",
+        f"Completion for {subject} can be verified once {lower_first(outcome_text)}.",
+        f"The endpoint for {subject} remains valid provided that {lower_first(outcome_text)}.",
+        f"Judge {subject} by whether {lower_first(outcome_text)}.",
+        f"The final response for {subject} succeeds if {lower_first(outcome_text)}.",
+        f"Evidence of completion for {subject} appears when {lower_first(outcome_text)}.",
+        f"The outcome for {subject} is reviewable after {lower_first(outcome_text)}.",
+        f"A complete answer about {subject} demonstrates that {lower_first(outcome_text)}.",
+        f"The closing criterion for {subject} is met whenever {lower_first(outcome_text)}.",
     )
     statement_endings = (
         f"A blocked path for {subject} requires this fallback: {fallback_text}.",
@@ -320,18 +345,31 @@ def _render_frame(
     )
     endings = question_endings if uses_question_surface(frame_id) else statement_endings
 
-    trigger = correct_indefinite_articles(triggers[frame_index])
+    surface_indices = {
+        channel: _surface_variant_index(semantic_key, channel, frame_index)
+        for channel in (
+            "trigger",
+            "context",
+            "task",
+            "boundary",
+            "outcome",
+        )
+    }
+
+    trigger = correct_indefinite_articles(triggers[surface_indices["trigger"]])
     situation = " ".join(
         correct_indefinite_articles(value)
         for value in (
             trigger,
-            contexts[frame_index],
-            tasks[frame_index],
-            boundaries[frame_index],
+            contexts[surface_indices["context"]],
+            tasks[surface_indices["task"]],
+            boundaries[surface_indices["boundary"]],
             # The domain is already named in the preceding context and
             # boundary sentences. Avoid repeating it a third time so the
             # six-sentence scenario remains inside the 14–20 word target.
-            outcomes[frame_index].replace(f" in {domain.label}", "", 1),
+            outcomes[surface_indices["outcome"]],
+            # The ending stays tied to the narrative frame so question and
+            # transition rates retain their authored distribution.
             endings[frame_index],
         )
     )

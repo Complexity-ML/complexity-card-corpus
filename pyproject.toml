@@ -28,6 +28,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.3"]
 wordnet-audit = ["wn>=1.1,<2"]
+semantic-audit = ["sentence-transformers>=5.1,<6"]
 
 [project.scripts]
 card-corpus = "complexity_card_corpus.cli:main"

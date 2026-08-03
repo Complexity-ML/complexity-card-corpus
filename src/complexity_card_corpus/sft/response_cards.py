@@ -37,6 +37,12 @@ def render_response_card_hand(
         return ""
     if cards.response_layout == "line_breaks":
         return "\n".join(rendered)
+    if cards.response_layout == "spaced_lines":
+        return "\n\n".join(rendered)
+    if cards.response_layout == "opening_break":
+        if len(rendered) == 1:
+            return rendered[0]
+        return f"{rendered[0]}\n\n{' '.join(rendered[1:])}"
     if cards.response_layout == "bullets":
         return "\n".join(f"- {text}" for text in rendered)
     if cards.response_layout == "numbered":

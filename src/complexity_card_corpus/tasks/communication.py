@@ -322,7 +322,43 @@ def _empathy(row: dict[str, Any], variant: int) -> TaskHand:
         "There is no need to force an immediate solution or a more acceptable feeling.",
         "You can choose whether you want reflection, company, or one small next step.",
         "The pace and direction of the next conversation remain yours.",
+        "You can decide whether this moment calls for listening, distance, or a small action.",
+        "Nothing has to be resolved before you are ready to choose what would help.",
+        "You remain free to pause here or continue with only the part that feels manageable.",
+        "Any next step can stay proportionate to the energy and clarity you have right now.",
     )
+    state_reflections = {
+        "The emotion is immediate and physically activating.": (
+            "You can slow the pace before trying to decide anything.",
+            "A brief pause may be more useful than pushing toward an answer.",
+            "The immediate task can simply be to make the moment less demanding.",
+            "You do not need to reason past a reaction that still feels physically intense.",
+        ),
+        "The person feels ready for a small constructive step.": (
+            "If you want to move, the next step can stay small and reversible.",
+            "Readiness does not require taking on the whole situation at once.",
+            "One modest action can be enough for now.",
+            "You can use that readiness without turning it into pressure to solve everything.",
+        ),
+        "The person holds two conflicting feelings at once.": (
+            "Both reactions can have room without forcing one to cancel the other.",
+            "You do not have to choose which of the two feelings is the valid one.",
+            "The tension may become clearer if both sides are allowed to remain present.",
+            "Mixed feelings can be acknowledged before any decision is made.",
+        ),
+        "The person is repeatedly replaying the event.": (
+            "The replay does not have to produce a perfect explanation tonight.",
+            "Noticing the same moment return is different from having to solve it each time.",
+            "You can interrupt the replay without deciding that the event did not matter.",
+            "The event can matter without requiring another full review of it right now.",
+        ),
+        "The speaker expresses several emotions without one clear request.": (
+            "You do not need to sort every feeling before naming what would help.",
+            "It is fine if the immediate need is clearer than the full explanation.",
+            "Several feelings can be present before one request takes shape.",
+            "The first useful step may be identifying the need rather than organizing every emotion.",
+        ),
+    }
     question_cards = (
         "What would feel most useful to name first?",
         "Would you rather stay with the feeling for a moment or consider one gentle next step?",
@@ -355,10 +391,28 @@ def _empathy(row: dict[str, Any], variant: int) -> TaskHand:
         row,
         variant,
         "empathy-answer",
-        (acknowledgments[rendered_domain], agency_cards, question_cards),
-        pool_names=("acknowledgment", "agency", "optional_question"),
+        (
+            acknowledgments[rendered_domain],
+            state_reflections.get(
+                str(row.get("state", "")),
+                ("You can take this one part at a time.",),
+            ),
+            agency_cards,
+            question_cards,
+        ),
+        pool_names=(
+            "acknowledgment",
+            "state_reflection",
+            "agency",
+            "optional_question",
+        ),
     )
-    return TaskHand(data, goal, answer, ("acknowledgment", "agency", "question"))
+    return TaskHand(
+        data,
+        goal,
+        answer,
+        ("acknowledgment", "state_reflection", "agency", "question"),
+    )
 
 
 def _clarification(row: dict[str, Any], variant: int) -> TaskHand:

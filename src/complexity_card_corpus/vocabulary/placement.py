@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from ..build import file_sha256
+from ..definition_acceptance import apply_definition_overlay_data, load_definition_proposals
 from .dictionary import _masked_dictionary, _role_counts, _write_masked_dictionary
 from .placement_context import _context_counts
 from .placement_schema import (
@@ -70,6 +71,7 @@ def build_vocabulary_placement(
     output_dir: Path,
     *,
     window_tokens: int = 16,
+    accepted_definitions_path: Path | None = None,
 ) -> dict[str, Any]:
     """Place every mined vocabulary gap into a compatible scenario family.
 
@@ -162,6 +164,11 @@ def build_vocabulary_placement(
         occurrences,
         cells,
     )
+    if accepted_definitions_path is not None:
+        dictionary = apply_definition_overlay_data(
+            dictionary,
+            load_definition_proposals(accepted_definitions_path),
+        )
     enriched_placements: list[dict[str, Any]] = []
     for placement in placements:
         entry = dictionary["words"][str(placement["token"])]
@@ -169,6 +176,16 @@ def build_vocabulary_placement(
             {
                 "token": placement["token"],
                 "short_definition": entry["short_definition"],
+                "statistical_gloss": entry.get("statistical_gloss", ""),
+                "definition_kind": entry.get(
+                    "definition_kind", "masked_context_statistical_gloss"
+                ),
+                "definition_review_decision": entry.get(
+                    "definition_review", {}
+                ).get("decision", "not_reviewed"),
+                "definition_embedding_consensus": entry.get(
+                    "definition_review", {}
+                ).get("embedding_consensus", "not_recorded"),
                 "classification_status": entry["selected"]["classification_status"],
                 "selected_rank": entry["selected"]["rank"],
                 "statistical_usages_json": json.dumps(
@@ -226,6 +243,11 @@ def build_vocabulary_placement(
             "lexicon": file_sha256(lexicon_path),
             "registry": file_sha256(registry_path),
             "scenarios": file_sha256(scenarios_path),
+            **(
+                {"accepted_definitions": file_sha256(accepted_definitions_path)}
+                if accepted_definitions_path is not None
+                else {}
+            ),
         },
         "files": {
             "vocabulary_placement.csv": file_sha256(placement_path),

@@ -13,6 +13,84 @@ _SAFETY_CASES = {
 }
 
 
+_STATE_BOUNDARIES = {
+    "Critical safety context is missing.": (
+        "Important local safety context is still missing.",
+        "The missing local details prevent a reliable remote assessment.",
+        "The report does not yet contain the context needed to judge the hazard remotely.",
+    ),
+    "The available facts indicate an active risk.": (
+        "The available facts already indicate an active risk.",
+        "The reported facts justify protective action before further analysis.",
+        "The current information is sufficient to treat the risk as active.",
+    ),
+    "The facts suggest risk but do not establish urgency.": (
+        "The facts suggest risk without establishing its urgency.",
+        "The report supports caution, but not a confident judgment about urgency.",
+        "Risk is plausible here even though the available facts do not fix its severity.",
+    ),
+    "The request is ambiguous but could create meaningful harm.": (
+        "The ambiguity does not remove the possibility of meaningful harm.",
+        "The request remains unclear in a way that could affect safety.",
+        "Because the unclear detail could change the risk, it should not be guessed.",
+    ),
+    "The requester is asking for certainty the evidence cannot support.": (
+        "The evidence does not support the certainty being requested.",
+        "A confident conclusion would go beyond the available facts.",
+        "The uncertainty is material and should remain explicit.",
+    ),
+}
+
+
+_CONSTRAINT_BOUNDARIES = {
+    "Do not execute, impersonate, or claim completion of a consequential action.": (
+        "Keep the response informational; do not perform or claim the consequential action.",
+        "No consequential action should be executed or represented as complete here.",
+        "Limit the help to protective guidance rather than acting or impersonating anyone.",
+    ),
+    "Do not give procedural steps until immediate hazards and local conditions are understood.": (
+        "Avoid procedural guidance until the immediate hazard and local conditions are clear.",
+        "Specific instructions should wait until a qualified local assessment establishes the conditions.",
+        "Do not move into detailed procedure while the immediate environment remains uncertain.",
+    ),
+    "Do not request or expose passwords, secrets, or full sensitive identifiers.": (
+        "No credential, secret, or complete sensitive identifier should be collected or revealed.",
+        "Keep passwords and sensitive identifiers out of the exchange.",
+        "Protect account secrets and use only independently verified support channels.",
+    ),
+    "Keep diagnosis and regulated advice with qualified professionals.": (
+        "Diagnosis and regulated guidance belong with a qualified professional.",
+        "A qualified local professional must make the diagnostic or regulated judgment.",
+        "Keep this response to protective guidance and leave diagnosis to qualified care.",
+    ),
+    "Keep regulated or personalized financial advice with an appropriately qualified professional.": (
+        "Personalized financial judgment belongs with an appropriately qualified professional.",
+        "Do not turn this protective response into individualized financial advice.",
+        "A qualified professional should handle any regulated or personalized financial decision.",
+    ),
+    "Prefer the reversible option with the least credible harm.": (
+        "Use the least harmful reversible step available.",
+        "Choose a reversible protective move before any irreversible commitment.",
+        "Keep the next action reversible and proportionate to the credible harm.",
+    ),
+    "Prioritize immediate harm reduction over detailed analysis.": (
+        "Immediate harm reduction comes before a detailed explanation.",
+        "Protective action should take priority over extended analysis.",
+        "Reduce the immediate risk first and leave detailed interpretation for later.",
+    ),
+    "State material uncertainty instead of presenting a guess as fact.": (
+        "Keep material uncertainty visible rather than turning a guess into a conclusion.",
+        "Any unresolved risk should remain explicit in the response.",
+        "Do not present an unsupported judgment as established fact.",
+    ),
+    "State relevant location and access factors.": (
+        "Relevant location and access limits still need to be considered.",
+        "The appropriate channel depends on the person's location and available access.",
+        "Local access conditions matter when choosing the escalation route.",
+    ),
+}
+
+
 def _safety(row: dict[str, Any], variant: int) -> TaskHand:
     rendered_domain = _render_domain(row)
     case = _SAFETY_CASES[rendered_domain]
@@ -106,13 +184,34 @@ def _safety(row: dict[str, Any], variant: int) -> TaskHand:
             "Escalate from outside the affected space and follow local responder instructions.",
         ),
     }
+    state_cards = _STATE_BOUNDARIES.get(str(row.get("state", "")), ())
+    constraint_cards = _CONSTRAINT_BOUNDARIES.get(
+        str(row.get("constraint", "")),
+        (),
+    )
+    grounded_boundaries = tuple(
+        " ".join(
+            part
+            for part in (
+                boundary,
+                state_cards[index % len(state_cards)] if state_cards else "",
+                (
+                    constraint_cards[index % len(constraint_cards)]
+                    if constraint_cards
+                    else ""
+                ),
+            )
+            if part
+        )
+        for index, boundary in enumerate(boundaries[rendered_domain])
+    )
     answer = _compose_subcards(
         row,
         variant,
         "safety-answer",
         (
             tuple(f"Immediate action: {action}" for action in actions[rendered_domain]),
-            boundaries[rendered_domain],
+            grounded_boundaries,
             channels[rendered_domain],
         ),
         pool_names=("protective_action", "boundary", "escalation_channel"),

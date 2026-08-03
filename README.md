@@ -433,6 +433,7 @@ uv run card-corpus place-vocabulary \
   --registry /private/mine/sources.json \
   --raw /private/mine/raw \
   --scenarios build/scenario-forge/scenarios.parquet \
+  --accepted-definitions data/vocabulary/vocabulary-definition-proposals-v1.json \
   --output build/vocabulary-placement
 ```
 
@@ -497,6 +498,108 @@ as explicit `tokenize-instruct` recovery options for controlled ablations.
 This complements the inexpensive exact checks for schema validity, duplicate
 IDs and source-group leakage. Quality thresholds can fail a release without
 silently deleting otherwise valid data.
+
+An optional semantic-vector audit complements the lexical TF-IDF audit. It
+uses the Apache-2.0 `sentence-transformers/all-MiniLM-L6-v2` checkpoint at a
+pinned revision to embed the same deterministic sample. Prompts, responses and
+their combined conversation are measured separately for semantic nearest
+neighbors, cross-split proximity, cluster concentration, effective rank and
+within-family dispersion:
+
+```bash
+uv sync --extra semantic-audit
+uv run card-corpus audit-embeddings \
+  --conversations build/post-training/conversations.parquet \
+  --output build/post-training/embedding-audit.json
+```
+
+The embedding model truncates long inputs at its 256-wordpiece limit. The
+report therefore labels these measurements as a statistical semantic
+diagnostic, not proof of correctness or independence. A separate
+`sft_readiness_proxy` summarizes repetition and response-collapse risk, but it
+explicitly does not predict training loss, downstream accuracy or final model
+quality.
+
+The same embeddings can turn the internal masked-context dictionary into
+semantic card decks and a build-priority plan. The fast corpus audit uses
+MiniLM; dictionary review uses the stronger local Mixedbread encoder and then
+cross-checks its candidates with MiniLM. Both checkpoints remain in the local
+Hugging Face cache:
+
+```bash
+uv run card-corpus build-embedding-guidance \
+  --dictionary data/vocabulary/vocabulary-dictionary-v1.json \
+  --semantic-audit build/post-training/embedding-audit.json \
+  --output build/post-training/embedding-guidance-mxbai.json \
+  --model mixedbread-ai/mxbai-embed-large-v1 \
+  --revision b33106f585b9ce46904ad7443a3b52b7a63e231c \
+  --device mps
+
+uv run card-corpus build-embedding-guidance \
+  --dictionary data/vocabulary/vocabulary-dictionary-v1.json \
+  --semantic-audit build/post-training/embedding-audit.json \
+  --output build/post-training/embedding-guidance-minilm.json \
+  --model sentence-transformers/all-MiniLM-L6-v2 \
+  --revision 46605decb5369335a3847c9f41bb0b896c07dd1a \
+  --device mps
+
+uv run card-corpus build-dictionary-review \
+  --primary-guidance build/post-training/embedding-guidance-mxbai.json \
+  --secondary-guidance build/post-training/embedding-guidance-minilm.json \
+  --proposals data/vocabulary/vocabulary-definition-proposals-v1.json \
+  --output-json build/post-training/vocabulary-definition-review-v1.json \
+  --output-csv build/post-training/vocabulary-definition-review-v1.csv
+
+uv run card-corpus audit-definition-proposals \
+  --dictionary data/vocabulary/vocabulary-dictionary-v1.json \
+  --proposals data/vocabulary/vocabulary-definition-proposals-v1.json \
+  --model mixedbread-ai/mxbai-embed-large-v1 \
+  --revision b33106f585b9ce46904ad7443a3b52b7a63e231c \
+  --device mps \
+  --output build/post-training/definition-proposals-mxbai.json
+
+uv run card-corpus audit-definition-proposals \
+  --dictionary data/vocabulary/vocabulary-dictionary-v1.json \
+  --proposals data/vocabulary/vocabulary-definition-proposals-v1.json \
+  --model sentence-transformers/all-MiniLM-L6-v2 \
+  --revision 46605decb5369335a3847c9f41bb0b896c07dd1a \
+  --device mps \
+  --output build/post-training/definition-proposals-minilm.json
+
+uv run card-corpus merge-definition-proposal-audits \
+  --primary build/post-training/definition-proposals-mxbai.json \
+  --secondary build/post-training/definition-proposals-minilm.json \
+  --output-json build/post-training/definition-proposals-review-v1.json \
+  --output-csv data/vocabulary/definition-proposals-review-v1.csv
+
+uv run card-corpus accept-definition-proposals \
+  --dictionary data/vocabulary/vocabulary-dictionary-v1.json \
+  --proposals data/vocabulary/vocabulary-definition-proposals-v1.json \
+  --review data/vocabulary/definition-proposals-review-v1.csv \
+  --output-dictionary data/vocabulary/vocabulary-dictionary-v1.json \
+  --output-review data/vocabulary/definition-proposals-review-v1.csv \
+  --accept-all
+```
+
+This guidance ranks nearby vocabulary cards inside the same task family and
+identifies prompt or response decks that need expansion. It never labels the
+neighbors as authoritative synonyms and never rewrites training prose without
+the normal grammar and compatibility checks. The same artifact reports
+token-to-gloss alignment, selected-family centroid rank, and agreement between
+masked-context and embedding neighbors. Review selection is adaptive rather
+than capped at an arbitrary percentage: it includes every entry with a
+statistical `review_required` status, a robust embedding outlier, or a selected
+family ranked below the top five by either model. The current union contains
+1,133 entries: 181 are independently flagged by both embedding models and 952
+remain uncertain. No gloss is empty. The editable review sheet keeps the
+statistical gloss and proposed human definition in separate columns; no model
+may overwrite the canonical dictionary automatically.
+Proposal audits judge token-to-definition alignment. Movement relative to the
+current family is reported separately but cannot veto a correction because the
+review queue exists precisely when that family assignment may be wrong.
+Each proposal is measured with two fixed probes: the bare token and the local
+query `What is the meaning of the word "TOKEN"?`. Probe disagreement remains
+visible instead of being forced into an acceptance or rejection.
 
 ## Tokenization
 

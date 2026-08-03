@@ -151,6 +151,29 @@ def test_grounded_qa_deals_many_visible_response_structures() -> None:
     assert len(hands) >= 400
 
 
+def test_weak_families_deal_multiple_visible_response_layouts() -> None:
+    expected = {
+        "context_clarification": {
+            "paragraph",
+            "line_breaks",
+            "spaced_lines",
+            "opening_break",
+        },
+        "conversation_empathy": {"paragraph", "line_breaks"},
+        "safety_uncertainty": {"paragraph", "line_breaks", "bullets"},
+    }
+    for task, layouts in expected.items():
+        dealt = {
+            deal_training_cards(
+                task=task,
+                mode="instruct",
+                example_id=f"visible-layout:{task}:{index}",
+            ).response_layout
+            for index in range(512)
+        }
+        assert dealt == layouts
+
+
 def test_chat_card_deals_cover_every_required_link_move() -> None:
     for task in TASKS:
         moves = {

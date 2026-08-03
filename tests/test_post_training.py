@@ -128,6 +128,7 @@ def _task_row(
     *,
     scenario: str = "abcdef123456",
     constraint: str = "Keep the action bounded.",
+    state: str = "",
 ) -> dict:
     return {
         "scenario_id": f"scenario:{scenario}",
@@ -135,6 +136,7 @@ def _task_row(
         "domain": domain,
         "intent": "verify",
         "constraint": constraint,
+        "state": state,
         "semantic_payload": json.dumps(
             {
                 "subject": domain.replace("_", " "),
@@ -334,6 +336,78 @@ def test_safety_boundaries_match_the_risk_domain() -> None:
     assert "fraud team" in financial
     assert "diagnos" in medical
     assert "fraud team" not in medical
+
+
+def test_safety_boundaries_materialize_scenario_state_and_constraint() -> None:
+    first = deal_task_hand(
+        _task_row(
+            "safety_uncertainty",
+            "financial_decision",
+            state="The facts suggest risk but do not establish urgency.",
+            constraint="Prefer the reversible option with the least credible harm.",
+        ),
+        0,
+    )
+    second = deal_task_hand(
+        _task_row(
+            "safety_uncertainty",
+            "financial_decision",
+            state="The available facts indicate an active risk.",
+            constraint="Prioritize immediate harm reduction over detailed analysis.",
+        ),
+        0,
+    )
+
+    assert first.answer != second.answer
+    assert any(
+        phrase in first.answer
+        for phrase in (
+            "without establishing its urgency",
+            "do not fix its severity",
+            "supports caution",
+        )
+    )
+    assert "reversible" in first.answer
+    assert any(
+        phrase in second.answer
+        for phrase in ("active risk", "protective action", "treat the risk as active")
+    )
+    assert any(
+        phrase in second.answer
+        for phrase in (
+            "immediate harm reduction",
+            "protective action",
+            "immediate risk first",
+        )
+    )
+
+
+def test_empathy_answers_materialize_distinct_state_reflections() -> None:
+    replaying = deal_task_hand(
+        _task_row(
+            "conversation_empathy",
+            "work_stress",
+            state="The person is repeatedly replaying the event.",
+        ),
+        0,
+    )
+    mixed = deal_task_hand(
+        _task_row(
+            "conversation_empathy",
+            "work_stress",
+            state="The person holds two conflicting feelings at once.",
+        ),
+        0,
+    )
+
+    assert replaying.answer != mixed.answer
+    assert any(
+        phrase in replaying.answer.lower()
+        for phrase in ("replay", "same moment", "full review", "event can matter")
+    )
+    assert any(word in mixed.answer.lower() for word in ("both", "two", "mixed"))
+    assert replaying.answer.count("?") == 1
+    assert mixed.answer.count("?") == 1
 
 
 def test_reasoning_situation_does_not_invent_a_unit_mismatch() -> None:

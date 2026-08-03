@@ -656,6 +656,100 @@ def test_safety_target_removes_card_contract_labels() -> None:
     assert "official support channel" in target
 
 
+def test_clarification_and_empathy_materialize_visible_layout_cards() -> None:
+    cards = TrainingCards(
+        surface="direct",
+        dialogue_state="new_request",
+        output="direct_prose",
+        evidence="partial",
+        reasoning="resolve_ambiguity",
+        style="calm",
+        context_density="focused",
+        noise="none",
+        uncertainty="state_limits",
+        response_layout="line_breaks",
+    )
+    clarification = _naturalize_assistant_target(
+        [
+            {"role": "user", "content": "Clarify the request."},
+            {
+                "role": "assistant",
+                "content": (
+                    "Understood: the requested format is not specified. "
+                    "Would you prefer a table or a short paragraph? "
+                    "For now, preserve the result without choosing a format."
+                ),
+            },
+        ],
+        task="context_clarification",
+        cards=cards,
+        example_id="example:visible-context-layout",
+    )
+    empathy = _naturalize_assistant_target(
+        [
+            {"role": "user", "content": "I keep replaying the mistake."},
+            {
+                "role": "assistant",
+                "content": (
+                    "It makes sense that the moment keeps returning to you. "
+                    "The replay does not have to produce a perfect explanation tonight. "
+                    "You can decide whether to pause or take one small step. "
+                    "What would feel most useful right now?"
+                ),
+            },
+        ],
+        task="conversation_empathy",
+        cards=cards,
+        example_id="example:visible-empathy-layout",
+    )
+
+    assert clarification.count("\n") == 2
+    assert clarification.count("?") == 1
+    assert "Understood:" not in clarification
+    assert empathy.count("\n") == 3
+    assert empathy.count("?") == 1
+
+
+def test_clarification_supports_additional_visible_layout_cards() -> None:
+    messages = [
+        {"role": "user", "content": "Which result should I use?"},
+        {
+            "role": "assistant",
+            "content": (
+                "My current reading: The request names two possible results. "
+                "One point to resolve: Which result should be used? "
+                "Until confirmed, use the reversible option."
+            ),
+        },
+    ]
+    base = dict(
+        surface="direct",
+        dialogue_state="new_request",
+        output="question_and_default",
+        evidence="partial",
+        reasoning="resolve_ambiguity",
+        style="plain",
+        context_density="focused",
+        noise="none",
+        uncertainty="state_limits",
+    )
+    spaced = _naturalize_assistant_target(
+        messages,
+        task="context_clarification",
+        cards=TrainingCards(**base, response_layout="spaced_lines"),
+        example_id="example:spaced-clarification",
+    )
+    opening = _naturalize_assistant_target(
+        messages,
+        task="context_clarification",
+        cards=TrainingCards(**base, response_layout="opening_break"),
+        example_id="example:opening-break-clarification",
+    )
+    assert spaced.count("\n\n") == 2
+    assert opening.count("\n\n") == 1
+    assert spaced.count("?") == opening.count("?") == 1
+
+
 def test_all_post_training_families_project_to_direct_answers() -> None:
     source = Path("build/post-training/conversations.parquet")
     if not source.exists():

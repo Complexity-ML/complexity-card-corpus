@@ -140,11 +140,19 @@ _RESPONSE_ORDERS_BY_TASK = {
 
 _RESPONSE_LAYOUTS_BY_TASK = {
     "brainstorming_creativity": ("paragraph", "bullets", "numbered"),
+    "context_clarification": (
+        "paragraph",
+        "line_breaks",
+        "spaced_lines",
+        "opening_break",
+    ),
+    "conversation_empathy": ("paragraph", "line_breaks"),
     "explanation_learning": ("paragraph", "paragraph", "line_breaks"),
     "grounded_qa": ("paragraph", "line_breaks", "bullets", "numbered"),
     "planning_comparison": ("paragraph", "paragraph", "line_breaks"),
     "practical_action": ("paragraph", "paragraph", "line_breaks"),
     "reasoning_verification": ("paragraph", "paragraph", "line_breaks"),
+    "safety_uncertainty": ("paragraph", "line_breaks", "bullets"),
     "summarization_synthesis": ("paragraph", "paragraph", "line_breaks"),
     "troubleshooting": ("numbered", "bullets", "paragraph"),
 }

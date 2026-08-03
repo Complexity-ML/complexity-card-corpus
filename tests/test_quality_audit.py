@@ -69,3 +69,29 @@ def test_basic_format_checks_count_every_row_while_bounding_the_preview() -> Non
     assert audit["format_checks"]["malformed_count"] == 150
     assert len(audit["format_checks"]["malformed_preview"]) == 100
     assert not audit["checks"]["no_basic_format_failures"]
+
+
+def test_basic_format_checks_accept_compact_json_responses() -> None:
+    rows = [
+        {
+            "example_id": f"structured:{index:03d}",
+            "task": "extraction_classification",
+            "split": "train",
+            "prompt": f"Extract the documented fields from record {index}.",
+            "response": json.dumps({"record": index, "status": "valid"}, separators=(",", ":")),
+            "source_keys": [f"scenario:{index}"],
+        }
+        for index in range(48)
+    ]
+
+    audit = audit_rows_quality(
+        rows,
+        input_label="structured response regression",
+        sample_size=48,
+        max_features=2_000,
+        cluster_count=8,
+        workers=1,
+    )
+
+    assert audit["format_checks"]["malformed_count"] == 0
+    assert audit["checks"]["no_basic_format_failures"]

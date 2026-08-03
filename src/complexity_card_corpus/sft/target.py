@@ -27,6 +27,70 @@ def _clean_prefix(value: str, pattern: str) -> str:
     return re.sub(pattern, "", value.strip(), flags=re.IGNORECASE).strip()
 
 
+def _split_clarification_response(
+    response: str,
+) -> tuple[str, str, str] | None:
+    """Recover the three authored clauses without exposing their labels."""
+
+    question_end = response.find("?")
+    if question_end < 0:
+        return None
+    default = response[question_end + 1 :].strip()
+    before_default = response[: question_end + 1].strip()
+    marker_match = re.search(
+        r"(?:One point to resolve|Before proceeding):\s*",
+        before_default,
+        flags=re.IGNORECASE,
+    )
+    if marker_match is not None:
+        question_start = marker_match.start()
+    else:
+        sentence_break = before_default.rfind(". ", 0, question_end)
+        if sentence_break < 0:
+            return None
+        question_start = sentence_break + 2
+    restatement = before_default[:question_start].strip()
+    question = before_default[question_start:].strip()
+    restatement = _clean_prefix(
+        restatement,
+        r"^(?:Understood|My current reading|What is clear|The supported interpretation is limited):\s*",
+    )
+    question = _clean_prefix(
+        question,
+        r"^(?:One point to resolve|Before proceeding):\s*",
+    )
+    default = _clean_prefix(
+        default,
+        r"^(?:Until confirmed|For now|Pending that answer|As a reversible default),\s*",
+    )
+    if not all((restatement, question, default)):
+        return None
+    return restatement, question, default
+
+
+def _split_empathy_response(response: str) -> dict[str, str] | None:
+    """Recover authored empathy roles while preserving exactly one question."""
+
+    sentences = [
+        sentence.strip()
+        for sentence in re.split(r"(?<=[.!?])\s+", response.strip())
+        if sentence.strip()
+    ]
+    if len(sentences) < 3 or not sentences[-1].endswith("?"):
+        return None
+    body = sentences[:-1]
+    clauses = {
+        "acknowledgment": _sentence(body[0]),
+    }
+    if len(body) > 2:
+        clauses["state_reflection"] = " ".join(
+            _sentence(sentence) for sentence in body[1:-1]
+        )
+    clauses["agency"] = _sentence(body[-1])
+    clauses["question"] = _sentence(sentences[-1])
+    return clauses
+
+
 def _naturalize_assistant_target(
     messages: list[dict[str, str]],
     *,
@@ -430,6 +494,47 @@ def _naturalize_assistant_target(
         )
         return direct
     elif task == "context_clarification":
+        clauses = _split_clarification_response(response)
+        if clauses is not None:
+            restatement, question, default = clauses
+            rendered = {
+                "restatement": _response_phrase(
+                    cards,
+                    (
+                        _sentence(restatement),
+                        f"My current reading is that {_inline_sentence(restatement)}",
+                        f"The supported facts show that {_inline_sentence(restatement)}",
+                        f"What is clear so far is that {_inline_sentence(restatement)}",
+                        f"At this point, {_inline_sentence(restatement)}",
+                        f"The bounded interpretation is that {_inline_sentence(restatement)}",
+                    ),
+                    offset=81,
+                ),
+                "question": _response_phrase(
+                    cards,
+                    (
+                        _sentence(question),
+                        f"One detail would resolve this: {_inline_sentence(question)}",
+                        f"Before proceeding, {_inline_sentence(question)}",
+                        f"The remaining question is: {_inline_sentence(question)}",
+                        f"Please clarify one point: {_inline_sentence(question)}",
+                    ),
+                    offset=82,
+                ),
+                "default": _response_phrase(
+                    cards,
+                    (
+                        _sentence(default),
+                        f"Until that is confirmed, {_inline_sentence(default)}",
+                        f"For now, {_inline_sentence(default)}",
+                        f"Pending the answer, {_inline_sentence(default)}",
+                        f"The reversible default is clear: {_sentence(default)}",
+                        f"Meanwhile, {_inline_sentence(default)}",
+                    ),
+                    offset=83,
+                ),
+            }
+            return render_response_card_hand(rendered, cards=cards)
         fields = _labelled_fields(response, ("Understood",))
         if fields:
             return _sentence(fields["Understood"])
@@ -530,10 +635,12 @@ def _naturalize_assistant_target(
             flags=re.IGNORECASE,
         )
         return direct
-    elif task in {
-        "conversation_empathy",
-        "extraction_classification",
-    }:
+    elif task == "conversation_empathy":
+        clauses = _split_empathy_response(response)
+        if clauses is not None:
+            return render_response_card_hand(clauses, cards=cards)
+        return response
+    elif task == "extraction_classification":
         return response
     elif task == "planning_comparison":
         match = re.fullmatch(

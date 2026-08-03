@@ -9,6 +9,9 @@ import pyarrow.parquet as pq
 
 from .build import build_corpus
 from .conversation_blueprint import build_conversation_blueprints
+from .dictionary_review import write_dictionary_review
+from .definition_acceptance import accept_definition_proposals
+from .embedding_guidance import build_embedding_guidance
 from .conversation_mine import build_conversation_mine, fetch_conversation_sources
 from .surfaces import (
     build_conversation_surface,
@@ -27,7 +30,16 @@ from .package import (
     package_instructions_for_hugging_face,
 )
 from .posttrain import audit_human_review, build_post_training_corpus
+from .proposal_embedding_review import (
+    audit_definition_proposals,
+    merge_definition_proposal_audits,
+)
 from .quality_audit import audit_dataset_quality
+from .semantic_audit import (
+    DEFAULT_EMBEDDING_MODEL,
+    DEFAULT_EMBEDDING_REVISION,
+    audit_dataset_semantic_diversity,
+)
 from .scenarios import audit_scenario_tanks, build_scenario_forge
 from .tokenize import tokenize_documents
 from .vocabulary_gap import build_vocabulary_gap
@@ -180,6 +192,7 @@ def parser() -> argparse.ArgumentParser:
     vocabulary_placement.add_argument("--scenarios", type=Path, required=True)
     vocabulary_placement.add_argument("--output", type=Path, required=True)
     vocabulary_placement.add_argument("--window-tokens", type=int, default=16)
+    vocabulary_placement.add_argument("--accepted-definitions", type=Path)
 
     vocabulary_wordnet = commands.add_parser("audit-vocabulary-wordnet")
     vocabulary_wordnet.add_argument("--dictionary", type=Path, required=True)
@@ -303,6 +316,79 @@ def parser() -> argparse.ArgumentParser:
     sklearn_audit.add_argument(
         "--workers", type=int, default=max(1, min(8, os.cpu_count() or 1))
     )
+
+    embedding_audit = commands.add_parser("audit-embeddings")
+    embedding_audit.add_argument("--conversations", type=Path, required=True)
+    embedding_audit.add_argument("--output", type=Path, required=True)
+    embedding_audit.add_argument("--model", default=DEFAULT_EMBEDDING_MODEL)
+    embedding_audit.add_argument("--revision", default=DEFAULT_EMBEDDING_REVISION)
+    embedding_audit.add_argument("--device")
+    embedding_audit.add_argument(
+        "--sample-size",
+        type=int,
+        default=0,
+        help="0 selects the same adaptive deterministic sample as audit-sklearn",
+    )
+    embedding_audit.add_argument(
+        "--clusters",
+        type=int,
+        default=0,
+        help="0 selects an adaptive MiniBatchKMeans cluster count",
+    )
+    embedding_audit.add_argument(
+        "--semantic-duplicate-threshold", type=float, default=0.98
+    )
+    embedding_audit.add_argument("--batch-size", type=int, default=128)
+    embedding_audit.add_argument(
+        "--workers", type=int, default=max(1, min(8, os.cpu_count() or 1))
+    )
+
+    embedding_guidance = commands.add_parser("build-embedding-guidance")
+    embedding_guidance.add_argument("--dictionary", type=Path, required=True)
+    embedding_guidance.add_argument("--semantic-audit", type=Path, required=True)
+    embedding_guidance.add_argument("--output", type=Path, required=True)
+    embedding_guidance.add_argument("--model", default=DEFAULT_EMBEDDING_MODEL)
+    embedding_guidance.add_argument(
+        "--revision", default=DEFAULT_EMBEDDING_REVISION
+    )
+    embedding_guidance.add_argument("--device")
+    embedding_guidance.add_argument("--batch-size", type=int, default=128)
+    embedding_guidance.add_argument("--alternatives-per-token", type=int, default=5)
+    embedding_guidance.add_argument(
+        "--workers", type=int, default=max(1, min(8, os.cpu_count() or 1))
+    )
+
+    dictionary_review = commands.add_parser("build-dictionary-review")
+    dictionary_review.add_argument("--primary-guidance", type=Path, required=True)
+    dictionary_review.add_argument("--secondary-guidance", type=Path, required=True)
+    dictionary_review.add_argument("--output-json", type=Path, required=True)
+    dictionary_review.add_argument("--output-csv", type=Path, required=True)
+    dictionary_review.add_argument("--proposals", type=Path)
+
+    proposal_audit = commands.add_parser("audit-definition-proposals")
+    proposal_audit.add_argument("--dictionary", type=Path, required=True)
+    proposal_audit.add_argument("--proposals", type=Path, required=True)
+    proposal_audit.add_argument("--output", type=Path, required=True)
+    proposal_audit.add_argument("--model", required=True)
+    proposal_audit.add_argument("--revision", required=True)
+    proposal_audit.add_argument("--device")
+    proposal_audit.add_argument("--batch-size", type=int, default=128)
+
+    proposal_merge = commands.add_parser("merge-definition-proposal-audits")
+    proposal_merge.add_argument("--primary", type=Path, required=True)
+    proposal_merge.add_argument("--secondary", type=Path, required=True)
+    proposal_merge.add_argument("--output-json", type=Path, required=True)
+    proposal_merge.add_argument("--output-csv", type=Path, required=True)
+
+    definition_acceptance = commands.add_parser("accept-definition-proposals")
+    definition_acceptance.add_argument("--dictionary", type=Path, required=True)
+    definition_acceptance.add_argument("--proposals", type=Path, required=True)
+    definition_acceptance.add_argument("--review", type=Path, required=True)
+    definition_acceptance.add_argument("--output-dictionary", type=Path, required=True)
+    definition_acceptance.add_argument("--output-review", type=Path, required=True)
+    definition_acceptance.add_argument("--placement", type=Path)
+    definition_acceptance.add_argument("--output-placement", type=Path)
+    definition_acceptance.add_argument("--accept-all", action="store_true")
 
     inspect = commands.add_parser("inspect")
     inspect.add_argument("--output", type=Path, required=True)
@@ -475,6 +561,7 @@ def main() -> None:
             args.scenarios,
             args.output,
             window_tokens=args.window_tokens,
+            accepted_definitions_path=args.accepted_definitions,
         )
         print(json.dumps(result["audit"], indent=2, sort_keys=True))
     elif args.command == "audit-vocabulary-wordnet":
@@ -581,6 +668,119 @@ def main() -> None:
             max_features=args.max_features or None,
             cluster_count=args.clusters or None,
             workers=args.workers,
+        )
+        print(json.dumps(result, indent=2, sort_keys=True))
+    elif args.command == "audit-embeddings":
+        result = audit_dataset_semantic_diversity(
+            args.conversations,
+            args.output,
+            model_name=args.model,
+            model_revision=args.revision,
+            device=args.device,
+            sample_size=args.sample_size or None,
+            cluster_count=args.clusters or None,
+            semantic_duplicate_threshold=args.semantic_duplicate_threshold,
+            batch_size=args.batch_size,
+            workers=args.workers,
+        )
+        print(json.dumps(result, indent=2, sort_keys=True))
+    elif args.command == "build-embedding-guidance":
+        result = build_embedding_guidance(
+            args.dictionary,
+            args.semantic_audit,
+            args.output,
+            model_name=args.model,
+            model_revision=args.revision,
+            device=args.device,
+            batch_size=args.batch_size,
+            workers=args.workers,
+            alternatives_per_token=args.alternatives_per_token,
+        )
+        print(
+            json.dumps(
+                {
+                    "dictionary_cards": result["dictionary"]["cards"],
+                    "families": len(result["family_priorities"]),
+                    "semantic_decks": sum(
+                        len(decks) for decks in result["semantic_decks"].values()
+                    ),
+                    "output": str(args.output.resolve()),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    elif args.command == "build-dictionary-review":
+        result = write_dictionary_review(
+            args.primary_guidance,
+            args.secondary_guidance,
+            args.output_json,
+            args.output_csv,
+            args.proposals,
+        )
+        print(
+            json.dumps(
+                {
+                    "rows": result["rows"],
+                    "status_counts": result["status_counts"],
+                    "proposed_definitions": result["proposed_definitions"],
+                    "output_json": str(args.output_json.resolve()),
+                    "output_csv": str(args.output_csv.resolve()),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    elif args.command == "audit-definition-proposals":
+        result = audit_definition_proposals(
+            args.dictionary,
+            args.proposals,
+            args.output,
+            model_name=args.model,
+            model_revision=args.revision,
+            device=args.device,
+            batch_size=args.batch_size,
+        )
+        print(
+            json.dumps(
+                {
+                    "definitions": result["definitions"],
+                    "signal_counts": result["signal_counts"],
+                    "output": str(args.output.resolve()),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    elif args.command == "merge-definition-proposal-audits":
+        result = merge_definition_proposal_audits(
+            args.primary,
+            args.secondary,
+            args.output_json,
+            args.output_csv,
+        )
+        print(
+            json.dumps(
+                {
+                    "rows": result["rows"],
+                    "consensus_counts": result["consensus_counts"],
+                    "output_json": str(args.output_json.resolve()),
+                    "output_csv": str(args.output_csv.resolve()),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    elif args.command == "accept-definition-proposals":
+        result = accept_definition_proposals(
+            args.dictionary,
+            args.proposals,
+            args.review,
+            args.output_dictionary,
+            args.output_review,
+            accept_all=args.accept_all,
+            placement_path=args.placement,
+            output_placement_path=args.output_placement,
         )
         print(json.dumps(result, indent=2, sort_keys=True))
     elif args.command == "inspect":

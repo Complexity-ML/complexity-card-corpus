@@ -28,6 +28,16 @@ def _normalize(text: str) -> str:
     return _SPACE_RE.sub(" ", text.casefold()).strip()
 
 
+def _is_valid_structured_response(text: str) -> bool:
+    """Return whether a compact response is a non-empty JSON object or array."""
+
+    try:
+        value = json.loads(text)
+    except (TypeError, ValueError):
+        return False
+    return isinstance(value, (dict, list)) and bool(value)
+
+
 def _stable_sample(rows: Iterable[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
     ranked = sorted(
         rows,
@@ -250,7 +260,7 @@ def audit_rows_quality(
                 reasons.append("empty_response")
             if prompt and response and _normalize(prompt) == _normalize(response):
                 reasons.append("prompt_equals_response")
-            if len(response.split()) < 2:
+            if len(response.split()) < 2 and not _is_valid_structured_response(response):
                 reasons.append("response_below_two_words")
             if reasons:
                 malformed_count += 1
