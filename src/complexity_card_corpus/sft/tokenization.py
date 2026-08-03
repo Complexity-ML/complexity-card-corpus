@@ -24,26 +24,35 @@ from ..chat_template import (
     render_user_turn,
 )
 from ..tokenize import directory_sha256, load_encoding
-from ..training_cards import TrainingCards
-from .evaluation import _audit_sft_projection, load_heldout_evaluation
+from ..training_cards import TrainingCards, deal_training_cards
+from .evaluation import (
+    _audit_sft_projection,
+    assert_sft_repetition_quality,
+    load_heldout_evaluation,
+)
 from .language import _card_sections, _render_messages
 from .projection import (
     _project_sft_conversation,
 )
 from .selection import (
+    _normalized_structure,
     _balance_response_card_hands,
+    _balance_task_domains,
     _balance_task_families,
     _deduplicate_exact_prompts,
     _deduplicate_exact_responses,
     _deduplicate_structural_rows,
 )
 from .schema import IGNORE_INDEX, LABEL_DTYPE, PROJECTED_SFT_SCHEMA, TOKEN_DTYPE
+from .surface_selection import select_balanced_sft_surfaces
+from .surface_variation import SurfaceVariationBalancer
 
 
 TRAIN_MAX_EXAMPLES_PER_FAMILY = 15_000
 TRAIN_MAX_PER_STRUCTURE = 8
 TRAIN_EXTRACTION_MAX_PER_STRUCTURE = 32
-TRAIN_MAX_RESPONSE_CARD_HAND_SHARE = 0.12
+TRAIN_MAX_RESPONSE_CARD_HAND_SHARE = 0.05
+TRAIN_MAX_DOMAIN_SHARE = 0.05
 
 SUPPLEMENT_TASK_ALIASES = {
     "empathetic_dialogue": "conversation_empathy",
@@ -106,7 +115,9 @@ def _load_instruction_sources(
     example_counts = Counter(row["example_id"] for row in rows)
     duplicate_ids = [key for key, count in example_counts.items() if count > 1]
     if duplicate_ids:
-        raise ValueError(f"instruction sources contain duplicate id: {duplicate_ids[0]}")
+        raise ValueError(
+            f"instruction sources contain duplicate id: {duplicate_ids[0]}"
+        )
     material = "\n".join(source["sha256"] for source in sources)
     combined_sha256 = hashlib.sha256(material.encode()).hexdigest()
     return sorted(rows, key=lambda row: row["example_id"]), sources, combined_sha256
@@ -208,27 +219,35 @@ def tokenize_instruction_dataset(
         source_rows.extend(heldout_rows)
         evaluation_sha256 = file_sha256(heldout_evaluation_path)
 
-    projected_rows: list[dict[str, Any]] = []
-    for row in source_rows:
-        projected_messages, cards = _project_sft_conversation(
+    def project_surface(
+        row: dict[str, Any], selection_key: str
+    ) -> tuple[list[dict[str, str]], TrainingCards]:
+        return _project_sft_conversation(
             row["messages"],
-            example_id=row["example_id"],
+            example_id=selection_key,
             task=row["task"],
             answer_json=row["answer_json"],
         )
-        prompt = _render_messages(projected_messages[:-1])
-        target = projected_messages[-1]["content"]
-        projected_rows.append(
-            {
-                **row,
-                "_projected_messages": projected_messages,
-                "_projected_prompt": prompt,
-                "_projected_target": target,
-                "_conditioning_cards": cards,
-            }
-        )
-    projection_audit = _audit_sft_projection(projected_rows)
 
+    def deal_surface(row: dict[str, Any], selection_key: str) -> TrainingCards:
+        try:
+            metadata = json.loads(row["answer_json"]) if row["answer_json"] else {}
+        except json.JSONDecodeError:
+            metadata = {}
+        if not isinstance(metadata, dict):
+            metadata = {}
+        return deal_training_cards(
+            task=row["task"],
+            mode="chat" if len(row["messages"]) > 2 else "instruct",
+            example_id=selection_key,
+            metadata=metadata,
+        )
+
+    projected_rows, surface_selection = select_balanced_sft_surfaces(
+        source_rows,
+        dealer=deal_surface,
+        projector=project_surface,
+    )
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in projected_rows:
         partition = {
@@ -242,6 +261,7 @@ def tokenize_instruction_dataset(
     exact_deduplication: dict[str, Any] = {}
     exact_prompt_deduplication: dict[str, Any] = {}
     family_balance: dict[str, Any] = {}
+    domain_balance: dict[str, Any] = {}
     response_card_balance: dict[str, Any] = {}
     deduplication: dict[str, Any] = {}
     for partition, partition_rows in list(grouped.items()):
@@ -251,21 +271,6 @@ def tokenize_instruction_dataset(
         partition_rows, exact_prompt_deduplication[partition] = (
             _deduplicate_exact_prompts(partition_rows)
         )
-        if partition == "train":
-            partition_rows, response_card_balance[partition] = (
-                _balance_response_card_hands(
-                    partition_rows,
-                    maximum_share=TRAIN_MAX_RESPONSE_CARD_HAND_SHARE,
-                )
-            )
-        else:
-            response_card_balance[partition] = {
-                "input_examples": len(partition_rows),
-                "kept_examples": len(partition_rows),
-                "dropped_overrepresented_response_hands": 0,
-                "requested_maximum_share": None,
-                "tasks": {},
-            }
         structure_limit = TRAIN_MAX_PER_STRUCTURE if partition == "train" else 10_000
         per_task_limits = (
             {"extraction_classification": TRAIN_EXTRACTION_MAX_PER_STRUCTURE}
@@ -282,6 +287,16 @@ def tokenize_instruction_dataset(
                 partition_rows,
                 max_examples_per_family=TRAIN_MAX_EXAMPLES_PER_FAMILY,
             )
+            partition_rows, domain_balance[partition] = _balance_task_domains(
+                partition_rows,
+                maximum_share=TRAIN_MAX_DOMAIN_SHARE,
+            )
+            partition_rows, response_card_balance[partition] = (
+                _balance_response_card_hands(
+                    partition_rows,
+                    maximum_share=TRAIN_MAX_RESPONSE_CARD_HAND_SHARE,
+                )
+            )
         else:
             counts = dict(
                 sorted(Counter(row["task"] for row in partition_rows).items())
@@ -294,7 +309,49 @@ def tokenize_instruction_dataset(
                 "before": counts,
                 "after": counts,
             }
+            domain_balance[partition] = {
+                "input_examples": len(partition_rows),
+                "kept_examples": len(partition_rows),
+                "dropped_overrepresented_domains": 0,
+                "requested_maximum_share": None,
+                "tasks_requiring_tank_hydration": [],
+                "tasks": {},
+            }
+            response_card_balance[partition] = {
+                "input_examples": len(partition_rows),
+                "kept_examples": len(partition_rows),
+                "dropped_overrepresented_response_hands": 0,
+                "requested_maximum_share": None,
+                "tasks": {},
+            }
         grouped[partition] = partition_rows
+
+    # Phrase reservoirs are balanced against the rows that will actually be
+    # trained. Applying this earlier lets later deduplication skew a balanced
+    # reservoir back above its ceiling.
+    phrase_balancer = SurfaceVariationBalancer()
+    rewritten_train: list[dict[str, Any]] = []
+    for row in sorted(grouped.get("train", []), key=lambda item: item["example_id"]):
+        messages = phrase_balancer.rewrite_messages(
+            row["_projected_messages"],
+            task=row["task"],
+            example_id=row["example_id"],
+        )
+        rewritten = dict(row)
+        rewritten["_projected_messages"] = messages
+        rewritten["_projected_prompt"] = _render_messages(messages[:-1])
+        rewritten["_projected_target"] = messages[-1]["content"]
+        rewritten["_structure_signature"] = _normalized_structure(
+            rewritten["_projected_target"]
+        )
+        rewritten_train.append(rewritten)
+    grouped["train"] = rewritten_train
+    surface_selection["phrase_variation"] = phrase_balancer.audit()
+
+    projection_audit = _audit_sft_projection(
+        [row for rows in grouped.values() for row in rows]
+    )
+    repetition_audit = assert_sft_repetition_quality(grouped.get("train", []))
 
     train_structures = {
         (row["task"], row["_structure_signature"]) for row in grouped.get("train", [])
@@ -469,9 +526,12 @@ def tokenize_instruction_dataset(
         "instruction_sources": instruction_sources,
         "instruction_sources_sha256": instruction_sources_sha256,
         "projection_audit": projection_audit,
+        "surface_selection": surface_selection,
+        "repetition_audit": repetition_audit,
         "exact_response_deduplication": exact_deduplication,
         "exact_prompt_deduplication": exact_prompt_deduplication,
         "family_balance": family_balance,
+        "domain_balance": domain_balance,
         "response_card_balance": response_card_balance,
         "structural_deduplication": deduplication,
         "train_eval_structure_overlap": len(overlap),
@@ -565,9 +625,7 @@ def tokenize_instruction_dataset(
         "no_exact_duplicate_train_responses": exact_train_responses == train_count,
         "no_exact_duplicate_train_prompts": exact_train_prompts == train_count,
         "at_least_fourteen_training_families": len(train_family_counts) >= 14,
-        "training_examples_at_least_100k": (
-            train_count >= TARGET_POST_TRAINING_ROWS
-        ),
+        "training_examples_at_least_100k": (train_count >= TARGET_POST_TRAINING_ROWS),
         "maximum_family_share_at_most_15_percent": max(
             family_shares.values(), default=0.0
         )
@@ -598,9 +656,10 @@ def tokenize_instruction_dataset(
             distinct_train_structures / train_count if train_count else 0.0
         )
         >= 0.20,
-        "maximum_response_card_hand_share_at_most_12_percent": (
+        "maximum_response_card_hand_share_at_most_5_percent": (
             maximum_card_hand_share <= TRAIN_MAX_RESPONSE_CARD_HAND_SHARE
         ),
+        "all_sft_repetition_signatures_at_most_5_percent": repetition_audit["passed"],
         "heldout_evaluation_has_at_least_28_authored_examples": (
             manifests.get("eval", {}).get("examples", 0) >= 28
         ),
@@ -627,6 +686,7 @@ def tokenize_instruction_dataset(
             task: len(counts) for task, counts in sorted(card_hands_by_task.items())
         },
         "maximum_response_card_hand_share": round(maximum_card_hand_share, 6),
+        "repetition_audit": repetition_audit,
         "multi_turn_examples": multi_turn_count,
         "multi_turn_share": round(
             multi_turn_count / train_count if train_count else 0.0, 6
@@ -645,9 +705,7 @@ def tokenize_instruction_dataset(
         "exact_train_prompt_uniqueness_ratio": round(
             exact_train_prompts / train_count if train_count else 0.0, 6
         ),
-        "minimum_supervised_training_tokens": (
-            TARGET_POST_TRAINING_SUPERVISED_TOKENS
-        ),
+        "minimum_supervised_training_tokens": (TARGET_POST_TRAINING_SUPERVISED_TOKENS),
         "target_training_examples": TARGET_POST_TRAINING_ROWS,
     }
     (temporary / "manifest.json").write_text(

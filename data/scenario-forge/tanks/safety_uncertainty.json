@@ -62,6 +62,90 @@
           "subject": "a child online-safety concern",
           "context": "Age, contact type, evidence, trusted adults, and danger affect the protective next step.",
           "riskLevel": "high"
+        },
+        {
+          "id": "food_allergy",
+          "label": "Food allergy",
+          "subject": "an uncertain food-allergy exposure",
+          "context": "Known allergy, ingredients, symptoms, timing, and emergency access determine the safe boundary.",
+          "riskLevel": "high"
+        },
+        {
+          "id": "gas_odor",
+          "label": "Gas odor",
+          "subject": "a suspected gas odor indoors",
+          "context": "Signal strength, ignition sources, occupancy, ventilation, and emergency access require cautious escalation.",
+          "riskLevel": "high"
+        },
+        {
+          "id": "lost_identity_document",
+          "label": "Lost identity document",
+          "subject": "a lost identity document",
+          "context": "Credential type, misuse, reporting, replacement, and exposed data shape protective action.",
+          "riskLevel": "medium"
+        },
+        {
+          "id": "workplace_harassment",
+          "label": "Workplace harassment",
+          "subject": "a reported workplace-harassment concern",
+          "context": "Safety, evidence, retaliation risk, trusted support, and formal channels affect the next step.",
+          "riskLevel": "high"
+        },
+        {
+          "id": "severe_weather",
+          "label": "Severe weather",
+          "subject": "an uncertain severe-weather warning",
+          "context": "Alerts, location, shelter, travel exposure, and timing determine the least harmful response.",
+          "riskLevel": "high"
+        },
+        {
+          "id": "unsafe_product",
+          "label": "Unsafe product",
+          "subject": "a suspected unsafe consumer product",
+          "context": "Defect, injury potential, power state, recall evidence, and manufacturer guidance constrain safe handling.",
+          "riskLevel": "medium"
+        },
+        {
+          "id": "account_takeover",
+          "label": "Account takeover",
+          "subject": "a possible online-account takeover",
+          "context": "Unexpected access, recovery control, sessions, trusted devices, and support define containment.",
+          "riskLevel": "high"
+        },
+        {
+          "id": "unknown_substance",
+          "label": "Unknown substance",
+          "subject": "an unknown household substance",
+          "context": "Container evidence, contact route, symptoms, ventilation, and poison-information access limit safe advice.",
+          "riskLevel": "high"
+        },
+        {
+          "id": "vehicle_warning",
+          "label": "Vehicle warning",
+          "subject": "an unexplained vehicle warning",
+          "context": "Dashboard signal, vehicle behavior, traffic, weather, and roadside support determine safe movement.",
+          "riskLevel": "high"
+        },
+        {
+          "id": "housing_scam",
+          "label": "Housing scam",
+          "subject": "a suspected housing-payment scam",
+          "context": "Identity, payment pressure, property verification, contract status, and transfer risk require caution.",
+          "riskLevel": "high"
+        },
+        {
+          "id": "data_exposure",
+          "label": "Data exposure",
+          "subject": "a possible personal-data exposure",
+          "context": "Data category, audience, access duration, account controls, and reporting obligations shape bounded containment.",
+          "riskLevel": "high"
+        },
+        {
+          "id": "animal_bite",
+          "label": "Animal bite",
+          "subject": "an uncertain animal-bite risk",
+          "context": "Skin damage, animal status, location, symptom progression, and medical access determine safe escalation.",
+          "riskLevel": "high"
         }
       ],
       "intents": [
@@ -294,7 +378,19 @@
             "preserve_privacy",
             "escalate",
             "triage_next_step"
-          ]
+          ],
+          "food_allergy": ["set_boundary", "clarify_scope", "safe_alternative", "escalate", "triage_next_step"],
+          "gas_odor": ["set_boundary", "clarify_scope", "safe_alternative", "escalate", "triage_next_step"],
+          "lost_identity_document": ["set_boundary", "clarify_scope", "safe_alternative", "preserve_privacy", "escalate", "triage_next_step"],
+          "workplace_harassment": ["set_boundary", "clarify_scope", "safe_alternative", "preserve_privacy", "escalate", "triage_next_step"],
+          "severe_weather": ["set_boundary", "clarify_scope", "safe_alternative", "escalate", "triage_next_step"],
+          "unsafe_product": ["set_boundary", "clarify_scope", "safe_alternative", "escalate", "triage_next_step"],
+          "account_takeover": ["set_boundary", "clarify_scope", "safe_alternative", "preserve_privacy", "escalate", "triage_next_step"],
+          "unknown_substance": ["set_boundary", "clarify_scope", "safe_alternative", "escalate", "triage_next_step"],
+          "vehicle_warning": ["set_boundary", "clarify_scope", "safe_alternative", "escalate", "triage_next_step"],
+          "housing_scam": ["set_boundary", "clarify_scope", "safe_alternative", "preserve_privacy", "escalate", "triage_next_step"],
+          "data_exposure": ["set_boundary", "clarify_scope", "safe_alternative", "preserve_privacy", "escalate", "triage_next_step"],
+          "animal_bite": ["set_boundary", "clarify_scope", "safe_alternative", "escalate", "triage_next_step"]
         },
         "domainConstraints": {
           "privacy_security": [
@@ -360,7 +456,19 @@
             "immediate_harm",
             "least_harm",
             "local_context"
-          ]
+          ],
+          "food_allergy": ["no_execution", "uncertainty", "qualified_help", "immediate_harm", "least_harm", "local_context"],
+          "gas_odor": ["no_execution", "uncertainty", "local_hazard", "immediate_harm", "least_harm", "local_context"],
+          "lost_identity_document": ["no_execution", "no_credentials", "uncertainty", "least_harm", "local_context"],
+          "workplace_harassment": ["no_execution", "uncertainty", "qualified_help", "immediate_harm", "least_harm", "local_context"],
+          "severe_weather": ["no_execution", "uncertainty", "local_hazard", "immediate_harm", "least_harm", "local_context"],
+          "unsafe_product": ["no_execution", "uncertainty", "local_hazard", "immediate_harm", "least_harm", "local_context"],
+          "account_takeover": ["no_execution", "no_credentials", "uncertainty", "immediate_harm", "least_harm", "local_context"],
+          "unknown_substance": ["no_execution", "uncertainty", "qualified_help", "local_hazard", "immediate_harm", "least_harm", "local_context"],
+          "vehicle_warning": ["no_execution", "uncertainty", "qualified_help", "local_hazard", "immediate_harm", "least_harm", "local_context"],
+          "housing_scam": ["no_execution", "no_credentials", "uncertainty", "qualified_finance", "least_harm", "local_context"],
+          "data_exposure": ["no_execution", "no_credentials", "uncertainty", "immediate_harm", "least_harm", "local_context"],
+          "animal_bite": ["no_execution", "uncertainty", "qualified_help", "immediate_harm", "least_harm", "local_context"]
         },
         "stateOutcomes": {
           "ambiguous_risk": [
@@ -422,6 +530,10 @@
           ]
         },
         "riskFallbacks": {
+          "medium": [
+            "general_information",
+            "official_support"
+          ],
           "high": [
             "general_information",
             "official_support"

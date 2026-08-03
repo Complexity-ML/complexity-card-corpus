@@ -120,6 +120,12 @@
           "label": "Bug report",
           "subject": "a software bug report",
           "context": "Environment, reproduction steps, observed result, expected result, and evidence determine its diagnostic value."
+        },
+        {
+          "id": "research_abstract",
+          "label": "Research abstract",
+          "subject": "a research abstract",
+          "context": "Question, method, result, limitation, and contribution must remain proportional to evidence."
         }
       ],
       "intents": [
@@ -452,7 +458,8 @@
             "evidence",
             "prioritize",
             "prioritize_revision"
-          ]
+          ],
+          "research_abstract": ["identify", "revise", "consistency", "evidence", "prioritize", "prioritize_revision"]
         },
         "domainConstraints": {
           "email_draft": [
@@ -644,7 +651,8 @@
             "proportionate",
             "preserve_strengths",
             "claim_evidence_link"
-          ]
+          ],
+          "research_abstract": ["specific", "preserve_intent", "no_invention", "priority", "actionable", "proportionate", "preserve_strengths", "claim_evidence_link"]
         },
         "stateOutcomes": {
           "unclear": [

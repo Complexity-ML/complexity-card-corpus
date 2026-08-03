@@ -292,8 +292,24 @@ assistant prose. Each family owns semantic clauses and compatible structure
 decks: calculation, explanation, comparison, planning and conversation keep
 their native form instead of being forced into a universal report format. The
 structure hand changes only ordering and presentation; it cannot invent a fact
-or conclusion. A per-family audit caps any one response-card hand at 12% of the
+or conclusion. A per-family audit caps any one response-card hand at 5% of the
 retained rows without duplicating rare hands.
+
+SFT preparation audits repetition across the complete model-facing exchange.
+For every family with at least 100 retained examples, no exact text, normalized
+structure, 3/5/8-word opening or ending, complete sentence, internal 8-word
+span, or response-card hand may appear in more than 5% of examples. Prompt and
+response surfaces are measured separately. Structured JSON targets are exempt
+from prose-shape checks, but not from exact-duplicate and card-hand checks. The
+tokenizer fails before writing train shards and reports every offending family,
+dimension, share and signature.
+
+Before that hard gate, a corpus-level dealer considers 32 existing response-card
+hands and renders only the least-used one. Candidate dealing hashes small card
+records rather than producing 32 complete texts, so each example still requires
+one full render. This adds no card axis and changes no task semantics; it only
+prevents independent hashes from repeatedly selecting the same otherwise-valid
+combination.
 
 Before tokenization, exact repeated assistant responses are removed. Volatile
 identifiers, dates, times, amounts, quoted values and list numbering are then

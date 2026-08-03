@@ -174,18 +174,42 @@ SUBJECTS = {
 }
 
 
+_AN_INITIAL_WORDS = {
+    "account",
+    "appointment",
+    "average",
+    "encryption",
+    "equipment",
+    "index",
+    "injury",
+    "overwhelming",
+    "uncertain",
+    "unknown",
+}
+
+
+def with_indefinite_article(subject: str, *, sentence_start: bool = False) -> str:
+    """Return a grammatical article for the fixed held-out subject inventory."""
+
+    first_word = subject.split(maxsplit=1)[0].lower()
+    article = "an" if first_word in _AN_INITIAL_WORDS else "a"
+    phrase = f"{article} {subject}"
+    return phrase.capitalize() if sentence_start else phrase
+
+
 def diagnostic_case(task: str, index: int) -> dict[str, str]:
     subject = SUBJECTS[task][index % 8]
     variant = index // 8
     a = 12 + index
     b = 2 + variant
     difficulty = ("easy", "medium", "medium", "hard", "easy", "medium")[variant]
+    subject_with_article = with_indefinite_article(subject)
 
     if task == "practical_action":
-        prompt = f"I need to handle a {subject}. The valid window ends in {b + 1} days, and I have reference EV-{a}. What is the simplest next step?"
+        prompt = f"I need to handle {subject_with_article}. The valid window ends in {b + 1} days, and I have reference EV-{a}. What is the simplest next step?"
         response = f"Contact the responsible service today, quote reference EV-{a}, choose a time inside the {b + 1}-day window, and ask for written confirmation."
     elif task == "explanation_learning":
-        prompt = f"Explain the idea of a {subject} to a beginner. Use an example with {a} items and keep the answer brief."
+        prompt = f"Explain the idea of {subject_with_article} to a beginner. Use an example with {a} items and keep the answer brief."
         response = f"A {subject} organizes or protects information so a later step is easier to perform. Imagine {a} items being handled by one clear rule; the rule reduces repeated work and makes the result easier to check."
     elif task == "troubleshooting":
         prompt = f"My {subject} failed after change EV-{a}, but the surrounding system still works. Which check should I run first?"
@@ -194,14 +218,14 @@ def diagnostic_case(task: str, index: int) -> dict[str, str]:
         prompt = f"Rewrite this as a calm, direct {subject}: 'Item EV-{a} is late. Send it now. There may be a blocker.'"
         response = f"Item EV-{a} has not arrived yet. Please send it when possible, or let me know what is blocking delivery so we can agree on the next step."
     elif task == "planning_comparison":
-        prompt = f"Plan a {subject} with {a} minutes available. The priority task needs twice as much time as each of the other two tasks."
+        prompt = f"Plan {subject_with_article} with {a} minutes available. The priority task needs twice as much time as each of the other two tasks."
         share = a // 4
         response = f"For the {subject}, give about {share * 2} minutes to the priority task and {share} minutes to each remaining task. Use any leftover minutes to review the result and record unfinished work."
     elif task == "conversation_empathy":
-        prompt = f"I keep replaying a {subject} from {b} days ago, even though I have already repaired what I could."
+        prompt = f"I keep replaying {subject_with_article} from {b} days ago, even though I have already repaired what I could."
         response = f"It makes sense that the {subject} still feels active after only {b} days, even if the practical repair is finished. Try naming the one lesson you want to keep, then give yourself permission to stop rehearsing the event tonight."
     elif task == "safety_uncertainty":
-        prompt = f"I received an unexpected request about a {subject} with code EV-{a}. I am not sure it is genuine. What should I do?"
+        prompt = f"I received an unexpected request about {subject_with_article} with code EV-{a}. I am not sure it is genuine. What should I do?"
         response = f"Do not use the link or share the code. Contact the organization through a trusted official channel, mention EV-{a}, and verify the request there. Escalate immediately if access, health, or physical safety may already be at risk."
     elif task == "grounded_qa":
         prompt = f"Source: The {subject} says entry EV-{a} opens at {a % 12 + 7}:00 and closes {b} hours later. When does it close?"
@@ -223,7 +247,7 @@ def diagnostic_case(task: str, index: int) -> dict[str, str]:
         )
     elif task == "reasoning_verification":
         total = a * b
-        prompt = f"A {subject} has {b} equal groups of {a} units. What is the total, and how can I verify it?"
+        prompt = f"{with_indefinite_article(subject, sentence_start=True)} has {b} equal groups of {a} units. What is the total, and how can I verify it?"
         response = f"The total is {total} units because {b} × {a} = {total}. Verify it by adding {a} exactly {b} times."
     elif task == "critique_revision":
         prompt = f"Critique and revise this {subject}: 'Handle EV-{a} soon because everyone knows what to do.'"

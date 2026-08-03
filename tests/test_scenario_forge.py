@@ -189,8 +189,8 @@ def test_scenario_forge_compiles_semantic_cards_from_family_tanks() -> None:
         "orphan_cards": 0,
         "connected_scenarios": EXPECTED_SCENARIOS,
         "minimum_card_degree": 2,
-        "unique_cards": 585,
-        "unique_links": 6_061,
+        "unique_cards": 629,
+        "unique_links": 6_923,
     }
     assert all(len(row["creation_hash"]) == 64 for row in rows)
     assert all(len(row["verification_hash"]) == 64 for row in rows)

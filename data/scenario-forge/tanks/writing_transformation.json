@@ -102,6 +102,30 @@
           "label": "Tutorial step",
           "subject": "a technical tutorial step",
           "context": "Prerequisites, command, expected result, and recovery note must appear in usable order."
+        },
+        {
+          "id": "incident_update",
+          "label": "Incident update",
+          "subject": "an operational incident update",
+          "context": "Impact, status, action, next update, and unresolved cause require precise wording."
+        },
+        {
+          "id": "application_response",
+          "label": "Application response",
+          "subject": "a response to an application",
+          "context": "Decision, reason, next step, deadline, and contact path must retain their certainty."
+        },
+        {
+          "id": "maintenance_notice",
+          "label": "Maintenance notice",
+          "subject": "a scheduled-maintenance notice",
+          "context": "Service, maintenance window, impact, preparation, and status channel must be easy to scan."
+        },
+        {
+          "id": "research_summary",
+          "label": "Research summary",
+          "subject": "a short research summary",
+          "context": "Question, method, result, uncertainty, and implication must not overstate evidence."
         }
       ],
       "intents": [
@@ -391,7 +415,11 @@
             "adapt_tone",
             "restructure",
             "adapt_register"
-          ]
+          ],
+          "incident_update": ["draft", "revise", "summarize", "adapt_tone", "restructure", "adapt_register"],
+          "application_response": ["draft", "revise", "summarize", "adapt_tone", "restructure", "adapt_register"],
+          "maintenance_notice": ["draft", "revise", "summarize", "adapt_tone", "restructure", "adapt_register"],
+          "research_summary": ["draft", "revise", "summarize", "adapt_tone", "restructure", "adapt_register"]
         },
         "domainConstraints": {
           "email": [
@@ -529,7 +557,11 @@
             "tone",
             "meaning_preservation",
             "audience_boundary"
-          ]
+          ],
+          "incident_update": ["no_new_claims", "plain_language", "short", "tone", "meaning_preservation", "audience_boundary"],
+          "application_response": ["no_new_claims", "plain_language", "short", "tone", "meaning_preservation", "audience_boundary"],
+          "maintenance_notice": ["no_new_claims", "plain_language", "short", "tone", "meaning_preservation", "audience_boundary"],
+          "research_summary": ["no_new_claims", "plain_language", "short", "tone", "meaning_preservation", "audience_boundary"]
         },
         "stateOutcomes": {
           "rough_notes": [

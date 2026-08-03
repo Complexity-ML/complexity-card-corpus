@@ -114,6 +114,18 @@
           "label": "Package build",
           "subject": "a software package build",
           "context": "Dependency resolution, toolchain version, generated artifacts, and first failing step define the diagnostic boundary."
+        },
+        {
+          "id": "calendar_sync",
+          "label": "Calendar synchronization",
+          "subject": "a calendar synchronization failure",
+          "context": "Account scope, time zone, direction, duplicates, and last update isolate the fault."
+        },
+        {
+          "id": "camera_capture",
+          "label": "Camera capture",
+          "subject": "an unreliable camera capture",
+          "context": "Permissions, device, lighting, storage, and application boundary provide reversible tests."
         }
       ],
       "intents": [
@@ -417,7 +429,9 @@
             "verify_fix",
             "prevent",
             "trace_transition"
-          ]
+          ],
+          "calendar_sync": ["diagnose", "reproduce", "recover", "verify_fix", "prevent", "trace_transition"],
+          "camera_capture": ["diagnose", "reproduce", "recover", "verify_fix", "prevent", "trace_transition"]
         },
         "domainConstraints": {
           "software_install": [
@@ -563,7 +577,9 @@
             "reversible_steps",
             "single_change",
             "observable_signal"
-          ]
+          ],
+          "calendar_sync": ["one_change", "limited_access", "short_window", "reversible_steps", "single_change", "observable_signal"],
+          "camera_capture": ["one_change", "limited_access", "short_window", "reversible_steps", "single_change", "observable_signal"]
         },
         "stateOutcomes": {
           "intermittent": [

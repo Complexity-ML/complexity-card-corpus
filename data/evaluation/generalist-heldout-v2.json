@@ -326,7 +326,7 @@
       "task": "practical_action",
       "domain": "equipment_loan",
       "difficulty": "easy",
-      "prompt": "I need to handle a equipment loan. The valid window ends in 3 days, and I have reference EV-19. What is the simplest next step?",
+      "prompt": "I need to handle an equipment loan. The valid window ends in 3 days, and I have reference EV-19. What is the simplest next step?",
       "response": "Contact the responsible service today, quote reference EV-19, choose a time inside the 3-day window, and ask for written confirmation.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -398,7 +398,7 @@
       "task": "practical_action",
       "domain": "equipment_loan",
       "difficulty": "medium",
-      "prompt": "I need to handle a equipment loan. The valid window ends in 4 days, and I have reference EV-27. What is the simplest next step?",
+      "prompt": "I need to handle an equipment loan. The valid window ends in 4 days, and I have reference EV-27. What is the simplest next step?",
       "response": "Contact the responsible service today, quote reference EV-27, choose a time inside the 4-day window, and ask for written confirmation.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -470,7 +470,7 @@
       "task": "practical_action",
       "domain": "equipment_loan",
       "difficulty": "medium",
-      "prompt": "I need to handle a equipment loan. The valid window ends in 5 days, and I have reference EV-35. What is the simplest next step?",
+      "prompt": "I need to handle an equipment loan. The valid window ends in 5 days, and I have reference EV-35. What is the simplest next step?",
       "response": "Contact the responsible service today, quote reference EV-35, choose a time inside the 5-day window, and ask for written confirmation.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -542,7 +542,7 @@
       "task": "practical_action",
       "domain": "equipment_loan",
       "difficulty": "hard",
-      "prompt": "I need to handle a equipment loan. The valid window ends in 6 days, and I have reference EV-43. What is the simplest next step?",
+      "prompt": "I need to handle an equipment loan. The valid window ends in 6 days, and I have reference EV-43. What is the simplest next step?",
       "response": "Contact the responsible service today, quote reference EV-43, choose a time inside the 6-day window, and ask for written confirmation.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -614,7 +614,7 @@
       "task": "practical_action",
       "domain": "equipment_loan",
       "difficulty": "easy",
-      "prompt": "I need to handle a equipment loan. The valid window ends in 7 days, and I have reference EV-51. What is the simplest next step?",
+      "prompt": "I need to handle an equipment loan. The valid window ends in 7 days, and I have reference EV-51. What is the simplest next step?",
       "response": "Contact the responsible service today, quote reference EV-51, choose a time inside the 7-day window, and ask for written confirmation.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -686,7 +686,7 @@
       "task": "practical_action",
       "domain": "equipment_loan",
       "difficulty": "medium",
-      "prompt": "I need to handle a equipment loan. The valid window ends in 8 days, and I have reference EV-59. What is the simplest next step?",
+      "prompt": "I need to handle an equipment loan. The valid window ends in 8 days, and I have reference EV-59. What is the simplest next step?",
       "response": "Contact the responsible service today, quote reference EV-59, choose a time inside the 8-day window, and ask for written confirmation.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -722,7 +722,7 @@
       "task": "explanation_learning",
       "domain": "index",
       "difficulty": "easy",
-      "prompt": "Explain the idea of a index to a beginner. Use an example with 15 items and keep the answer brief.",
+      "prompt": "Explain the idea of an index to a beginner. Use an example with 15 items and keep the answer brief.",
       "response": "A index organizes or protects information so a later step is easier to perform. Imagine 15 items being handled by one clear rule; the rule reduces repeated work and makes the result easier to check.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -740,7 +740,7 @@
       "task": "explanation_learning",
       "domain": "average",
       "difficulty": "easy",
-      "prompt": "Explain the idea of a average to a beginner. Use an example with 17 items and keep the answer brief.",
+      "prompt": "Explain the idea of an average to a beginner. Use an example with 17 items and keep the answer brief.",
       "response": "A average organizes or protects information so a later step is easier to perform. Imagine 17 items being handled by one clear rule; the rule reduces repeated work and makes the result easier to check.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -749,7 +749,7 @@
       "task": "explanation_learning",
       "domain": "encryption",
       "difficulty": "easy",
-      "prompt": "Explain the idea of a encryption to a beginner. Use an example with 18 items and keep the answer brief.",
+      "prompt": "Explain the idea of an encryption to a beginner. Use an example with 18 items and keep the answer brief.",
       "response": "A encryption organizes or protects information so a later step is easier to perform. Imagine 18 items being handled by one clear rule; the rule reduces repeated work and makes the result easier to check.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -794,7 +794,7 @@
       "task": "explanation_learning",
       "domain": "index",
       "difficulty": "medium",
-      "prompt": "Explain the idea of a index to a beginner. Use an example with 23 items and keep the answer brief.",
+      "prompt": "Explain the idea of an index to a beginner. Use an example with 23 items and keep the answer brief.",
       "response": "A index organizes or protects information so a later step is easier to perform. Imagine 23 items being handled by one clear rule; the rule reduces repeated work and makes the result easier to check.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -812,7 +812,7 @@
       "task": "explanation_learning",
       "domain": "average",
       "difficulty": "medium",
-      "prompt": "Explain the idea of a average to a beginner. Use an example with 25 items and keep the answer brief.",
+      "prompt": "Explain the idea of an average to a beginner. Use an example with 25 items and keep the answer brief.",
       "response": "A average organizes or protects information so a later step is easier to perform. Imagine 25 items being handled by one clear rule; the rule reduces repeated work and makes the result easier to check.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -821,7 +821,7 @@
       "task": "explanation_learning",
       "domain": "encryption",
       "difficulty": "medium",
-      "prompt": "Explain the idea of a encryption to a beginner. Use an example with 26 items and keep the answer brief.",
+      "prompt": "Explain the idea of an encryption to a beginner. Use an example with 26 items and keep the answer brief.",
       "response": "A encryption organizes or protects information so a later step is easier to perform. Imagine 26 items being handled by one clear rule; the rule reduces repeated work and makes the result easier to check.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -866,7 +866,7 @@
       "task": "explanation_learning",
       "domain": "index",
       "difficulty": "medium",
-      "prompt": "Explain the idea of a index to a beginner. Use an example with 31 items and keep the answer brief.",
+      "prompt": "Explain the idea of an index to a beginner. Use an example with 31 items and keep the answer brief.",
       "response": "A index organizes or protects information so a later step is easier to perform. Imagine 31 items being handled by one clear rule; the rule reduces repeated work and makes the result easier to check.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -884,7 +884,7 @@
       "task": "explanation_learning",
       "domain": "average",
       "difficulty": "medium",
-      "prompt": "Explain the idea of a average to a beginner. Use an example with 33 items and keep the answer brief.",
+      "prompt": "Explain the idea of an average to a beginner. Use an example with 33 items and keep the answer brief.",
       "response": "A average organizes or protects information so a later step is easier to perform. Imagine 33 items being handled by one clear rule; the rule reduces repeated work and makes the result easier to check.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -893,7 +893,7 @@
       "task": "explanation_learning",
       "domain": "encryption",
       "difficulty": "medium",
-      "prompt": "Explain the idea of a encryption to a beginner. Use an example with 34 items and keep the answer brief.",
+      "prompt": "Explain the idea of an encryption to a beginner. Use an example with 34 items and keep the answer brief.",
       "response": "A encryption organizes or protects information so a later step is easier to perform. Imagine 34 items being handled by one clear rule; the rule reduces repeated work and makes the result easier to check.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -938,7 +938,7 @@
       "task": "explanation_learning",
       "domain": "index",
       "difficulty": "hard",
-      "prompt": "Explain the idea of a index to a beginner. Use an example with 39 items and keep the answer brief.",
+      "prompt": "Explain the idea of an index to a beginner. Use an example with 39 items and keep the answer brief.",
       "response": "A index organizes or protects information so a later step is easier to perform. Imagine 39 items being handled by one clear rule; the rule reduces repeated work and makes the result easier to check.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -956,7 +956,7 @@
       "task": "explanation_learning",
       "domain": "average",
       "difficulty": "hard",
-      "prompt": "Explain the idea of a average to a beginner. Use an example with 41 items and keep the answer brief.",
+      "prompt": "Explain the idea of an average to a beginner. Use an example with 41 items and keep the answer brief.",
       "response": "A average organizes or protects information so a later step is easier to perform. Imagine 41 items being handled by one clear rule; the rule reduces repeated work and makes the result easier to check.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -965,7 +965,7 @@
       "task": "explanation_learning",
       "domain": "encryption",
       "difficulty": "hard",
-      "prompt": "Explain the idea of a encryption to a beginner. Use an example with 42 items and keep the answer brief.",
+      "prompt": "Explain the idea of an encryption to a beginner. Use an example with 42 items and keep the answer brief.",
       "response": "A encryption organizes or protects information so a later step is easier to perform. Imagine 42 items being handled by one clear rule; the rule reduces repeated work and makes the result easier to check.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -1010,7 +1010,7 @@
       "task": "explanation_learning",
       "domain": "index",
       "difficulty": "easy",
-      "prompt": "Explain the idea of a index to a beginner. Use an example with 47 items and keep the answer brief.",
+      "prompt": "Explain the idea of an index to a beginner. Use an example with 47 items and keep the answer brief.",
       "response": "A index organizes or protects information so a later step is easier to perform. Imagine 47 items being handled by one clear rule; the rule reduces repeated work and makes the result easier to check.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -1028,7 +1028,7 @@
       "task": "explanation_learning",
       "domain": "average",
       "difficulty": "easy",
-      "prompt": "Explain the idea of a average to a beginner. Use an example with 49 items and keep the answer brief.",
+      "prompt": "Explain the idea of an average to a beginner. Use an example with 49 items and keep the answer brief.",
       "response": "A average organizes or protects information so a later step is easier to perform. Imagine 49 items being handled by one clear rule; the rule reduces repeated work and makes the result easier to check.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -1037,7 +1037,7 @@
       "task": "explanation_learning",
       "domain": "encryption",
       "difficulty": "easy",
-      "prompt": "Explain the idea of a encryption to a beginner. Use an example with 50 items and keep the answer brief.",
+      "prompt": "Explain the idea of an encryption to a beginner. Use an example with 50 items and keep the answer brief.",
       "response": "A encryption organizes or protects information so a later step is easier to perform. Imagine 50 items being handled by one clear rule; the rule reduces repeated work and makes the result easier to check.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -1082,7 +1082,7 @@
       "task": "explanation_learning",
       "domain": "index",
       "difficulty": "medium",
-      "prompt": "Explain the idea of a index to a beginner. Use an example with 55 items and keep the answer brief.",
+      "prompt": "Explain the idea of an index to a beginner. Use an example with 55 items and keep the answer brief.",
       "response": "A index organizes or protects information so a later step is easier to perform. Imagine 55 items being handled by one clear rule; the rule reduces repeated work and makes the result easier to check.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -1100,7 +1100,7 @@
       "task": "explanation_learning",
       "domain": "average",
       "difficulty": "medium",
-      "prompt": "Explain the idea of a average to a beginner. Use an example with 57 items and keep the answer brief.",
+      "prompt": "Explain the idea of an average to a beginner. Use an example with 57 items and keep the answer brief.",
       "response": "A average organizes or protects information so a later step is easier to perform. Imagine 57 items being handled by one clear rule; the rule reduces repeated work and makes the result easier to check.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -1109,7 +1109,7 @@
       "task": "explanation_learning",
       "domain": "encryption",
       "difficulty": "medium",
-      "prompt": "Explain the idea of a encryption to a beginner. Use an example with 58 items and keep the answer brief.",
+      "prompt": "Explain the idea of an encryption to a beginner. Use an example with 58 items and keep the answer brief.",
       "response": "A encryption organizes or protects information so a later step is easier to perform. Imagine 58 items being handled by one clear rule; the rule reduces repeated work and makes the result easier to check.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2045,7 +2045,7 @@
       "task": "planning_comparison",
       "domain": "appointment_day",
       "difficulty": "easy",
-      "prompt": "Plan a appointment day with 18 minutes available. The priority task needs twice as much time as each of the other two tasks.",
+      "prompt": "Plan an appointment day with 18 minutes available. The priority task needs twice as much time as each of the other two tasks.",
       "response": "For the appointment day, give about 8 minutes to the priority task and 4 minutes to each remaining task. Use any leftover minutes to review the result and record unfinished work.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2117,7 +2117,7 @@
       "task": "planning_comparison",
       "domain": "appointment_day",
       "difficulty": "medium",
-      "prompt": "Plan a appointment day with 26 minutes available. The priority task needs twice as much time as each of the other two tasks.",
+      "prompt": "Plan an appointment day with 26 minutes available. The priority task needs twice as much time as each of the other two tasks.",
       "response": "For the appointment day, give about 12 minutes to the priority task and 6 minutes to each remaining task. Use any leftover minutes to review the result and record unfinished work.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2189,7 +2189,7 @@
       "task": "planning_comparison",
       "domain": "appointment_day",
       "difficulty": "medium",
-      "prompt": "Plan a appointment day with 34 minutes available. The priority task needs twice as much time as each of the other two tasks.",
+      "prompt": "Plan an appointment day with 34 minutes available. The priority task needs twice as much time as each of the other two tasks.",
       "response": "For the appointment day, give about 16 minutes to the priority task and 8 minutes to each remaining task. Use any leftover minutes to review the result and record unfinished work.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2261,7 +2261,7 @@
       "task": "planning_comparison",
       "domain": "appointment_day",
       "difficulty": "hard",
-      "prompt": "Plan a appointment day with 42 minutes available. The priority task needs twice as much time as each of the other two tasks.",
+      "prompt": "Plan an appointment day with 42 minutes available. The priority task needs twice as much time as each of the other two tasks.",
       "response": "For the appointment day, give about 20 minutes to the priority task and 10 minutes to each remaining task. Use any leftover minutes to review the result and record unfinished work.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2333,7 +2333,7 @@
       "task": "planning_comparison",
       "domain": "appointment_day",
       "difficulty": "easy",
-      "prompt": "Plan a appointment day with 50 minutes available. The priority task needs twice as much time as each of the other two tasks.",
+      "prompt": "Plan an appointment day with 50 minutes available. The priority task needs twice as much time as each of the other two tasks.",
       "response": "For the appointment day, give about 24 minutes to the priority task and 12 minutes to each remaining task. Use any leftover minutes to review the result and record unfinished work.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2405,7 +2405,7 @@
       "task": "planning_comparison",
       "domain": "appointment_day",
       "difficulty": "medium",
-      "prompt": "Plan a appointment day with 58 minutes available. The priority task needs twice as much time as each of the other two tasks.",
+      "prompt": "Plan an appointment day with 58 minutes available. The priority task needs twice as much time as each of the other two tasks.",
       "response": "For the appointment day, give about 28 minutes to the priority task and 14 minutes to each remaining task. Use any leftover minutes to review the result and record unfinished work.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2477,7 +2477,7 @@
       "task": "conversation_empathy",
       "domain": "uncertain_decision",
       "difficulty": "easy",
-      "prompt": "I keep replaying a uncertain decision from 2 days ago, even though I have already repaired what I could.",
+      "prompt": "I keep replaying an uncertain decision from 2 days ago, even though I have already repaired what I could.",
       "response": "It makes sense that the uncertain decision still feels active after only 2 days, even if the practical repair is finished. Try naming the one lesson you want to keep, then give yourself permission to stop rehearsing the event tonight.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2486,7 +2486,7 @@
       "task": "conversation_empathy",
       "domain": "overwhelming_inbox",
       "difficulty": "easy",
-      "prompt": "I keep replaying a overwhelming inbox from 2 days ago, even though I have already repaired what I could.",
+      "prompt": "I keep replaying an overwhelming inbox from 2 days ago, even though I have already repaired what I could.",
       "response": "It makes sense that the overwhelming inbox still feels active after only 2 days, even if the practical repair is finished. Try naming the one lesson you want to keep, then give yourself permission to stop rehearsing the event tonight.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2549,7 +2549,7 @@
       "task": "conversation_empathy",
       "domain": "uncertain_decision",
       "difficulty": "medium",
-      "prompt": "I keep replaying a uncertain decision from 3 days ago, even though I have already repaired what I could.",
+      "prompt": "I keep replaying an uncertain decision from 3 days ago, even though I have already repaired what I could.",
       "response": "It makes sense that the uncertain decision still feels active after only 3 days, even if the practical repair is finished. Try naming the one lesson you want to keep, then give yourself permission to stop rehearsing the event tonight.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2558,7 +2558,7 @@
       "task": "conversation_empathy",
       "domain": "overwhelming_inbox",
       "difficulty": "medium",
-      "prompt": "I keep replaying a overwhelming inbox from 3 days ago, even though I have already repaired what I could.",
+      "prompt": "I keep replaying an overwhelming inbox from 3 days ago, even though I have already repaired what I could.",
       "response": "It makes sense that the overwhelming inbox still feels active after only 3 days, even if the practical repair is finished. Try naming the one lesson you want to keep, then give yourself permission to stop rehearsing the event tonight.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2621,7 +2621,7 @@
       "task": "conversation_empathy",
       "domain": "uncertain_decision",
       "difficulty": "medium",
-      "prompt": "I keep replaying a uncertain decision from 4 days ago, even though I have already repaired what I could.",
+      "prompt": "I keep replaying an uncertain decision from 4 days ago, even though I have already repaired what I could.",
       "response": "It makes sense that the uncertain decision still feels active after only 4 days, even if the practical repair is finished. Try naming the one lesson you want to keep, then give yourself permission to stop rehearsing the event tonight.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2630,7 +2630,7 @@
       "task": "conversation_empathy",
       "domain": "overwhelming_inbox",
       "difficulty": "medium",
-      "prompt": "I keep replaying a overwhelming inbox from 4 days ago, even though I have already repaired what I could.",
+      "prompt": "I keep replaying an overwhelming inbox from 4 days ago, even though I have already repaired what I could.",
       "response": "It makes sense that the overwhelming inbox still feels active after only 4 days, even if the practical repair is finished. Try naming the one lesson you want to keep, then give yourself permission to stop rehearsing the event tonight.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2693,7 +2693,7 @@
       "task": "conversation_empathy",
       "domain": "uncertain_decision",
       "difficulty": "hard",
-      "prompt": "I keep replaying a uncertain decision from 5 days ago, even though I have already repaired what I could.",
+      "prompt": "I keep replaying an uncertain decision from 5 days ago, even though I have already repaired what I could.",
       "response": "It makes sense that the uncertain decision still feels active after only 5 days, even if the practical repair is finished. Try naming the one lesson you want to keep, then give yourself permission to stop rehearsing the event tonight.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2702,7 +2702,7 @@
       "task": "conversation_empathy",
       "domain": "overwhelming_inbox",
       "difficulty": "hard",
-      "prompt": "I keep replaying a overwhelming inbox from 5 days ago, even though I have already repaired what I could.",
+      "prompt": "I keep replaying an overwhelming inbox from 5 days ago, even though I have already repaired what I could.",
       "response": "It makes sense that the overwhelming inbox still feels active after only 5 days, even if the practical repair is finished. Try naming the one lesson you want to keep, then give yourself permission to stop rehearsing the event tonight.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2765,7 +2765,7 @@
       "task": "conversation_empathy",
       "domain": "uncertain_decision",
       "difficulty": "easy",
-      "prompt": "I keep replaying a uncertain decision from 6 days ago, even though I have already repaired what I could.",
+      "prompt": "I keep replaying an uncertain decision from 6 days ago, even though I have already repaired what I could.",
       "response": "It makes sense that the uncertain decision still feels active after only 6 days, even if the practical repair is finished. Try naming the one lesson you want to keep, then give yourself permission to stop rehearsing the event tonight.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2774,7 +2774,7 @@
       "task": "conversation_empathy",
       "domain": "overwhelming_inbox",
       "difficulty": "easy",
-      "prompt": "I keep replaying a overwhelming inbox from 6 days ago, even though I have already repaired what I could.",
+      "prompt": "I keep replaying an overwhelming inbox from 6 days ago, even though I have already repaired what I could.",
       "response": "It makes sense that the overwhelming inbox still feels active after only 6 days, even if the practical repair is finished. Try naming the one lesson you want to keep, then give yourself permission to stop rehearsing the event tonight.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2837,7 +2837,7 @@
       "task": "conversation_empathy",
       "domain": "uncertain_decision",
       "difficulty": "medium",
-      "prompt": "I keep replaying a uncertain decision from 7 days ago, even though I have already repaired what I could.",
+      "prompt": "I keep replaying an uncertain decision from 7 days ago, even though I have already repaired what I could.",
       "response": "It makes sense that the uncertain decision still feels active after only 7 days, even if the practical repair is finished. Try naming the one lesson you want to keep, then give yourself permission to stop rehearsing the event tonight.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2846,7 +2846,7 @@
       "task": "conversation_empathy",
       "domain": "overwhelming_inbox",
       "difficulty": "medium",
-      "prompt": "I keep replaying a overwhelming inbox from 7 days ago, even though I have already repaired what I could.",
+      "prompt": "I keep replaying an overwhelming inbox from 7 days ago, even though I have already repaired what I could.",
       "response": "It makes sense that the overwhelming inbox still feels active after only 7 days, even if the practical repair is finished. Try naming the one lesson you want to keep, then give yourself permission to stop rehearsing the event tonight.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2882,7 +2882,7 @@
       "task": "safety_uncertainty",
       "domain": "account_access",
       "difficulty": "easy",
-      "prompt": "I received an unexpected request about a account access with code EV-15. I am not sure it is genuine. What should I do?",
+      "prompt": "I received an unexpected request about an account access with code EV-15. I am not sure it is genuine. What should I do?",
       "response": "Do not use the link or share the code. Contact the organization through a trusted official channel, mention EV-15, and verify the request there. Escalate immediately if access, health, or physical safety may already be at risk.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2900,7 +2900,7 @@
       "task": "safety_uncertainty",
       "domain": "unknown_caller",
       "difficulty": "easy",
-      "prompt": "I received an unexpected request about a unknown caller with code EV-17. I am not sure it is genuine. What should I do?",
+      "prompt": "I received an unexpected request about an unknown caller with code EV-17. I am not sure it is genuine. What should I do?",
       "response": "Do not use the link or share the code. Contact the organization through a trusted official channel, mention EV-17, and verify the request there. Escalate immediately if access, health, or physical safety may already be at risk.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2909,7 +2909,7 @@
       "task": "safety_uncertainty",
       "domain": "injury_concern",
       "difficulty": "easy",
-      "prompt": "I received an unexpected request about a injury concern with code EV-18. I am not sure it is genuine. What should I do?",
+      "prompt": "I received an unexpected request about an injury concern with code EV-18. I am not sure it is genuine. What should I do?",
       "response": "Do not use the link or share the code. Contact the organization through a trusted official channel, mention EV-18, and verify the request there. Escalate immediately if access, health, or physical safety may already be at risk.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2954,7 +2954,7 @@
       "task": "safety_uncertainty",
       "domain": "account_access",
       "difficulty": "medium",
-      "prompt": "I received an unexpected request about a account access with code EV-23. I am not sure it is genuine. What should I do?",
+      "prompt": "I received an unexpected request about an account access with code EV-23. I am not sure it is genuine. What should I do?",
       "response": "Do not use the link or share the code. Contact the organization through a trusted official channel, mention EV-23, and verify the request there. Escalate immediately if access, health, or physical safety may already be at risk.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2972,7 +2972,7 @@
       "task": "safety_uncertainty",
       "domain": "unknown_caller",
       "difficulty": "medium",
-      "prompt": "I received an unexpected request about a unknown caller with code EV-25. I am not sure it is genuine. What should I do?",
+      "prompt": "I received an unexpected request about an unknown caller with code EV-25. I am not sure it is genuine. What should I do?",
       "response": "Do not use the link or share the code. Contact the organization through a trusted official channel, mention EV-25, and verify the request there. Escalate immediately if access, health, or physical safety may already be at risk.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -2981,7 +2981,7 @@
       "task": "safety_uncertainty",
       "domain": "injury_concern",
       "difficulty": "medium",
-      "prompt": "I received an unexpected request about a injury concern with code EV-26. I am not sure it is genuine. What should I do?",
+      "prompt": "I received an unexpected request about an injury concern with code EV-26. I am not sure it is genuine. What should I do?",
       "response": "Do not use the link or share the code. Contact the organization through a trusted official channel, mention EV-26, and verify the request there. Escalate immediately if access, health, or physical safety may already be at risk.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -3026,7 +3026,7 @@
       "task": "safety_uncertainty",
       "domain": "account_access",
       "difficulty": "medium",
-      "prompt": "I received an unexpected request about a account access with code EV-31. I am not sure it is genuine. What should I do?",
+      "prompt": "I received an unexpected request about an account access with code EV-31. I am not sure it is genuine. What should I do?",
       "response": "Do not use the link or share the code. Contact the organization through a trusted official channel, mention EV-31, and verify the request there. Escalate immediately if access, health, or physical safety may already be at risk.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -3044,7 +3044,7 @@
       "task": "safety_uncertainty",
       "domain": "unknown_caller",
       "difficulty": "medium",
-      "prompt": "I received an unexpected request about a unknown caller with code EV-33. I am not sure it is genuine. What should I do?",
+      "prompt": "I received an unexpected request about an unknown caller with code EV-33. I am not sure it is genuine. What should I do?",
       "response": "Do not use the link or share the code. Contact the organization through a trusted official channel, mention EV-33, and verify the request there. Escalate immediately if access, health, or physical safety may already be at risk.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -3053,7 +3053,7 @@
       "task": "safety_uncertainty",
       "domain": "injury_concern",
       "difficulty": "medium",
-      "prompt": "I received an unexpected request about a injury concern with code EV-34. I am not sure it is genuine. What should I do?",
+      "prompt": "I received an unexpected request about an injury concern with code EV-34. I am not sure it is genuine. What should I do?",
       "response": "Do not use the link or share the code. Contact the organization through a trusted official channel, mention EV-34, and verify the request there. Escalate immediately if access, health, or physical safety may already be at risk.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -3098,7 +3098,7 @@
       "task": "safety_uncertainty",
       "domain": "account_access",
       "difficulty": "hard",
-      "prompt": "I received an unexpected request about a account access with code EV-39. I am not sure it is genuine. What should I do?",
+      "prompt": "I received an unexpected request about an account access with code EV-39. I am not sure it is genuine. What should I do?",
       "response": "Do not use the link or share the code. Contact the organization through a trusted official channel, mention EV-39, and verify the request there. Escalate immediately if access, health, or physical safety may already be at risk.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -3116,7 +3116,7 @@
       "task": "safety_uncertainty",
       "domain": "unknown_caller",
       "difficulty": "hard",
-      "prompt": "I received an unexpected request about a unknown caller with code EV-41. I am not sure it is genuine. What should I do?",
+      "prompt": "I received an unexpected request about an unknown caller with code EV-41. I am not sure it is genuine. What should I do?",
       "response": "Do not use the link or share the code. Contact the organization through a trusted official channel, mention EV-41, and verify the request there. Escalate immediately if access, health, or physical safety may already be at risk.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -3125,7 +3125,7 @@
       "task": "safety_uncertainty",
       "domain": "injury_concern",
       "difficulty": "hard",
-      "prompt": "I received an unexpected request about a injury concern with code EV-42. I am not sure it is genuine. What should I do?",
+      "prompt": "I received an unexpected request about an injury concern with code EV-42. I am not sure it is genuine. What should I do?",
       "response": "Do not use the link or share the code. Contact the organization through a trusted official channel, mention EV-42, and verify the request there. Escalate immediately if access, health, or physical safety may already be at risk.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -3170,7 +3170,7 @@
       "task": "safety_uncertainty",
       "domain": "account_access",
       "difficulty": "easy",
-      "prompt": "I received an unexpected request about a account access with code EV-47. I am not sure it is genuine. What should I do?",
+      "prompt": "I received an unexpected request about an account access with code EV-47. I am not sure it is genuine. What should I do?",
       "response": "Do not use the link or share the code. Contact the organization through a trusted official channel, mention EV-47, and verify the request there. Escalate immediately if access, health, or physical safety may already be at risk.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -3188,7 +3188,7 @@
       "task": "safety_uncertainty",
       "domain": "unknown_caller",
       "difficulty": "easy",
-      "prompt": "I received an unexpected request about a unknown caller with code EV-49. I am not sure it is genuine. What should I do?",
+      "prompt": "I received an unexpected request about an unknown caller with code EV-49. I am not sure it is genuine. What should I do?",
       "response": "Do not use the link or share the code. Contact the organization through a trusted official channel, mention EV-49, and verify the request there. Escalate immediately if access, health, or physical safety may already be at risk.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -3197,7 +3197,7 @@
       "task": "safety_uncertainty",
       "domain": "injury_concern",
       "difficulty": "easy",
-      "prompt": "I received an unexpected request about a injury concern with code EV-50. I am not sure it is genuine. What should I do?",
+      "prompt": "I received an unexpected request about an injury concern with code EV-50. I am not sure it is genuine. What should I do?",
       "response": "Do not use the link or share the code. Contact the organization through a trusted official channel, mention EV-50, and verify the request there. Escalate immediately if access, health, or physical safety may already be at risk.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -3242,7 +3242,7 @@
       "task": "safety_uncertainty",
       "domain": "account_access",
       "difficulty": "medium",
-      "prompt": "I received an unexpected request about a account access with code EV-55. I am not sure it is genuine. What should I do?",
+      "prompt": "I received an unexpected request about an account access with code EV-55. I am not sure it is genuine. What should I do?",
       "response": "Do not use the link or share the code. Contact the organization through a trusted official channel, mention EV-55, and verify the request there. Escalate immediately if access, health, or physical safety may already be at risk.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -3260,7 +3260,7 @@
       "task": "safety_uncertainty",
       "domain": "unknown_caller",
       "difficulty": "medium",
-      "prompt": "I received an unexpected request about a unknown caller with code EV-57. I am not sure it is genuine. What should I do?",
+      "prompt": "I received an unexpected request about an unknown caller with code EV-57. I am not sure it is genuine. What should I do?",
       "response": "Do not use the link or share the code. Contact the organization through a trusted official channel, mention EV-57, and verify the request there. Escalate immediately if access, health, or physical safety may already be at risk.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -3269,7 +3269,7 @@
       "task": "safety_uncertainty",
       "domain": "injury_concern",
       "difficulty": "medium",
-      "prompt": "I received an unexpected request about a injury concern with code EV-58. I am not sure it is genuine. What should I do?",
+      "prompt": "I received an unexpected request about an injury concern with code EV-58. I am not sure it is genuine. What should I do?",
       "response": "Do not use the link or share the code. Contact the organization through a trusted official channel, mention EV-58, and verify the request there. Escalate immediately if access, health, or physical safety may already be at risk.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -4637,7 +4637,7 @@
       "task": "reasoning_verification",
       "domain": "average_score",
       "difficulty": "easy",
-      "prompt": "A average score has 2 equal groups of 18 units. What is the total, and how can I verify it?",
+      "prompt": "An average score has 2 equal groups of 18 units. What is the total, and how can I verify it?",
       "response": "The total is 36 units because 2 × 18 = 36. Verify it by adding 18 exactly 2 times.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -4709,7 +4709,7 @@
       "task": "reasoning_verification",
       "domain": "average_score",
       "difficulty": "medium",
-      "prompt": "A average score has 3 equal groups of 26 units. What is the total, and how can I verify it?",
+      "prompt": "An average score has 3 equal groups of 26 units. What is the total, and how can I verify it?",
       "response": "The total is 78 units because 3 × 26 = 78. Verify it by adding 26 exactly 3 times.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -4781,7 +4781,7 @@
       "task": "reasoning_verification",
       "domain": "average_score",
       "difficulty": "medium",
-      "prompt": "A average score has 4 equal groups of 34 units. What is the total, and how can I verify it?",
+      "prompt": "An average score has 4 equal groups of 34 units. What is the total, and how can I verify it?",
       "response": "The total is 136 units because 4 × 34 = 136. Verify it by adding 34 exactly 4 times.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -4853,7 +4853,7 @@
       "task": "reasoning_verification",
       "domain": "average_score",
       "difficulty": "hard",
-      "prompt": "A average score has 5 equal groups of 42 units. What is the total, and how can I verify it?",
+      "prompt": "An average score has 5 equal groups of 42 units. What is the total, and how can I verify it?",
       "response": "The total is 210 units because 5 × 42 = 210. Verify it by adding 42 exactly 5 times.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -4925,7 +4925,7 @@
       "task": "reasoning_verification",
       "domain": "average_score",
       "difficulty": "easy",
-      "prompt": "A average score has 6 equal groups of 50 units. What is the total, and how can I verify it?",
+      "prompt": "An average score has 6 equal groups of 50 units. What is the total, and how can I verify it?",
       "response": "The total is 300 units because 6 × 50 = 300. Verify it by adding 50 exactly 6 times.",
       "evaluation_source": "source_separated_diagnostic"
     },
@@ -4997,7 +4997,7 @@
       "task": "reasoning_verification",
       "domain": "average_score",
       "difficulty": "medium",
-      "prompt": "A average score has 7 equal groups of 58 units. What is the total, and how can I verify it?",
+      "prompt": "An average score has 7 equal groups of 58 units. What is the total, and how can I verify it?",
       "response": "The total is 406 units because 7 × 58 = 406. Verify it by adding 58 exactly 7 times.",
       "evaluation_source": "source_separated_diagnostic"
     },

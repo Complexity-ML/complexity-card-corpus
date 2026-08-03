@@ -17,7 +17,17 @@ from complexity_card_corpus.sft import (
     tokenize_instruction_dataset,
 )
 from complexity_card_corpus.sft.schema import INSTRUCTION_SCHEMA
+from complexity_card_corpus.sft.evaluation import (
+    _normalized_opening,
+    _text_repetition_signatures,
+    assert_sft_opening_diversity,
+    assert_sft_repetition_quality,
+    audit_sft_opening_diversity,
+    audit_sft_repetition_quality,
+)
 from complexity_card_corpus.sft.tokenization import _load_instruction_sources
+from complexity_card_corpus.sft.surface_selection import select_balanced_sft_surfaces
+from complexity_card_corpus.sft.surface_variation import SurfaceVariationBalancer
 from complexity_card_corpus.sft.language import _inline_sentence
 from complexity_card_corpus.sft.projection import (
     _project_sft_conversation,
@@ -25,6 +35,7 @@ from complexity_card_corpus.sft.projection import (
 )
 from complexity_card_corpus.sft.selection import (
     _balance_response_card_hands,
+    _balance_task_domains,
     _balance_task_families,
     _deduplicate_exact_prompts,
     _deduplicate_exact_responses,
@@ -307,9 +318,9 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
         manifest["release_quality"]["checks"]["training_examples_at_least_100k"]
         is False
     )
-    assert "at_least_fourteen_training_families" in manifest["release_quality"][
-        "checks"
-    ]
+    assert (
+        "at_least_fourteen_training_families" in manifest["release_quality"]["checks"]
+    )
     assert set(manifest["release_quality"]["response_length_bands"]) == {
         "direct_1_25",
         "short_26_45",
@@ -407,9 +418,10 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
                 "response_layout",
                 "response_opening",
             }
-            assert example["response_card_hand"] == row_by_id[
-                example["example_id"]
-            ]["response_card_hand"]
+            assert (
+                example["response_card_hand"]
+                == row_by_id[example["example_id"]]["response_card_hand"]
+            )
             has_card_hand = any(
                 "SITUATION CARD" in message["content"]
                 for message in source["messages"]
@@ -820,6 +832,31 @@ def test_structural_normalization_deduplicates_slot_variants() -> None:
     assert audit["dropped_structural_duplicates"] == 1
 
 
+def test_structural_deduplication_preserves_the_same_shape_across_domains() -> None:
+    rows = [
+        {
+            "example_id": "finance",
+            "task": "reasoning_verification",
+            "domain": "personal_finance",
+            "target": "Verify case A19 by day 12, then record the result.",
+        },
+        {
+            "example_id": "travel",
+            "task": "reasoning_verification",
+            "domain": "travel_time",
+            "target": "Verify case B72 by day 27, then record the result.",
+        },
+    ]
+
+    kept, audit = _deduplicate_structural_rows(rows, target_key="target")
+
+    assert [row["example_id"] for row in kept] == ["finance", "travel"]
+    assert audit["dropped_structural_duplicates"] == 0
+    assert audit["structural_deduplication_unit"] == (
+        "task+domain+response_structure"
+    )
+
+
 def test_structural_deduplication_allows_a_schema_specific_limit() -> None:
     rows = [
         {
@@ -876,10 +913,322 @@ def test_response_card_balance_caps_a_dominant_hand_without_upsampling() -> None
     assert len(kept) == 20
     assert set(counts.values()) == {5}
     assert audit["dropped_overrepresented_response_hands"] == 15
-    assert (
-        audit["tasks"]["reasoning_verification"]["maximum_hand_share_after"]
-        == 0.25
+    assert audit["tasks"]["reasoning_verification"]["maximum_hand_share_after"] == 0.25
+
+
+def test_sft_opening_signature_normalizes_slots_and_punctuation() -> None:
+    assert _normalized_opening("1. Verify case A192 by day 27, then continue.") == (
+        "verify case slot by slot"
     )
+
+
+def test_sft_opening_quality_gate_accepts_exactly_five_percent() -> None:
+    opening_words = (
+        "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi "
+        "omicron pi rho sigma tau upsilon"
+    ).split()
+    rows = [
+        {
+            "example_id": f"balanced:{index:03d}",
+            "task": "explanation_learning",
+            "_projected_target": (
+                f"{opening_words[index // 5]} begins this distinct answer form."
+            ),
+        }
+        for index in range(100)
+    ]
+    audit = assert_sft_opening_diversity(rows)
+    assert audit["passed"] is True
+    assert audit["tasks"]["explanation_learning"]["maximum_opening_share"] == 0.05
+
+
+def test_sft_opening_quality_gate_reports_every_family_above_five_percent() -> None:
+    rows = [
+        {
+            "example_id": f"repeated:{index:03d}",
+            "task": "safety_uncertainty",
+            "_projected_target": (
+                "Act on the immediate risk first, then use the verified channel."
+                if index < 14
+                else (
+                    "opening"
+                    + chr(ord("a") + index // 26)
+                    + chr(ord("a") + index % 26)
+                    + " supports this distinct bounded action."
+                )
+            ),
+        }
+        for index in range(100)
+    ]
+    audit = audit_sft_opening_diversity(rows)
+    assert audit["passed"] is False
+    assert audit["violations"][0]["task"] == "safety_uncertainty"
+    assert audit["violations"][0]["maximum_opening_share"] == 0.14
+    with pytest.raises(
+        ValueError,
+        match=r"safety_uncertainty=14\.00%.*act on the immediate risk",
+    ):
+        assert_sft_opening_diversity(rows)
+
+
+def test_sft_opening_quality_gate_exempts_structured_json_contracts() -> None:
+    rows = [
+        {
+            "example_id": f"json:{index:03d}",
+            "task": "extraction_classification",
+            "_projected_target": '{"item":"A","status":"ready"}',
+        }
+        for index in range(100)
+    ]
+    audit = assert_sft_opening_diversity(rows)
+    task = audit["tasks"]["extraction_classification"]
+    assert task["exempt"] is True
+    assert task["audited"] is False
+
+
+def test_sft_repetition_signatures_cover_edges_sentences_and_internal_spans() -> None:
+    signatures = _text_repetition_signatures(
+        "User: 1. Verify case A192 before release. Then preserve the signed record.",
+        side="response",
+    )
+    assert signatures["response_opening_3"] == {"verify case slot"}
+    assert signatures["response_closing_5"] == {"then preserve the signed record"}
+    assert "verify case slot before release" in signatures["response_sentence"]
+    assert signatures["response_span_8"] == {
+        "verify case slot before release then preserve the",
+        "case slot before release then preserve the signed",
+        "slot before release then preserve the signed record",
+    }
+
+
+def test_sft_repetition_gate_reports_every_repeated_surface_dimension() -> None:
+    rows = []
+    for index in range(100):
+        marker = chr(ord("a") + index // 26) + chr(ord("a") + index % 26)
+        repeated = index < 9
+        rows.append(
+            {
+                "example_id": f"surface:{index:03d}",
+                "task": "practical_action",
+                "_projected_prompt": (
+                    "Use this recurring internal phrase to organize the request. "
+                    f"Prompt marker {marker}."
+                    if repeated
+                    else f"Prompt marker {marker} requests a distinct action."
+                ),
+                "_projected_target": (
+                    f"Answer marker {marker}. "
+                    "Use this recurring internal phrase to organize the response."
+                    if repeated
+                    else f"Answer marker {marker} supports a separate response."
+                ),
+            }
+        )
+    audit = audit_sft_repetition_quality(rows)
+    violations = {(item["task"], item["dimension"]) for item in audit["violations"]}
+    assert ("practical_action", "prompt_span_8") in violations
+    assert ("practical_action", "response_sentence") in violations
+    with pytest.raises(ValueError, match=r"practical_action\.prompt_span_8=9\.00%"):
+        assert_sft_repetition_quality(rows)
+
+
+def test_sft_repetition_gate_includes_invisible_response_card_hands() -> None:
+    rows = []
+    for index in range(100):
+        marker = chr(ord("a") + index // 26) + chr(ord("a") + index % 26)
+        cards = TrainingCards(
+            surface="plain",
+            dialogue_state="new_request",
+            output="direct_prose",
+            evidence="sufficient",
+            reasoning="direct_response",
+            style="plain",
+            context_density="focused",
+            noise="none",
+            uncertainty="answerable",
+            response_order="repeated" if index < 8 else f"order-{marker}",
+            response_bridge="plain",
+            response_layout="paragraph",
+            response_opening="bare",
+        )
+        rows.append(
+            {
+                "example_id": f"cards:{index:03d}",
+                "task": "grounded_qa",
+                "_projected_prompt": f"Prompt marker {marker} asks one fact.",
+                "_projected_target": f"Answer marker {marker} gives one fact.",
+                "_conditioning_cards": cards,
+            }
+        )
+    audit = audit_sft_repetition_quality(rows)
+    hand = audit["tasks"]["grounded_qa"]["dimensions"]["response_card_hand"]
+    assert hand["maximum_share"] == 0.08
+    assert hand["passed"] is False
+
+
+def test_sft_repetition_gate_only_exempts_json_from_prose_shape_checks() -> None:
+    rows = [
+        {
+            "example_id": f"json:{index:03d}",
+            "task": "extraction_classification",
+            "_projected_prompt": f"Classify record marker {index} into the schema.",
+            "_projected_target": f'{{"item":"item-{index}","status":"ready"}}',
+        }
+        for index in range(100)
+    ]
+    audit = audit_sft_repetition_quality(rows)
+    dimensions = audit["tasks"]["extraction_classification"]["dimensions"]
+    assert dimensions["response_opening_3"]["structured_prose_exempt"] is True
+    assert dimensions["response_opening_3"]["audited"] is False
+    assert dimensions["response_exact"]["structured_prose_exempt"] is False
+    assert dimensions["prompt_opening_3"]["audited"] is True
+
+
+def test_surface_selection_balances_existing_hands_without_new_card_axes() -> None:
+    labels = (
+        "amber",
+        "birch",
+        "cedar",
+        "dune",
+        "elm",
+        "fern",
+        "grove",
+        "hazel",
+        "iris",
+        "jade",
+        "kelp",
+        "linen",
+        "moss",
+        "north",
+        "olive",
+        "pearl",
+        "quartz",
+        "reed",
+        "sage",
+        "thistle",
+        "umber",
+        "violet",
+        "willow",
+        "xenia",
+        "yarrow",
+        "zephyr",
+        "acorn",
+        "brook",
+        "clover",
+        "drift",
+        "ember",
+        "flint",
+    )
+    rows = [
+        {
+            "example_id": f"balanced-surface:{index:03d}",
+            "task": "grounded_qa",
+            "split": "train",
+        }
+        for index in range(100)
+    ]
+
+    def dealer(row, selection_key):
+        index = int(selection_key.rsplit(":", 1)[-1])
+        label = labels[index]
+        return TrainingCards(
+            surface="plain",
+            dialogue_state="new_request",
+            output="direct_prose",
+            evidence="sufficient",
+            reasoning="direct_response",
+            style="plain",
+            context_density="focused",
+            noise="none",
+            uncertainty="answerable",
+            response_order=label,
+            response_bridge="plain",
+            response_layout="paragraph",
+            response_opening="bare",
+        )
+
+    def projector(row, selection_key):
+        cards = dealer(row, selection_key)
+        label = cards.response_order
+        return [
+            {
+                "role": "user",
+                "content": f"{label} request for {row['example_id']}.",
+            },
+            {
+                "role": "assistant",
+                "content": f"{label} answer for {row['example_id']}.",
+            },
+        ], cards
+
+    selected, audit = select_balanced_sft_surfaces(
+        rows,
+        dealer=dealer,
+        projector=projector,
+    )
+    hands = Counter(
+        row["_conditioning_cards"].response_structure_signature for row in selected
+    )
+    assert len(hands) == 32
+    assert max(hands.values()) == 4
+    assert audit["new_card_axes"] == 0
+
+
+def test_surface_variation_balances_existing_language_without_new_cards() -> None:
+    balancer = SurfaceVariationBalancer()
+    source = [
+        {
+            "role": "user",
+            "content": (
+                "Generate three meaningfully different options. Compare their fit "
+                "with the stated limits. Select the strongest one."
+            ),
+        },
+        {
+            "role": "assistant",
+            "content": "The options stay within the supplied brief.",
+        },
+    ]
+    rewritten = [
+        balancer.rewrite_messages(
+            source,
+            task="brainstorming_creativity",
+            example_id=f"brainstorm:{index}",
+        )[0]["content"]
+        for index in range(100)
+    ]
+    counts = Counter(rewritten)
+    assert max(counts.values()) / len(rewritten) <= 0.05
+    assert all("three" in item.lower() for item in rewritten)
+    audit = balancer.audit()
+    assert audit["new_card_axes"] == 0
+    assert audit["applications"] == {
+        "brainstorming_creativity:user:brainstorm-directive": 100
+    }
+
+
+def test_surface_variation_preserves_dynamic_grounded_request() -> None:
+    balancer = SurfaceVariationBalancer()
+    messages = balancer.rewrite_messages(
+        [
+            {
+                "role": "user",
+                "content": (
+                    "Using only Source A1B2, state the recorded year and whether "
+                    "the architect is identified."
+                ),
+            },
+            {
+                "role": "assistant",
+                "content": "No unstated detail is inferred.",
+            },
+        ],
+        task="grounded_qa",
+        example_id="grounded:dynamic",
+    )
+    assert "state the recorded year" in messages[0]["content"].lower()
+    assert "architect is identified" in messages[0]["content"].lower()
+    assert "No unstated detail is inferred" not in messages[1]["content"]
 
 
 def test_response_cards_create_many_reasoning_shapes_from_one_answer() -> None:
@@ -967,6 +1316,61 @@ def test_family_balance_caps_only_dominant_families() -> None:
     kept, audit = _balance_task_families(rows, max_examples_per_family=3)
     assert Counter(row["task"] for row in kept) == {"a": 3, "b": 2}
     assert audit["dropped_for_family_balance"] == 4
+
+
+def test_domain_balance_caps_a_dominant_domain_when_twenty_are_realized() -> None:
+    rows = [
+        {
+            "example_id": f"dominant-{index:03d}",
+            "task": "planning_comparison",
+            "domain": "dominant",
+        }
+        for index in range(100)
+    ]
+    for domain_index in range(1, 20):
+        rows.extend(
+            {
+                "example_id": f"domain-{domain_index:02d}-{index:03d}",
+                "task": "planning_comparison",
+                "domain": f"domain_{domain_index:02d}",
+            }
+            for index in range(10)
+        )
+
+    kept, audit = _balance_task_domains(rows, maximum_share=0.05)
+    counts = Counter(row["domain"] for row in kept)
+
+    assert len(kept) == 200
+    assert max(counts.values()) / len(kept) <= 0.05
+    assert audit["dropped_overrepresented_domains"] == 90
+    task_audit = audit["tasks"]["planning_comparison"]
+    assert task_audit["distinct_domains"] == 20
+    assert task_audit["requires_tank_hydration"] is False
+    assert task_audit["maximum_domain_share_after"] <= 0.05
+
+
+def test_domain_balance_reports_when_five_percent_is_mathematically_impossible() -> (
+    None
+):
+    rows = [
+        {
+            "example_id": f"domain-{domain_index:02d}-{index:03d}",
+            "task": "safety_uncertainty",
+            "domain": f"domain_{domain_index:02d}",
+        }
+        for domain_index in range(8)
+        for index in range(12 if domain_index == 0 else 4)
+    ]
+
+    kept, audit = _balance_task_domains(rows, maximum_share=0.05)
+    task_audit = audit["tasks"]["safety_uncertainty"]
+
+    assert len(kept) == 32
+    assert task_audit["distinct_domains"] == 8
+    assert task_audit["effective_maximum_share"] == 0.125
+    assert task_audit["maximum_domain_share_after"] == 0.125
+    assert task_audit["requires_tank_hydration"] is True
+    assert audit["tasks_requiring_tank_hydration"] == ["safety_uncertainty"]
 
 
 def test_sft_projection_flattens_synthetic_dialogue_outside_clarification() -> None:
@@ -1081,21 +1485,24 @@ def test_semantic_projection_does_not_append_generic_resolution() -> None:
 
 def test_semantic_resolution_is_a_compatibility_noop() -> None:
     target = "Paris is the capital of France."
-    assert _apply_semantic_resolution(
-        target,
-        task="grounded_qa",
-        metadata={
-            "scenario_id": "scenario:legacy",
-            "subject": "France",
-            "surface_intent": "answer the question",
-            "source_state": "The source is available.",
-            "source_constraint": "Use only the source.",
-            "fallback_surface": "Return to a smaller causal model.",
-            "desired_outcome": "The answer is established.",
-            "variant": 3,
-        },
-        example_id="example:legacy",
-    ) == target
+    assert (
+        _apply_semantic_resolution(
+            target,
+            task="grounded_qa",
+            metadata={
+                "scenario_id": "scenario:legacy",
+                "subject": "France",
+                "surface_intent": "answer the question",
+                "source_state": "The source is available.",
+                "source_constraint": "Use only the source.",
+                "fallback_surface": "Return to a smaller causal model.",
+                "desired_outcome": "The answer is established.",
+                "variant": 3,
+            },
+            example_id="example:legacy",
+        )
+        == target
+    )
 
 
 def test_practical_surface_projection_removes_internal_control_colons() -> None:
@@ -1238,8 +1645,7 @@ def test_tokenization_replaces_generated_validation_with_heldout(
     assert len(validation_rows) == 28
     assert all(row["example_id"].startswith("heldout:") for row in validation_rows)
     assert all(
-        json.loads(row["answer_json"])["evaluation_source"]
-        == "separately_authored"
+        json.loads(row["answer_json"])["evaluation_source"] == "separately_authored"
         for row in load_heldout_evaluation(
             Path("data/evaluation/generalist-heldout-v2.json")
         )

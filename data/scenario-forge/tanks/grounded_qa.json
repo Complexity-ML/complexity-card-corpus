@@ -120,6 +120,12 @@
           "label": "Accessibility statement",
           "subject": "an accessibility conformance statement",
           "context": "Tested scope, standard level, known exceptions, and remediation dates must remain explicit."
+        },
+        {
+          "id": "equipment_manual",
+          "label": "Equipment manual",
+          "subject": "an equipment operating manual",
+          "context": "Modes, limits, maintenance, warnings, and undocumented capabilities bound each answer."
         }
       ],
       "intents": [
@@ -450,7 +456,8 @@
             "infer",
             "unknown",
             "reconcile"
-          ]
+          ],
+          "equipment_manual": ["answer", "locate", "compare", "infer", "unknown", "reconcile"]
         },
         "domainConstraints": {
           "product_specs": [
@@ -636,7 +643,8 @@
             "conflict_visible",
             "scope_alignment",
             "citation_granularity"
-          ]
+          ],
+          "equipment_manual": ["source_only", "cite_evidence", "no_gap_fill", "concise", "fact_inference", "conflict_visible", "scope_alignment", "citation_granularity"]
         },
         "stateOutcomes": {
           "complete": [

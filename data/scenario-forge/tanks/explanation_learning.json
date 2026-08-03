@@ -121,6 +121,12 @@
           "label": "Ecological cycle",
           "subject": "an ecological nutrient cycle",
           "context": "Inputs, transformations, reservoirs, and feedback explain movement through the system."
+        },
+        {
+          "id": "mechanical_advantage",
+          "label": "Mechanical advantage",
+          "subject": "a simple mechanical-advantage concept",
+          "context": "Force, distance, pivot, idealization, and measurement connect the mechanism to an example."
         }
       ],
       "intents": [
@@ -434,7 +440,8 @@
             "misconception",
             "application",
             "diagnose_gap"
-          ]
+          ],
+          "mechanical_advantage": ["mechanism", "contrast", "worked_example", "misconception", "application", "diagnose_gap"]
         },
         "domainConstraints": {
           "computing": [
@@ -599,7 +606,8 @@
             "fact_inference",
             "observable_check",
             "prerequisite_order"
-          ]
+          ],
+          "mechanical_advantage": ["beginner", "concise", "verified", "example", "fact_inference", "observable_check", "prerequisite_order"]
         },
         "stateOutcomes": {
           "unfamiliar": [

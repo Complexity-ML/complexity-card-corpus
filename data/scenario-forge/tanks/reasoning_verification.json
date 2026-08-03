@@ -84,6 +84,48 @@
           "label": "Causal claim",
           "subject": "a proposed causal explanation",
           "context": "Temporal order, alternative causes, intervention evidence, and measurement limits constrain the conclusion."
+        },
+        {
+          "id": "discount_comparison",
+          "label": "Discount comparison",
+          "subject": "a comparison of two discounts",
+          "context": "Base prices, percentage changes, fixed fees, ordering, and rounding determine the lower final amount."
+        },
+        {
+          "id": "recipe_scaling",
+          "label": "Recipe scaling",
+          "subject": "a scaled ingredient calculation",
+          "context": "Original servings, target servings, units, indivisible items, and rounding support verification."
+        },
+        {
+          "id": "storage_capacity",
+          "label": "Storage capacity",
+          "subject": "a storage-capacity calculation",
+          "context": "File sizes, units, reserved space, duplicates, and safety margin determine usable capacity."
+        },
+        {
+          "id": "travel_time",
+          "label": "Travel time",
+          "subject": "a multi-stage travel-time calculation",
+          "context": "Segment duration, waiting time, departure order, time zones, and transfer constraints determine arrival."
+        },
+        {
+          "id": "measurement_uncertainty",
+          "label": "Measurement uncertainty",
+          "subject": "a comparison with measurement uncertainty",
+          "context": "Values, error bounds, repeated observations, resolution, and overlap constrain the comparison."
+        },
+        {
+          "id": "inventory_reconciliation",
+          "label": "Inventory reconciliation",
+          "subject": "an inventory reconciliation problem",
+          "context": "Starting count, receipts, removals, damaged units, and observed remainder must balance independently."
+        },
+        {
+          "id": "voting_threshold",
+          "label": "Voting threshold",
+          "subject": "a voting-threshold calculation",
+          "context": "Eligible voters, abstentions, threshold definition, ties, and invalid ballots decide whether a proposal passes."
         }
       ],
       "intents": [
@@ -368,7 +410,14 @@
             "explain",
             "verify",
             "test_counterexample"
-          ]
+          ],
+          "discount_comparison": ["calculate", "compare", "constraint", "explain", "verify", "test_counterexample"],
+          "recipe_scaling": ["calculate", "compare", "constraint", "explain", "verify", "test_counterexample"],
+          "storage_capacity": ["calculate", "compare", "constraint", "explain", "verify", "test_counterexample"],
+          "travel_time": ["calculate", "compare", "constraint", "explain", "verify", "test_counterexample"],
+          "measurement_uncertainty": ["calculate", "compare", "constraint", "explain", "verify", "test_counterexample"],
+          "inventory_reconciliation": ["calculate", "compare", "constraint", "explain", "verify", "test_counterexample"],
+          "voting_threshold": ["calculate", "compare", "constraint", "explain", "verify", "test_counterexample"]
         },
         "domainConstraints": {
           "shopping_arithmetic": [
@@ -500,7 +549,14 @@
             "missing_value",
             "explicit_assumptions",
             "dimensional_consistency"
-          ]
+          ],
+          "discount_comparison": ["show_work", "given_values", "units", "precision", "independent_check", "missing_value", "explicit_assumptions", "dimensional_consistency"],
+          "recipe_scaling": ["show_work", "given_values", "units", "precision", "independent_check", "missing_value", "explicit_assumptions", "dimensional_consistency"],
+          "storage_capacity": ["show_work", "given_values", "units", "precision", "independent_check", "missing_value", "explicit_assumptions", "dimensional_consistency"],
+          "travel_time": ["show_work", "given_values", "units", "precision", "independent_check", "missing_value", "explicit_assumptions", "dimensional_consistency"],
+          "measurement_uncertainty": ["show_work", "given_values", "units", "precision", "independent_check", "missing_value", "explicit_assumptions", "dimensional_consistency"],
+          "inventory_reconciliation": ["show_work", "given_values", "units", "precision", "independent_check", "missing_value", "explicit_assumptions", "dimensional_consistency"],
+          "voting_threshold": ["show_work", "given_values", "units", "precision", "independent_check", "missing_value", "explicit_assumptions", "dimensional_consistency"]
         },
         "stateOutcomes": {
           "ready": [

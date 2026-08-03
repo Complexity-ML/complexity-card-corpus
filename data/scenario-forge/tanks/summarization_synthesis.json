@@ -78,6 +78,54 @@
           "label": "Customer interviews",
           "subject": "a set of customer interviews",
           "context": "Recurring needs, minority experiences, direct observations, and suggested solutions must not be conflated."
+        },
+        {
+          "id": "audit_findings",
+          "label": "Audit findings",
+          "subject": "a set of audit findings",
+          "context": "Exceptions, owners, due dates, disputed evidence, and remediation require attribution."
+        },
+        {
+          "id": "experiment_log",
+          "label": "Experiment log",
+          "subject": "a sequence of experiment notes",
+          "context": "Hypothesis, intervention, observation, failure, and uncertainty must stay distinct."
+        },
+        {
+          "id": "procurement_review",
+          "label": "Procurement review",
+          "subject": "a procurement review record",
+          "context": "Requirements, evidence, exclusions, disagreement, and pending approval determine the summary."
+        },
+        {
+          "id": "training_feedback",
+          "label": "Training feedback",
+          "subject": "a collection of training feedback",
+          "context": "Learning, preference, access, response, and follow-up carry different evidential weight."
+        },
+        {
+          "id": "maintenance_handover",
+          "label": "Maintenance handover",
+          "subject": "a maintenance handover log",
+          "context": "Completed work, workaround, asset condition, owner, and unresolved fault define the synthesis."
+        },
+        {
+          "id": "legal_case_notes",
+          "label": "Case notes",
+          "subject": "a set of procedural case notes",
+          "context": "Events, source roles, deadlines, disputes, and pending steps require separation."
+        },
+        {
+          "id": "release_retrospective",
+          "label": "Release retrospective",
+          "subject": "a software-release retrospective",
+          "context": "Outcome, deployment issue, response, owner, and unresolved cause must remain traceable."
+        },
+        {
+          "id": "public_consultation",
+          "label": "Public consultation",
+          "subject": "a public-consultation record",
+          "context": "Majority preference, minority concern, facts, remedy, and undecided policy need separation."
         }
       ],
       "intents": [
@@ -354,7 +402,15 @@
             "chronology",
             "audience",
             "trace_decisions"
-          ]
+          ],
+          "audit_findings": ["essentials", "synthesize", "decisions", "chronology", "audience", "trace_decisions"],
+          "experiment_log": ["essentials", "synthesize", "decisions", "chronology", "audience", "trace_decisions"],
+          "procurement_review": ["essentials", "synthesize", "decisions", "chronology", "audience", "trace_decisions"],
+          "training_feedback": ["essentials", "synthesize", "decisions", "chronology", "audience", "trace_decisions"],
+          "maintenance_handover": ["essentials", "synthesize", "decisions", "chronology", "audience", "trace_decisions"],
+          "legal_case_notes": ["essentials", "synthesize", "decisions", "chronology", "audience", "trace_decisions"],
+          "release_retrospective": ["essentials", "synthesize", "decisions", "chronology", "audience", "trace_decisions"],
+          "public_consultation": ["essentials", "synthesize", "decisions", "chronology", "audience", "trace_decisions"]
         },
         "domainConstraints": {
           "meeting_transcript": [
@@ -476,7 +532,15 @@
             "priority",
             "source_priority",
             "minority_view"
-          ]
+          ],
+          "audit_findings": ["source_fidelity", "brevity", "attribution", "uncertainty", "structure", "priority", "source_priority", "minority_view"],
+          "experiment_log": ["source_fidelity", "brevity", "attribution", "uncertainty", "structure", "priority", "source_priority", "minority_view"],
+          "procurement_review": ["source_fidelity", "brevity", "attribution", "uncertainty", "structure", "priority", "source_priority", "minority_view"],
+          "training_feedback": ["source_fidelity", "brevity", "attribution", "uncertainty", "structure", "priority", "source_priority", "minority_view"],
+          "maintenance_handover": ["source_fidelity", "brevity", "attribution", "uncertainty", "structure", "priority", "source_priority", "minority_view"],
+          "legal_case_notes": ["source_fidelity", "brevity", "attribution", "uncertainty", "structure", "priority", "source_priority", "minority_view"],
+          "release_retrospective": ["source_fidelity", "brevity", "attribution", "uncertainty", "structure", "priority", "source_priority", "minority_view"],
+          "public_consultation": ["source_fidelity", "brevity", "attribution", "uncertainty", "structure", "priority", "source_priority", "minority_view"]
         },
         "stateOutcomes": {
           "verbose": [
