@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import math
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -124,6 +126,14 @@ _SENTENCE_BOUNDARY = re.compile(r"(?:[.!?]+|\n+)")
 _ROLE_LABEL = re.compile(r"(?im)^\s*(?:user|assistant):\s*")
 _LIST_MARKER = re.compile(r"^\s*(?:\d+[.)]|[-*•])\s*")
 _STRUCTURED_RESPONSE_TASKS = {"extraction_classification"}
+
+
+def _dimension_is_audited(task: str, dimension: str) -> bool:
+    return not (
+        task in _STRUCTURED_RESPONSE_TASKS
+        and dimension.startswith("response_")
+        and dimension not in {"response_exact", "response_card_hand"}
+    )
 
 
 def _normalized_opening(text: str, *, words: int = SFT_OPENING_WORDS) -> str:
@@ -260,6 +270,206 @@ def _text_repetition_signatures(text: str, *, side: str) -> dict[str, set[str]]:
     return signatures
 
 
+def _row_repetition_signatures(
+    row: dict[str, Any],
+    *,
+    prompt_key: str = "_projected_prompt",
+    target_key: str = "_projected_target",
+) -> dict[str, set[str]]:
+    """Return every audited repetition signature carried by one row."""
+
+    signatures: dict[str, set[str]] = {}
+    if prompt_key in row:
+        signatures.update(_text_repetition_signatures(row[prompt_key], side="prompt"))
+    if target_key in row:
+        signatures.update(
+            _text_repetition_signatures(row[target_key], side="response")
+        )
+    cards = row.get("_conditioning_cards")
+    if cards is not None:
+        signatures["response_card_hand"] = {cards.response_structure_signature}
+    return signatures
+
+
+def filter_sft_repetition_quality(
+    rows: list[dict[str, Any]],
+    *,
+    prompt_key: str = "_projected_prompt",
+    target_key: str = "_projected_target",
+    maximum_share: float = MAXIMUM_SFT_REPETITION_SHARE,
+    minimum_examples: int = MINIMUM_REPETITION_AUDIT_EXAMPLES,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Drop only compositions responsible for a repetition ceiling breach.
+
+    Selection is deterministic and operates independently inside each task.
+    The corpus is never made to pass by weakening the ceiling: rows carrying
+    the largest number of currently overrepresented signatures are removed,
+    then the complete audit is recomputed against the smaller denominator.
+    """
+
+    if not 0 < maximum_share <= 1:
+        raise ValueError("maximum repetition share must be in (0, 1]")
+    if minimum_examples < 1:
+        raise ValueError("minimum repetition audit examples must be positive")
+
+    by_task: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        by_task[row["task"]].append(row)
+
+    kept: list[dict[str, Any]] = []
+    task_audit: dict[str, Any] = {}
+    for task, task_rows in sorted(by_task.items()):
+        active = {
+            row["example_id"]: row
+            for row in sorted(task_rows, key=lambda item: item["example_id"])
+        }
+        signature_by_id = {
+            example_id: _row_repetition_signatures(
+                row, prompt_key=prompt_key, target_key=target_key
+            )
+            for example_id, row in active.items()
+        }
+        counters: dict[str, Counter[str]] = defaultdict(Counter)
+        reverse: dict[tuple[str, str], set[str]] = defaultdict(set)
+        domains = Counter(str(row.get("domain", "")) for row in active.values())
+        domain_ceiling_enabled = len(domains) >= math.ceil(1 / maximum_share)
+        hands = Counter(
+            row["_conditioning_cards"].response_structure_signature
+            for row in active.values()
+            if row.get("_conditioning_cards") is not None
+        )
+        hand_ceiling_enabled = len(hands) >= math.ceil(1 / maximum_share)
+        for example_id, dimensions in signature_by_id.items():
+            for dimension, values in dimensions.items():
+                if not _dimension_is_audited(task, dimension):
+                    continue
+                counters[dimension].update(values)
+                for value in values:
+                    reverse[(dimension, value)].add(example_id)
+        rounds = 0
+        while len(active) >= minimum_examples:
+            rounds += 1
+            ceiling = int(maximum_share * len(active))
+            violations = {
+                (dimension, value): count
+                for dimension, counts in counters.items()
+                for value, count in counts.items()
+                if count > ceiling
+            }
+            if not violations:
+                break
+
+            scores: Counter[str] = Counter()
+            for signature, count in violations.items():
+                excess = count - ceiling
+                for example_id in reverse[signature]:
+                    if example_id in active:
+                        scores[example_id] += excess
+            maximum_excess = max(count - ceiling for count in violations.values())
+            ranked = sorted(
+                scores,
+                key=lambda example_id: (
+                    -(
+                        max(
+                            0,
+                            domains[str(active[example_id].get("domain", ""))]
+                            - ceiling,
+                        )
+                        if domain_ceiling_enabled
+                        else 0
+                    ),
+                    -(
+                        max(
+                            0,
+                            hands[
+                                active[
+                                    example_id
+                                ]["_conditioning_cards"].response_structure_signature
+                            ]
+                            - ceiling,
+                        )
+                        if hand_ceiling_enabled
+                        and active[example_id].get("_conditioning_cards") is not None
+                        else 0
+                    ),
+                    -scores[example_id],
+                    hashlib.sha256(
+                        f"repetition-filter:{task}:{example_id}".encode()
+                    ).digest(),
+                ),
+            )
+            removable = min(maximum_excess, len(active) - minimum_examples)
+            if removable <= 0:
+                break
+            removal_ids: list[str] = []
+            if domain_ceiling_enabled:
+                next_size = len(active) - removable
+                domain_floor = next_size // len(domains)
+                domain_capacity = {
+                    domain: max(0, count - domain_floor)
+                    for domain, count in domains.items()
+                }
+                for example_id in ranked:
+                    domain = str(active[example_id].get("domain", ""))
+                    if domain_capacity[domain] <= 0:
+                        continue
+                    removal_ids.append(example_id)
+                    domain_capacity[domain] -= 1
+                    if len(removal_ids) == removable:
+                        break
+            if len(removal_ids) < removable:
+                selected_ids = set(removal_ids)
+                removal_ids.extend(
+                    example_id
+                    for example_id in ranked
+                    if example_id not in selected_ids
+                )
+                removal_ids = removal_ids[:removable]
+
+            for example_id in removal_ids:
+                row = active.pop(example_id, None)
+                if row is None:
+                    continue
+                domains[str(row.get("domain", ""))] -= 1
+                cards = row.get("_conditioning_cards")
+                if cards is not None:
+                    hands[cards.response_structure_signature] -= 1
+                for dimension, values in signature_by_id[example_id].items():
+                    if not _dimension_is_audited(task, dimension):
+                        continue
+                    counters[dimension].subtract(values)
+
+        family_rows = list(active.values())
+        kept.extend(family_rows)
+        task_audit[task] = {
+            "input_examples": len(task_rows),
+            "kept_examples": len(family_rows),
+            "dropped_examples": len(task_rows) - len(family_rows),
+            "selection_rounds": rounds,
+            "fell_below_audit_minimum": len(family_rows) < minimum_examples,
+            "domain_ceiling_preserved": domain_ceiling_enabled,
+            "response_card_hand_ceiling_preserved": hand_ceiling_enabled,
+        }
+
+    kept.sort(key=lambda row: row["example_id"])
+    final_audit = audit_sft_repetition_quality(
+        kept,
+        prompt_key=prompt_key,
+        target_key=target_key,
+        maximum_share=maximum_share,
+        minimum_examples=minimum_examples,
+    )
+    return kept, {
+        "method": "deterministic_overrepresented_signature_pruning",
+        "maximum_allowed_share": maximum_share,
+        "input_examples": len(rows),
+        "kept_examples": len(kept),
+        "dropped_examples": len(rows) - len(kept),
+        "tasks": task_audit,
+        "final_audit": final_audit,
+    }
+
+
 def audit_sft_repetition_quality(
     rows: list[dict[str, Any]],
     *,
@@ -313,11 +523,7 @@ def audit_sft_repetition_quality(
                 continue
             signature, count = counts.most_common(1)[0]
             share = count / total
-            structured_prose_exempt = (
-                task in _STRUCTURED_RESPONSE_TASKS
-                and dimension.startswith("response_")
-                and dimension not in {"response_exact", "response_card_hand"}
-            )
+            structured_prose_exempt = not _dimension_is_audited(task, dimension)
             audited = task_audited and not structured_prose_exempt
             passed = not audited or share <= maximum_share
             item = {

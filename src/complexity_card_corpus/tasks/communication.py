@@ -243,6 +243,10 @@ def _empathy(row: dict[str, Any], variant: int) -> TaskHand:
         "social_mistake": "I made a mistake in front of everyone and cannot stop thinking about it.",
         "achievement": "I am proud of finishing, but I also feel strangely empty now.",
         "loss_disappointment": "I prepared for this outcome for months, and now I feel both sad and stuck.",
+        "caregiving_stress": "I care about helping them, but I am tired all the time and feel guilty whenever I need a break.",
+        "grief_update": "Some days I can talk about the loss, and other days an ordinary reminder makes everything feel immediate again.",
+        "creative_rejection": "I know one rejection does not define my work, but right now it makes the whole project feel pointless.",
+        "work_conflict": "I want to address what happened with my colleague, but I am worried the conversation will become defensive again.",
     }
     rendered_domain = _render_domain(row)
     quote = quotes[rendered_domain]
@@ -291,6 +295,26 @@ def _empathy(row: dict[str, Any], variant: int) -> TaskHand:
             "After months of preparation, this outcome can carry both grief for the result and uncertainty about what comes next.",
             "It makes sense to feel sad and stuck when so much effort was tied to a different outcome.",
             "The disappointment sounds heavy precisely because the preparation mattered to you.",
+        ),
+        "caregiving_stress": (
+            "Caring deeply for someone and needing rest can both be true; exhaustion does not erase your care.",
+            "It sounds as though the caregiving matters to you while the constant demand is wearing down your energy.",
+            "The guilt you feel around taking a break may be adding another burden to an already tiring role.",
+        ),
+        "grief_update": (
+            "Grief can shift without following a steady schedule, and an ordinary reminder can make the loss feel newly present.",
+            "It makes sense that talking can feel possible one day while a small reminder feels overwhelming on another.",
+            "The return of an intense feeling does not mean that the days when grief felt quieter were false.",
+        ),
+        "creative_rejection": (
+            "A rejection can make the effort behind a project feel invisible even when it says nothing final about the work itself.",
+            "It sounds painful to have one response cast doubt over a project that has carried so much of your attention.",
+            "Knowing intellectually that rejection is limited does not make its immediate disappointment less real.",
+        ),
+        "work_conflict": (
+            "Wanting to repair the working relationship while fearing another defensive exchange is a difficult tension to hold.",
+            "It sounds as though you want a constructive conversation, not another round of the same conflict.",
+            "Your hesitation makes sense when the previous exchange left you unsure whether the issue could be discussed safely.",
         ),
     }
     agency_cards = (
@@ -366,6 +390,30 @@ def _clarification(row: dict[str, Any], variant: int) -> TaskHand:
             "What calendar date or time limit should 'soon after' mean?",
             "set no completion deadline",
         ),
+        "team_request": (
+            "Share the update with the team before the review.",
+            "An update should be shared before the review, but the team group and review time are not identified.",
+            "Which team group should receive the update, and when is the review scheduled?",
+            "send no team update",
+        ),
+        "data_request": (
+            "Send me the recent records from the dashboard.",
+            "Recent dashboard records are requested, but the dataset and date range are not defined.",
+            "Which dataset and exact date range should the export contain?",
+            "export no records",
+        ),
+        "travel_request": (
+            "Plan the trip to Porto around the workshop.",
+            "Porto and the workshop are known, but the travel dates and departure city are unresolved.",
+            "What are the travel dates and departure city for the Porto trip?",
+            "make no booking or itinerary commitment",
+        ),
+        "purchasing_request": (
+            "Order new monitors for the design team.",
+            "The design team needs monitors, but the quantity and spending limit are unspecified.",
+            "How many monitors are needed, and what is the maximum budget per unit?",
+            "place no order",
+        ),
     }
     rendered_domain = _render_domain(row)
     ambiguous, restatement, question, reversible_default = cases[rendered_domain]
@@ -378,6 +426,10 @@ def _clarification(row: dict[str, Any], variant: int) -> TaskHand:
         "scope_boundary": "Open scope — bound the requested revision",
         "format_preference": "Unspecified format — choose the presentation",
         "timeline_ambiguity": "Unspecified timeline — define the deadline",
+        "team_request": "Incomplete team request — identify audience and timing",
+        "data_request": "Incomplete data request — identify dataset and range",
+        "travel_request": "Incomplete travel request — identify dates and origin",
+        "purchasing_request": "Incomplete purchase request — identify quantity and budget",
     }
     situation_cards = {
         "ambiguous_request": "The requested Friday change could affect either a meeting or a document deadline.",
@@ -388,6 +440,10 @@ def _clarification(row: dict[str, Any], variant: int) -> TaskHand:
         "scope_boundary": "The examples are in scope; changes to the explanation and tests are not yet authorized.",
         "format_preference": "The comparison results are available, but the requested presentation format is open.",
         "timeline_ambiguity": "The next review is a known dependency, but the completion deadline is undefined.",
+        "team_request": "The update exists, but the intended team audience and review time remain open.",
+        "data_request": "An export is requested, but neither the source dataset nor the requested interval is established.",
+        "travel_request": "The destination and workshop are known, while the travel dates and departure point remain open.",
+        "purchasing_request": "The product category and intended team are known, but quantity and budget are unresolved.",
     }
     data, goal = _deal_task_frames(
         row,

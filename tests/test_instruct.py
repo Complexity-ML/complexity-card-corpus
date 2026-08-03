@@ -17,6 +17,8 @@ from complexity_card_corpus.sft import (
     tokenize_instruction_dataset,
 )
 from complexity_card_corpus.sft.schema import INSTRUCTION_SCHEMA
+from complexity_card_corpus.sft.answer_development import develop_answer
+from complexity_card_corpus.sft.dialogue_links import preserve_linked_dialogue
 from complexity_card_corpus.sft.evaluation import (
     _normalized_opening,
     _text_repetition_signatures,
@@ -24,6 +26,7 @@ from complexity_card_corpus.sft.evaluation import (
     assert_sft_repetition_quality,
     audit_sft_opening_diversity,
     audit_sft_repetition_quality,
+    filter_sft_repetition_quality,
 )
 from complexity_card_corpus.sft.tokenization import _load_instruction_sources
 from complexity_card_corpus.sft.surface_selection import select_balanced_sft_surfaces
@@ -312,7 +315,20 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
     assert len(projected_rows) == manifest["total_examples"]
     assert manifest["projected_parquet"]["examples"] == len(projected_rows)
     assert manifest["release_quality"]["checks"]["no_exact_duplicate_train_responses"]
+    assert manifest["release_quality"]["checks"]["no_exact_duplicate_train_prompts"]
     assert manifest["release_quality"]["exact_train_response_uniqueness_ratio"] == 1.0
+    assert (
+        manifest["surface_selection"][
+            "post_variation_exact_response_deduplication"
+        ]["exact_response_uniqueness_ratio"]
+        == 1.0
+    )
+    assert (
+        manifest["surface_selection"][
+            "post_variation_exact_prompt_deduplication"
+        ]["exact_prompt_uniqueness_ratio"]
+        == 1.0
+    )
     assert manifest["release_quality"]["target_training_examples"] == 100_000
     assert (
         manifest["release_quality"]["checks"]["training_examples_at_least_100k"]
@@ -1014,13 +1030,13 @@ def test_sft_repetition_gate_reports_every_repeated_surface_dimension() -> None:
                     "Use this recurring internal phrase to organize the request. "
                     f"Prompt marker {marker}."
                     if repeated
-                    else f"Prompt marker {marker} requests a distinct action."
+                    else f"{marker} request."
                 ),
                 "_projected_target": (
                     f"Answer marker {marker}. "
                     "Use this recurring internal phrase to organize the response."
                     if repeated
-                    else f"Answer marker {marker} supports a separate response."
+                    else f"{marker} answer."
                 ),
             }
         )
@@ -1030,6 +1046,105 @@ def test_sft_repetition_gate_reports_every_repeated_surface_dimension() -> None:
     assert ("practical_action", "response_sentence") in violations
     with pytest.raises(ValueError, match=r"practical_action\.prompt_span_8=9\.00%"):
         assert_sft_repetition_quality(rows)
+
+
+def test_sft_repetition_filter_drops_only_overrepresented_compositions() -> None:
+    rows = []
+    for index in range(120):
+        marker = chr(ord("a") + index // 26) + chr(ord("a") + index % 26)
+        repeated = index < 12
+        rows.append(
+            {
+                "example_id": f"filtered:{index:03d}",
+                "task": "practical_action",
+                "_projected_prompt": (
+                    "Use this recurring internal phrase to organize the request. "
+                    f"Prompt marker {marker}."
+                    if repeated
+                    else f"{marker} request."
+                ),
+                "_projected_target": (
+                    f"Answer marker {marker}. "
+                    "Use this recurring internal phrase to organize the response."
+                    if repeated
+                    else f"{marker} answer."
+                ),
+            }
+        )
+
+    kept, selection = filter_sft_repetition_quality(rows)
+    repeated_kept = sum(
+        "recurring internal phrase" in row["_projected_prompt"] for row in kept
+    )
+
+    assert 0 < selection["dropped_examples"] < 12
+    assert repeated_kept <= int(len(kept) * 0.05)
+    assert selection["final_audit"]["passed"] is True, selection["final_audit"][
+        "violations"
+    ]
+    assert [row["example_id"] for row in kept] == [
+        row["example_id"] for row in filter_sft_repetition_quality(rows)[0]
+    ]
+
+
+def test_sft_repetition_filter_preserves_twenty_domain_subcard_balance() -> None:
+    domain_words = (
+        "amber birch cedar dune elm fern grove hazel iris jade "
+        "kelp linen moss north olive pearl quartz reed sage thistle"
+    ).split()
+    rows = []
+    item_words = ("alpha", "bravo", "cobalt", "delta", "ember", "frost")
+    for domain_index, domain in enumerate(domain_words):
+        for item_index in range(6):
+            common = (
+                " Shared guidance remains identical across these selected records."
+                if item_index == 0
+                else ""
+            )
+            item_word = item_words[item_index]
+            pair_word = f"{domain}{item_word}"
+            cards = TrainingCards(
+                surface="plain",
+                dialogue_state="new_request",
+                output="direct_prose",
+                evidence="sufficient",
+                reasoning="direct_response",
+                style="plain",
+                context_density="focused",
+                noise="none",
+                uncertainty="answerable",
+                response_order=f"order-{domain}-{item_index}",
+                response_bridge="plain",
+                response_layout="paragraph",
+                response_opening="bare",
+            )
+            rows.append(
+                {
+                    "example_id": f"domain-balanced:{domain}:{item_index}",
+                    "task": "grounded_qa",
+                    "domain": domain,
+                    "_projected_prompt": (
+                        f"{domain} source establishes one bounded local fact."
+                        f"{common} Request {pair_word} evidence and close "
+                        f"with {pair_word}."
+                    ),
+                    "_projected_target": (
+                        f"{pair_word} answer records distinct local evidence "
+                        f"for {pair_word}."
+                    ),
+                    "_conditioning_cards": cards,
+                }
+            )
+
+    kept, selection = filter_sft_repetition_quality(rows)
+    domain_counts = Counter(row["domain"] for row in kept)
+
+    assert len(kept) == 100
+    assert set(domain_counts.values()) == {5}
+    assert selection["final_audit"]["passed"] is True, selection["final_audit"][
+        "violations"
+    ]
+    assert selection["tasks"]["grounded_qa"]["domain_ceiling_preserved"] is True
 
 
 def test_sft_repetition_gate_includes_invisible_response_card_hands() -> None:
@@ -1231,6 +1346,37 @@ def test_surface_variation_preserves_dynamic_grounded_request() -> None:
     assert "No unstated detail is inferred" not in messages[1]["content"]
 
 
+def test_grounded_response_cards_change_visible_order_and_layout() -> None:
+    messages = [
+        {"role": "user", "content": "Use only the supplied source."},
+        {
+            "role": "assistant",
+            "content": (
+                "The recorded battery life is 18 hours. "
+                "Water resistance remains unknown. "
+                "Check both fields against the supplied specification."
+            ),
+        },
+    ]
+    targets = {
+        _naturalize_assistant_target(
+            messages,
+            task="grounded_qa",
+            cards=deal_training_cards(
+                task="grounded_qa",
+                mode="instruct",
+                example_id=f"grounded-visible-hand:{index}",
+            ),
+            example_id=f"grounded-visible-hand:{index}",
+        )
+        for index in range(1_024)
+    }
+
+    assert len(targets) >= 20
+    assert any(target.startswith("Water resistance") for target in targets)
+    assert any("\n- " in target or target.startswith("- ") for target in targets)
+
+
 def test_response_cards_create_many_reasoning_shapes_from_one_answer() -> None:
     messages = [
         {"role": "user", "content": "Calculate it."},
@@ -1373,7 +1519,7 @@ def test_domain_balance_reports_when_five_percent_is_mathematically_impossible()
     assert audit["tasks_requiring_tank_hydration"] == ["safety_uncertainty"]
 
 
-def test_sft_projection_flattens_synthetic_dialogue_outside_clarification() -> None:
+def test_sft_projection_turns_synthetic_cards_into_linked_dialogue() -> None:
     messages = [
         {
             "role": "user",
@@ -1389,17 +1535,28 @@ def test_sft_projection_flattens_synthetic_dialogue_outside_clarification() -> N
             "content": "Hand ABC123 — Ask Mara for the report and request a confirmed delivery time.",
         },
     ]
+    example_id = next(
+        f"example:four-turn:{index}"
+        for index in range(100)
+        if preserve_linked_dialogue(f"example:four-turn:{index}")
+    )
     projected, _cards = _project_sft_conversation(
         messages,
-        example_id="example:four-turn",
+        example_id=example_id,
         task="writing_transformation",
         answer_json="{}",
     )
-    assert [message["role"] for message in projected] == ["user", "assistant"]
+    assert [message["role"] for message in projected] == [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+    ]
     assert all(" CARD" not in message["content"] for message in projected)
     assert "Hand " not in projected[-1]["content"]
     assert "late" in projected[0]["content"].lower()
-    assert "concise follow-up" in projected[0]["content"].lower()
+    assert "concise follow-up" in projected[2]["content"].lower()
+    assert "deadline" in projected[2]["content"].lower()
 
 
 def test_sft_projection_preserves_clarification_dialogue() -> None:
@@ -1418,9 +1575,14 @@ def test_sft_projection_preserves_clarification_dialogue() -> None:
             "content": "Understood: would you prefer a table or a short paragraph?",
         },
     ]
+    example_id = next(
+        f"example:clarification-four-turn:{index}"
+        for index in range(100)
+        if preserve_linked_dialogue(f"example:clarification-four-turn:{index}")
+    )
     projected, _cards = _project_sft_conversation(
         messages,
-        example_id="example:clarification-four-turn",
+        example_id=example_id,
         task="context_clarification",
         answer_json="{}",
     )
@@ -1431,6 +1593,15 @@ def test_sft_projection_preserves_clarification_dialogue() -> None:
         "assistant",
     ]
     assert all(" CARD" not in message["content"] for message in projected)
+
+
+def test_sft_projection_keeps_most_card_hands_as_direct_requests() -> None:
+    preserved = sum(
+        preserve_linked_dialogue(f"example:dialogue-share:{index}")
+        for index in range(1_000)
+    )
+
+    assert 160 <= preserved <= 240
 
 
 def test_sft_projection_preserves_genuine_non_card_dialogue() -> None:
@@ -1452,7 +1623,7 @@ def test_sft_projection_preserves_genuine_non_card_dialogue() -> None:
     assert projected == messages
 
 
-def test_semantic_projection_does_not_append_generic_resolution() -> None:
+def test_semantic_projection_preserves_an_authored_non_card_answer() -> None:
     messages = [
         {"role": "user", "content": "Explain the result."},
         {
@@ -1483,26 +1654,50 @@ def test_semantic_projection_does_not_append_generic_resolution() -> None:
     assert "scenario:" not in target
 
 
-def test_semantic_resolution_is_a_compatibility_noop() -> None:
+def test_semantic_resolution_develops_short_grounded_answers_without_case_facts() -> None:
     target = "Paris is the capital of France."
-    assert (
-        _apply_semantic_resolution(
-            target,
-            task="grounded_qa",
-            metadata={
-                "scenario_id": "scenario:legacy",
-                "subject": "France",
-                "surface_intent": "answer the question",
-                "source_state": "The source is available.",
-                "source_constraint": "Use only the source.",
-                "fallback_surface": "Return to a smaller causal model.",
-                "desired_outcome": "The answer is established.",
-                "variant": 3,
-            },
-            example_id="example:legacy",
-        )
-        == target
+    developed = _apply_semantic_resolution(
+        target,
+        task="grounded_qa",
+        metadata={
+            "scenario_id": "scenario:legacy",
+            "subject": "France",
+            "surface_intent": "answer the question",
+            "source_state": "The source is available.",
+            "source_constraint": "Use only the source.",
+            "fallback_surface": "Return to a smaller causal model.",
+            "desired_outcome": "The answer is established.",
+            "variant": 3,
+        },
+        example_id="example:legacy",
     )
+    assert developed.startswith(target)
+    assert "France" in developed
+    assert "causal model" not in developed
+
+
+def test_each_developed_family_has_at_least_twenty_realized_answer_forms() -> None:
+    tasks = (
+        "context_clarification",
+        "conversation_empathy",
+        "critique_revision",
+        "explanation_learning",
+        "grounded_qa",
+        "reasoning_verification",
+        "summarization_synthesis",
+    )
+    for task in tasks:
+        answers = {
+            develop_answer(
+                "The supplied result is bounded.",
+                task=task,
+                metadata={"subject": f"case {index}"},
+                example_id=f"development:{task}:{index}",
+            )
+            for index in range(256)
+        }
+        assert len(answers) >= 20, (task, len(answers))
+        assert all(len(answer.split()) > 8 for answer in answers)
 
 
 def test_practical_surface_projection_removes_internal_control_colons() -> None:

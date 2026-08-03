@@ -136,7 +136,7 @@ def test_scenario_forge_compiles_semantic_cards_from_family_tanks() -> None:
     assert audit["surface_language_audit"]["issue_count"] == 0
     assert audit["surface_language_audit"]["checked_rows"] == EXPECTED_SCENARIOS
     assert audit["surface_language_audit"]["semantic_anchor_match_rate"] == 1.0
-    assert audit["surface_language_audit"]["frame_family_cells"] == 168
+    assert audit["surface_language_audit"]["frame_family_cells"] == 336
     assert audit["morphology_audit"] == {
         "intent_phrases": 84,
         "unique_lemmas": 62,
@@ -195,7 +195,7 @@ def test_scenario_forge_compiles_semantic_cards_from_family_tanks() -> None:
     assert all(len(row["creation_hash"]) == 64 for row in rows)
     assert all(len(row["verification_hash"]) == 64 for row in rows)
     assert all(row["situation"] for row in rows)
-    assert len({row["narrative_frame"] for row in rows}) == 12
+    assert len({row["narrative_frame"] for row in rows}) == 24
     assert all(row["trigger"] for row in rows)
     assert all(
         row["situation"].lower().count(row["state"].rstrip(".").lower()) == 1
@@ -499,5 +499,5 @@ def test_dynamic_language_is_seeded_and_balances_frame_usage() -> None:
     first = sequence(42)
     assert first == sequence(42)
     assert first != sequence(43)
-    assert set(first) == {f"frame_{index:02d}" for index in range(1, 13)}
-    assert {first.count(frame) for frame in set(first)} == {2}
+    assert set(first) == {f"frame_{index:02d}" for index in range(1, 25)}
+    assert {first.count(frame) for frame in set(first)} == {1}

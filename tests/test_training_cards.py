@@ -2,6 +2,13 @@ from complexity_card_corpus.card_staticity import audit_card_staticity
 from complexity_card_corpus.posttrain import (
     required_distinct_surfaces_per_source_card,
 )
+from complexity_card_corpus.sft.answer_development import development_card_count
+from complexity_card_corpus.sft.dialogue_links import (
+    LINK_MOVES,
+    dialogue_link_card_count,
+    dialogue_link_move,
+    preserve_linked_dialogue,
+)
 from complexity_card_corpus.training_cards import deal_training_cards
 
 
@@ -109,8 +116,63 @@ def test_chat_and_instruct_use_different_dialogue_decks() -> None:
         "constraint_update",
         "clarification_resolved",
         "continued_request",
+        "objection",
+        "correction",
+        "validation",
     }
     assert instruct.isdisjoint(chat)
+
+
+def test_each_family_has_linkage_and_answer_development_card_reservoirs() -> None:
+    assert dialogue_link_card_count() == 75
+    developed = {
+        "context_clarification",
+        "conversation_empathy",
+        "critique_revision",
+        "explanation_learning",
+        "grounded_qa",
+        "reasoning_verification",
+        "summarization_synthesis",
+    }
+    for task in developed:
+        assert development_card_count(task) == 48
+
+
+def test_grounded_qa_deals_many_visible_response_structures() -> None:
+    hands = {
+        deal_training_cards(
+            task="grounded_qa",
+            mode="instruct",
+            example_id=f"grounded-response-hand:{index}",
+        ).response_structure_signature
+        for index in range(4_096)
+    }
+
+    assert len(hands) >= 400
+
+
+def test_chat_card_deals_cover_every_required_link_move() -> None:
+    for task in TASKS:
+        moves = {
+            dialogue_link_move(
+                deal_training_cards(
+                    task=task,
+                    mode="chat",
+                    example_id=f"dialogue-link:{task}:{index}",
+                ),
+                f"dialogue-link:{task}:{index}",
+            )
+            for index in range(512)
+        }
+        assert moves == set(LINK_MOVES), (task, moves)
+
+
+def test_linked_dialogue_sampling_is_deterministic_and_progressive() -> None:
+    first = [preserve_linked_dialogue(f"linked:{index}") for index in range(1_000)]
+    second = [preserve_linked_dialogue(f"linked:{index}") for index in range(1_000)]
+
+    assert first == second
+    assert 160 <= sum(first) <= 240
 
 
 def test_each_family_has_far_more_than_the_seven_surfaces_needed_for_100k() -> None:

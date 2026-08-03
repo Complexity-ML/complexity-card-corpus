@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 from ..training_cards import TrainingCards
+from .answer_development import develop_answer
 from .language import (
     _final_assistant_target,
     _inline_sentence,
@@ -239,6 +240,18 @@ def _naturalize_assistant_target(
             direct,
             flags=re.IGNORECASE,
         )
+        sentences = [
+            sentence.strip()
+            for sentence in re.split(r"(?<=[.!?])\s+", direct.strip())
+            if sentence.strip()
+        ]
+        if len(sentences) >= 2:
+            clauses = {
+                "documented": sentences[0],
+                "boundary": sentences[1],
+                "verification": " ".join(sentences[2:]),
+            }
+            return render_response_card_hand(clauses, cards=cards)
         return direct
     elif task == "critique_revision":
         fields = _labelled_fields(response, ("Weakness", "Revision"))
@@ -725,15 +738,17 @@ def _apply_semantic_resolution(
     metadata: dict[str, Any],
     example_id: str,
 ) -> str:
-    """Retain the direct authored answer without generic resolution prose.
+    """Develop short discursive answers with linked, evidence-safe cards.
 
-    This hook remains for API compatibility with earlier corpus releases.
-    Scenario state, constraints and outcomes already condition the prompt and
-    the family renderer. Appending them again taught the small model a repeated
-    fallback paragraph and sometimes contradicted an answer that was already
-    complete. Metadata remains available for audits, but no longer mutates the
-    model-facing target here.
+    Earlier releases appended one generic resolution paragraph to every task.
+    That taught repetition and occasionally contradicted a complete answer.
+    The replacement is selective: it only develops short discursive families,
+    uses a 40-card family-compatible reservoir, and adds no new case fact.
     """
 
-    del task, metadata, example_id
-    return target
+    return develop_answer(
+        target,
+        task=task,
+        metadata=metadata,
+        example_id=example_id,
+    )

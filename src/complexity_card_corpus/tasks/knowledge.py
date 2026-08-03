@@ -57,6 +57,13 @@ def _grounded_qa(row: dict[str, Any], variant: int) -> TaskHand:
     maintenance_day = _number(f"maintenance-day:{code}", 2, 28)
     sensor_count = _number(f"sensor-count:{code}", 3, 12)
     measured_value = _number(f"measured-value:{code}", 18, 86)
+    notice_days = _number(f"notice-days:{code}", 10, 45)
+    sample_count = _number(f"lab-samples:{code}", 6, 24)
+    ph_value = _number(f"lab-ph-whole:{code}", 6, 8)
+    quote_units = _number(f"quote-units:{code}", 12, 80)
+    quote_price = _number(f"quote-price:{code}", 18, 95)
+    tested_pages = _number(f"accessibility-pages:{code}", 8, 30)
+    operating_limit = _number(f"equipment-limit:{code}", 30, 75)
     cases = {
         "product_specs": (
             f"The Lumen Mini supports Wi-Fi 6 and USB-C charging. Its rated battery life is {battery_hours} hours. No water-resistance rating is listed.",
@@ -132,6 +139,31 @@ def _grounded_qa(row: dict[str, Any], variant: int) -> TaskHand:
             f"Release {release_major}.{release_minor} adds export filters and fixes duplicate notifications on Linux. A legacy import option is marked deprecated, but no removal date is given.",
             "State the added behavior and whether the legacy import removal date is known.",
             f"Release {release_major}.{release_minor} adds export filters. The legacy import removal date is unknown because the note gives no date.",
+        ),
+        "contract_clause": (
+            f"Clause 8 requires {notice_days} calendar days of written notice before termination. Notices must be sent to the registered office. The clause does not identify an arbitration venue.",
+            "State the notice period and whether an arbitration venue is identified.",
+            f"The notice period is {notice_days} calendar days in writing. The arbitration venue is unknown because Clause 8 does not identify one.",
+        ),
+        "lab_report": (
+            f"The laboratory tested {sample_count} samples with the same calibrated probe and recorded a median pH of {ph_value}. The report does not state when the probe was last calibrated.",
+            "State the median pH and whether the last calibration date is documented.",
+            f"The median pH is {ph_value} across {sample_count} samples. The last calibration date is unknown because the report does not state it.",
+        ),
+        "procurement_quote": (
+            f"Quote Q-{code} offers {quote_units} units at ${quote_price} each and remains valid for 21 days. Tax is included, but shipping time is not listed.",
+            "State the quoted quantity and unit price, and whether shipping time is documented.",
+            f"The quote covers {quote_units} units at ${quote_price} each. Shipping time is unknown because the quote does not list it.",
+        ),
+        "accessibility_statement": (
+            f"The accessibility statement reports a WCAG 2.2 AA review of {tested_pages} public pages and names keyboard navigation as tested. It gives no remediation date for remaining issues.",
+            "State the reported conformance target and tested scope, and whether a remediation date is documented.",
+            f"The reported target is WCAG 2.2 AA across {tested_pages} public pages. A remediation date is unknown because the statement gives none.",
+        ),
+        "equipment_manual": (
+            f"The manual permits continuous operation below {operating_limit}°C in supervised mode and requires a five-minute cooldown after an overload warning. Remote control is not described.",
+            "State the operating limit and cooldown requirement, and whether remote control is documented.",
+            f"The operating limit is below {operating_limit}°C, with a five-minute cooldown after an overload warning. Remote control is unknown because the manual does not describe it.",
         ),
     }
     passage, requested_answer, supported = cases[_render_domain(row)]

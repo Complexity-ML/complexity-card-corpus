@@ -88,6 +88,14 @@ _STYLE_BY_TASK = {
 
 
 _RESPONSE_ORDERS_BY_TASK = {
+    "grounded_qa": (
+        "documented>boundary>verification",
+        "documented>verification>boundary",
+        "boundary>documented>verification",
+        "verification>documented>boundary",
+        "boundary>verification>documented",
+        "verification>boundary>documented",
+    ),
     "explanation_learning": (
         "idea>example>check",
         "idea>check>example",
@@ -133,6 +141,7 @@ _RESPONSE_ORDERS_BY_TASK = {
 _RESPONSE_LAYOUTS_BY_TASK = {
     "brainstorming_creativity": ("paragraph", "bullets", "numbered"),
     "explanation_learning": ("paragraph", "paragraph", "line_breaks"),
+    "grounded_qa": ("paragraph", "line_breaks", "bullets", "numbered"),
     "planning_comparison": ("paragraph", "paragraph", "line_breaks"),
     "practical_action": ("paragraph", "paragraph", "line_breaks"),
     "reasoning_verification": ("paragraph", "paragraph", "line_breaks"),
@@ -222,6 +231,9 @@ def deal_training_cards(
             "constraint_update",
             "clarification_resolved",
             "continued_request",
+            "objection",
+            "correction",
+            "validation",
         )
         surface_choices = (
             "conversational",
@@ -239,7 +251,7 @@ def deal_training_cards(
             "plain",
         )
 
-    if evidence == "conflicting":
+    if evidence == "conflicting" and mode != "chat":
         dialogue_choices = (*dialogue_choices, "correction")
     if risk in {"medium", "high"}:
         density_choices = ("full", "full", "focused")

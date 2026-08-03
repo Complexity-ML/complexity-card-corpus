@@ -490,12 +490,14 @@ only assistant tokens and the terminating EOS token contribute to the loss.
 The tokenized release also carries `chat_template.json`. Its
 `complexity-chat-v1` contract serializes the fixed system instruction, natural
 user content, assistant prefixes, and EOS identically for training, evaluation,
-export, and inference. Two-turn examples remain direct. Synthetic four-turn
-card hands are flattened into one complete request and one direct answer unless
-clarification is itself the task. This prevents the model from learning to ask
-for an outcome and constraint that the user has already supplied. Genuine
-non-card dialogue remains multi-turn. Visible card and hand identifiers remain
-audit metadata and do not become model text.
+export, and inference. Two-turn examples remain direct. One deterministic card
+hand in five is preserved as a linked four-turn dialogue: evidence first, then
+one compatible clarification, objection, correction, follow-up or validation
+move, followed by the requested outcome and boundary. The remaining card hands
+become one complete request and one direct answer, so the model is not taught to
+clarify every task. Separately authored non-card dialogue remains multi-turn.
+Visible card and hand identifiers remain audit metadata and do not become model
+text.
 `--supplement` is repeatable. Each source path and digest is recorded in the
 manifest, duplicate IDs across sources are rejected, and original conversation
 surfaces are assigned to canonical SFT families from their realized final
@@ -520,6 +522,14 @@ share, family coverage and supervised-token volume. Remaining gaps must be
 addressed by authoring genuinely distinct answers and conversations in weak
 families, not by loosening deduplication or restoring generic resolution
 paragraphs.
+
+The audited 2026-08-03 projection retains 54,379 training examples and
+3,921,861 supervised assistant tokens. Exact prompt and response uniqueness is
+100%, 14.09% of examples are multi-turn, no audited repetition signature or
+response-card hand exceeds 5%, and grounded question answering realizes 525
+distinct response-card hands. The current release is still experimental:
+additional original cards are required to reach 100,000 examples, 10 million
+supervised tokens and the target family balance.
 
 ## Repository layout
 

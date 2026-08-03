@@ -28,6 +28,7 @@ from ..training_cards import TrainingCards, deal_training_cards
 from .evaluation import (
     _audit_sft_projection,
     assert_sft_repetition_quality,
+    filter_sft_repetition_quality,
     load_heldout_evaluation,
 )
 from .language import _card_sections, _render_messages
@@ -345,8 +346,25 @@ def tokenize_instruction_dataset(
             rewritten["_projected_target"]
         )
         rewritten_train.append(rewritten)
+    rewritten_train, post_variation_response_deduplication = (
+        _deduplicate_exact_responses(rewritten_train)
+    )
+    rewritten_train, post_variation_prompt_deduplication = (
+        _deduplicate_exact_prompts(rewritten_train)
+    )
     grouped["train"] = rewritten_train
     surface_selection["phrase_variation"] = phrase_balancer.audit()
+    surface_selection["post_variation_exact_response_deduplication"] = (
+        post_variation_response_deduplication
+    )
+    surface_selection["post_variation_exact_prompt_deduplication"] = (
+        post_variation_prompt_deduplication
+    )
+
+    grouped["train"], repetition_filter = filter_sft_repetition_quality(
+        grouped.get("train", [])
+    )
+    surface_selection["repetition_filter"] = repetition_filter
 
     projection_audit = _audit_sft_projection(
         [row for rows in grouped.values() for row in rows]
@@ -577,11 +595,12 @@ def tokenize_instruction_dataset(
     exact_train_responses = len({row["response"] for row in train_records})
     exact_train_prompts = len({row["prompt"] for row in train_records})
     multi_turn_count = sum(len(row["messages"]) > 2 for row in train_records)
-    genuine_multi_turn_count = sum(
+    authored_multi_turn_count = sum(
         len(row["messages"]) > 2 and row["source_representation"] == "conversation"
         for row in train_records
     )
-    synthetic_multi_turn_count = multi_turn_count - genuine_multi_turn_count
+    linked_card_multi_turn_count = multi_turn_count - authored_multi_turn_count
+    multi_turn_share = multi_turn_count / train_count if train_count else 0.0
     difficulty_counts = dict(
         sorted(Counter(row["difficulty"] for row in train_records).items())
     )
@@ -640,14 +659,9 @@ def tokenize_instruction_dataset(
             difficulty_counts.get("easy", 0) / train_count if train_count else 0.0
         )
         >= 0.20,
-        "genuine_multi_turn_share_at_least_10_percent": (
-            genuine_multi_turn_count / train_count if train_count else 0.0
-        )
-        >= 0.10,
-        "synthetic_multi_turn_share_at_most_5_percent": (
-            synthetic_multi_turn_count / train_count if train_count else 1.0
-        )
-        <= 0.05,
+        "multi_turn_share_between_10_and_30_percent": 0.10
+        <= multi_turn_share
+        <= 0.30,
         "four_response_length_bands_each_at_least_5_percent": all(
             count / train_count >= 0.05 if train_count else False
             for count in response_length_bands.values()
@@ -691,13 +705,13 @@ def tokenize_instruction_dataset(
         "multi_turn_share": round(
             multi_turn_count / train_count if train_count else 0.0, 6
         ),
-        "genuine_multi_turn_examples": genuine_multi_turn_count,
-        "genuine_multi_turn_share": round(
-            genuine_multi_turn_count / train_count if train_count else 0.0, 6
+        "authored_multi_turn_examples": authored_multi_turn_count,
+        "authored_multi_turn_share": round(
+            authored_multi_turn_count / train_count if train_count else 0.0, 6
         ),
-        "synthetic_multi_turn_examples": synthetic_multi_turn_count,
-        "synthetic_multi_turn_share": round(
-            synthetic_multi_turn_count / train_count if train_count else 0.0, 6
+        "linked_card_multi_turn_examples": linked_card_multi_turn_count,
+        "linked_card_multi_turn_share": round(
+            linked_card_multi_turn_count / train_count if train_count else 0.0, 6
         ),
         "exact_train_response_uniqueness_ratio": round(
             exact_train_responses / train_count if train_count else 0.0, 6

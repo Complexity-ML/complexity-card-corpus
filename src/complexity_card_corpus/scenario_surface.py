@@ -129,7 +129,11 @@ def audit_scenario_surface(rows: list[dict[str, Any]]) -> dict[str, Any]:
             issues.append({"scenario_id": scenario_id, "kind": "sentence_capitalization"})
         if malformed_spacing.search(text):
             issues.append({"scenario_id": scenario_id, "kind": "punctuation_spacing"})
-        if repeated_word.search(normalized):
+        # Inspect the rendered surface rather than the punctuation-stripped
+        # normalization. Otherwise a sentence ending in ``result`` followed
+        # by a sentence beginning with ``Result`` is reported as the false
+        # adjacent pair ``result result``.
+        if repeated_word.search(text):
             issues.append({"scenario_id": scenario_id, "kind": "adjacent_word_repeat"})
         if any(sequence in normalized for sequence in suspect_sequences):
             issues.append({"scenario_id": scenario_id, "kind": "suspect_verb_chain"})
