@@ -23,6 +23,7 @@ dependencies = [
   "pydantic>=2.10",
   "scikit-learn>=1.5,<2",
   "tiktoken>=0.9",
+  "tokenizers>=0.22,<1",
 ]
 
 [project.optional-dependencies]

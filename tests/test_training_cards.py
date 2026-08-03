@@ -7,9 +7,13 @@ from complexity_card_corpus.sft.dialogue_links import (
     LINK_MOVES,
     dialogue_link_card_count,
     dialogue_link_move,
+    family_dialogue_card_count,
     preserve_linked_dialogue,
 )
-from complexity_card_corpus.training_cards import deal_training_cards
+from complexity_card_corpus.training_cards import (
+    deal_training_cards,
+    natural_dialogue_deck,
+)
 
 
 TASKS = (
@@ -58,6 +62,10 @@ def test_training_cards_are_deterministic_and_complete() -> None:
         "response_bridge",
         "response_layout",
         "response_opening",
+        "natural_opening",
+        "natural_link",
+        "natural_update",
+        "natural_depth",
     }
 
 
@@ -125,6 +133,9 @@ def test_chat_and_instruct_use_different_dialogue_decks() -> None:
 
 def test_each_family_has_linkage_and_answer_development_card_reservoirs() -> None:
     assert dialogue_link_card_count() == 75
+    assert set(natural_dialogue_deck()) == set(TASKS)
+    for task in TASKS:
+        assert family_dialogue_card_count(task) == 7
     developed = {
         "context_clarification",
         "conversation_empathy",
@@ -196,6 +207,22 @@ def test_linked_dialogue_sampling_is_deterministic_and_progressive() -> None:
 
     assert first == second
     assert 160 <= sum(first) <= 240
+
+
+def test_natural_dialogue_subdecks_cover_every_family() -> None:
+    for task in TASKS:
+        hands = [
+            deal_training_cards(
+                task=task,
+                mode="chat",
+                example_id=f"natural-deck:{task}:{index}",
+            )
+            for index in range(512)
+        ]
+        assert len({hand.natural_opening for hand in hands}) >= 3
+        assert len({hand.natural_link for hand in hands}) >= 3
+        assert len({hand.natural_update for hand in hands}) >= 3
+        assert {hand.natural_depth for hand in hands} == {"direct", "linked"}
 
 
 def test_each_family_has_far_more_than_the_seven_surfaces_needed_for_100k() -> None:

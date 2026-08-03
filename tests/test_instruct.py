@@ -51,7 +51,11 @@ from complexity_card_corpus.sft.target import (
     _apply_semantic_resolution,
     _naturalize_assistant_target,
 )
-from complexity_card_corpus.training_cards import TrainingCards, deal_training_cards
+from complexity_card_corpus.training_cards import (
+    TrainingCards,
+    deal_training_cards,
+    natural_dialogue_deck,
+)
 from complexity_card_corpus.chat_template import (
     CHAT_TEMPLATE_ID,
     render_system_prefix,
@@ -373,6 +377,10 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
             "response_bridge",
             "response_layout",
             "response_opening",
+            "natural_opening",
+            "natural_link",
+            "natural_update",
+            "natural_depth",
         }
         assert all(
             sum(counts.values()) == metadata["examples"]
@@ -436,6 +444,10 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
                 "response_bridge",
                 "response_layout",
                 "response_opening",
+                "natural_opening",
+                "natural_link",
+                "natural_update",
+                "natural_depth",
             }
             assert (
                 example["response_card_hand"]
@@ -1767,7 +1779,12 @@ def test_sft_projection_turns_synthetic_cards_into_linked_dialogue() -> None:
     example_id = next(
         f"example:four-turn:{index}"
         for index in range(100)
-        if preserve_linked_dialogue(f"example:four-turn:{index}")
+        if deal_training_cards(
+            task="writing_transformation",
+            mode="chat",
+            example_id=f"example:four-turn:{index}",
+        ).natural_depth
+        == "linked"
     )
     projected, _cards = _project_sft_conversation(
         messages,
@@ -1807,7 +1824,12 @@ def test_sft_projection_preserves_clarification_dialogue() -> None:
     example_id = next(
         f"example:clarification-four-turn:{index}"
         for index in range(100)
-        if preserve_linked_dialogue(f"example:clarification-four-turn:{index}")
+        if deal_training_cards(
+            task="context_clarification",
+            mode="chat",
+            example_id=f"example:clarification-four-turn:{index}",
+        ).natural_depth
+        == "linked"
     )
     projected, _cards = _project_sft_conversation(
         messages,
@@ -1831,6 +1853,108 @@ def test_sft_projection_keeps_most_card_hands_as_direct_requests() -> None:
     )
 
     assert 160 <= preserved <= 240
+
+
+@pytest.mark.parametrize("task", tuple(natural_dialogue_deck()))
+def test_sft_projection_renders_natural_family_link_decks(task: str) -> None:
+    messages = [
+        {
+            "role": "user",
+            "content": (
+                "SITUATION CARD\nOne bounded decision remains open.\n\n"
+                "DATA CARD\nThe supplied record contains one usable fact."
+            ),
+        },
+        {"role": "assistant", "content": "I can work with that."},
+        {
+            "role": "user",
+            "content": (
+                "RULE CARD\nDo not invent information.\n\n"
+                "GOAL CARD\nProvide one useful result."
+            ),
+        },
+        {"role": "assistant", "content": "Use the recorded fact."},
+    ]
+    example_id = next(
+        f"example:natural-family:{task}:{index}"
+        for index in range(100)
+        if deal_training_cards(
+            task=task,
+            mode="chat",
+            example_id=f"example:natural-family:{task}:{index}",
+        ).natural_depth
+        == "linked"
+    )
+
+    projected, cards = _project_sft_conversation(
+        messages,
+        example_id=example_id,
+        task=task,
+        answer_json=json.dumps({"subject": "the bounded request"}),
+    )
+    rendered = "\n".join(message["content"] for message in projected)
+
+    assert [message["role"] for message in projected] == [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+    ]
+    assert cards.natural_depth == "linked"
+    assert " CARD" not in rendered
+    assert "{" not in rendered and "}" not in rendered
+
+
+@pytest.mark.parametrize(
+    ("stored_data", "expected_payload"),
+    (
+        (
+            "Learning card: DNS resolves a host name into a network address.",
+            "DNS resolves a host name into a network address.",
+        ),
+        (
+            "Learning card ID LR-120: DNS maps a host name to a network address.",
+            "DNS maps a host name to a network address.",
+        ),
+        (
+            "Calculation card ID 601367: convert 8 metres to centimetres.",
+            "Convert 8 metres to centimetres.",
+        ),
+        (
+            "Creative constraint card 8EF8AC: teach fractions using paper.",
+            "Teach fractions using paper.",
+        ),
+    ),
+)
+def test_sft_projection_keeps_card_provenance_out_of_model_text(
+    stored_data: str,
+    expected_payload: str,
+) -> None:
+    messages = [
+        {
+            "role": "user",
+            "content": (
+                "SITUATION CARD\nA bounded example is available.\n\n"
+                f"DATA CARD\n{stored_data}\n\n"
+                "RULE CARD\nUse only the supplied facts.\n\n"
+                "GOAL CARD\nExplain the example clearly."
+            ),
+        },
+        {"role": "assistant", "content": "The supplied example is sufficient."},
+    ]
+
+    projected, _cards = _project_sft_conversation(
+        messages,
+        example_id=f"example:metadata-only:{stored_data}",
+        task="explanation_learning",
+        answer_json="{}",
+    )
+    model_text = "\n".join(message["content"] for message in projected)
+
+    assert expected_payload in model_text
+    assert "Learning card" not in model_text
+    assert "Calculation card" not in model_text
+    assert "Creative constraint card" not in model_text
 
 
 def test_sft_projection_preserves_genuine_non_card_dialogue() -> None:

@@ -13,6 +13,7 @@ from .language import (
     _card_sections,
     _final_assistant_target,
     _render_natural_instruction,
+    _without_internal_card_labels,
 )
 from .target import _apply_semantic_resolution, _naturalize_assistant_target
 
@@ -53,7 +54,11 @@ def _project_sft_exchange(
             metadata=metadata,
             example_id=example_id,
         )
-    return prompt, correct_indefinite_articles(target), cards
+    return (
+        _without_internal_card_labels(prompt),
+        correct_indefinite_articles(_without_internal_card_labels(target)),
+        cards,
+    )
 
 
 def _project_sft_conversation(
@@ -99,7 +104,10 @@ def _project_sft_conversation(
     if (
         len(messages) <= 2
         or sections is None
-        or not preserve_linked_dialogue(example_id)
+        or not preserve_linked_dialogue(
+            example_id,
+            natural_depth=cards.natural_depth,
+        )
     ):
         return [
             {"role": "user", "content": prompt},
@@ -111,6 +119,7 @@ def _project_sft_conversation(
         example_id=example_id,
         situation=situation,
         data=sections["data"],
+        task=task,
     )
     subject = str(metadata.get("subject", "the request")).strip().rstrip(".")
     source_state = str(metadata.get("source_state", "")).strip().rstrip(".")
@@ -121,6 +130,7 @@ def _project_sft_conversation(
         state=source_state,
         goal=sections["goal"],
         rule=sections["rule"],
+        task=task,
     )
     return [
         {"role": "user", "content": correct_indefinite_articles(first_user)},

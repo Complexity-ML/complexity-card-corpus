@@ -22,6 +22,10 @@ class TrainingCards:
     response_bridge: str = "plain"
     response_layout: str = "paragraph"
     response_opening: str = "bare"
+    natural_opening: str = "direct"
+    natural_link: str = "clarify"
+    natural_update: str = "goal"
+    natural_depth: str = "direct"
 
     def as_dict(self) -> dict[str, str]:
         return asdict(self)
@@ -169,6 +173,82 @@ _RESPONSE_BRIDGES = (
 _RESPONSE_OPENINGS = ("bare", "direct", "result_first", "contextual")
 
 
+# Invisible natural-dialogue subdecks.  The values are metadata labels used by
+# the renderer; none of these storage names are emitted into model text.
+_NATURAL_DIALOGUE_BY_TASK = {
+    "brainstorming_creativity": {
+        "opening": ("brief_first", "possibility_first", "constraint_first"),
+        "link": ("differentiate", "test_options", "confirm_brief"),
+        "update": ("selection_criterion", "creative_limit", "preference"),
+    },
+    "context_clarification": {
+        "opening": ("known_first", "ambiguity_first", "decision_first"),
+        "link": ("locate_ambiguity", "ask_decisive_detail", "bound_default"),
+        "update": ("missing_detail", "format_choice", "scope_choice"),
+    },
+    "conversation_empathy": {
+        "opening": ("experience_first", "feeling_first", "need_first"),
+        "link": ("acknowledge", "invite_detail", "offer_choice"),
+        "update": ("felt_need", "preferred_support", "gentle_boundary"),
+    },
+    "critique_revision": {
+        "opening": ("draft_first", "weakness_first", "audience_first"),
+        "link": ("identify_priority", "confirm_intent", "test_revision"),
+        "update": ("revision_priority", "meaning_to_keep", "audience_need"),
+    },
+    "explanation_learning": {
+        "opening": ("concept_first", "example_first", "learner_gap_first"),
+        "link": ("locate_gap", "connect_example", "check_level"),
+        "update": ("learning_goal", "known_material", "transfer_check"),
+    },
+    "extraction_classification": {
+        "opening": ("record_first", "schema_first", "field_first"),
+        "link": ("confirm_schema", "preserve_missing", "resolve_conflict"),
+        "update": ("required_fields", "label_set", "normalization_rule"),
+    },
+    "grounded_qa": {
+        "opening": ("question_first", "evidence_first", "scope_first"),
+        "link": ("locate_support", "state_boundary", "resolve_conflict"),
+        "update": ("exact_question", "source_limit", "answer_format"),
+    },
+    "planning_comparison": {
+        "opening": ("choice_first", "criteria_first", "options_first"),
+        "link": ("identify_criterion", "compare_tradeoff", "confirm_constraint"),
+        "update": ("priority", "hard_constraint", "fallback_preference"),
+    },
+    "practical_action": {
+        "opening": ("outcome_first", "situation_first", "next_step_first"),
+        "link": ("confirm_owner", "sequence_action", "check_guardrail"),
+        "update": ("desired_outcome", "available_resource", "fixed_boundary"),
+    },
+    "reasoning_verification": {
+        "opening": ("inputs_first", "claim_first", "calculation_first"),
+        "link": ("check_premise", "request_method", "separate_verification"),
+        "update": ("target_value", "allowed_method", "precision_rule"),
+    },
+    "safety_uncertainty": {
+        "opening": ("risk_first", "uncertainty_first", "safe_goal_first"),
+        "link": ("check_immediacy", "set_boundary", "choose_escalation"),
+        "update": ("current_status", "safe_limit", "available_support"),
+    },
+    "summarization_synthesis": {
+        "opening": ("material_first", "decision_first", "audience_first"),
+        "link": ("confirm_scope", "rank_information", "preserve_open_point"),
+        "update": ("target_audience", "length_limit", "decision_focus"),
+    },
+    "troubleshooting": {
+        "opening": ("symptom_first", "change_first", "system_first"),
+        "link": ("isolate_change", "request_observation", "choose_safe_test"),
+        "update": ("last_change", "observed_result", "test_boundary"),
+    },
+    "writing_transformation": {
+        "opening": ("source_first", "audience_first", "purpose_first"),
+        "link": ("confirm_meaning", "check_tone", "preserve_fact"),
+        "update": ("target_audience", "desired_tone", "meaning_to_keep"),
+    },
+}
+
+
 def _source_text(metadata: dict[str, Any]) -> str:
     return " ".join(
         str(metadata.get(key, ""))
@@ -266,6 +346,20 @@ def deal_training_cards(
     else:
         density_choices = ("full", "focused", "minimal", "full")
 
+    natural_deck = _NATURAL_DIALOGUE_BY_TASK.get(
+        task,
+        {
+            "opening": ("direct", "context_first"),
+            "link": ("clarify", "confirm"),
+            "update": ("goal", "constraint"),
+        },
+    )
+    natural_depth_choices = (
+        ("direct", "linked", "direct", "linked", "direct")
+        if mode == "chat"
+        else ("direct",)
+    )
+
     return TrainingCards(
         surface=_pick(f"surface:{example_id}", surface_choices),
         dialogue_state=_pick(f"dialogue:{example_id}", dialogue_choices),
@@ -298,4 +392,26 @@ def deal_training_cards(
             f"response-opening:{example_id}",
             _RESPONSE_OPENINGS,
         ),
+        natural_opening=_pick(
+            f"natural-opening:{task}:{example_id}",
+            natural_deck["opening"],
+        ),
+        natural_link=_pick(
+            f"natural-link:{task}:{example_id}",
+            natural_deck["link"],
+        ),
+        natural_update=_pick(
+            f"natural-update:{task}:{example_id}",
+            natural_deck["update"],
+        ),
+        natural_depth=_pick(
+            f"natural-depth:{task}:{example_id}",
+            natural_depth_choices,
+        ),
     )
+
+
+def natural_dialogue_deck() -> dict[str, dict[str, tuple[str, ...]]]:
+    """Expose the immutable family deck for audits and documentation."""
+
+    return _NATURAL_DIALOGUE_BY_TASK

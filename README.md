@@ -285,7 +285,9 @@ controls how those semantics become a natural request:
 - evidence, uncertainty and context-density controls;
 - thirteen style variants plus bounded irrelevant-detail noise;
 - response-structure cards for opening, clause order, semantic bridge and
-  paragraph, line, bullet or numbered layout.
+  paragraph, line, bullet or numbered layout;
+- four family-specific natural-dialogue axes for the opening, conversational
+  link, grounded user update and direct-versus-linked depth.
 
 These conditioning cards are recorded per example in `examples.jsonl` and
 aggregated in each `sft.idx.json`. They never appear as literal card labels in
@@ -324,8 +326,9 @@ per `(family, signature)` pair. Extraction JSON uses a schema-aware ceiling of
 32 because repeated field order is part of the output contract rather than
 prose duplication. Exact counts and diversity measurements are emitted by each
 build in `manifest.json`; generated artifacts are not described with stale
-hard-coded counts in this README. The audit covers all thirteen conditioning
-axes, including the four response-structure cards.
+hard-coded counts in this README. The audit covers all seventeen conditioning
+axes, including the four response-structure cards and four natural-dialogue
+cards.
 
 Evaluation does not reuse Scenario Forge's validation renderers. The v2 suite
 contains 700 exchanges, exactly 50 per family: 28 separately authored gold
@@ -688,15 +691,18 @@ addressed by authoring genuinely distinct answers and conversations in weak
 families, not by loosening deduplication or restoring generic resolution
 paragraphs.
 
-The audited v1.0.8 projection (2026-08-03) contains 412,000 examples, including
-411,300 training examples, and 30,567,493 supervised assistant tokens. Exact
-training prompt and response uniqueness is 100%, 11.50% of training examples
-are multi-turn, every one of the 14 families represents between 2% and 15% of
-training, and the largest response-card hand occupies 4.35% of its family.
-The release manifest passes every lexical, structural, family-balance and
-scikit-learn statistical readiness check. Embedding proximity remains a
-separate semantic diagnostic rather than a release gate or a prediction of SFT
-quality.
+The audited v1.0.11 32k projection (2026-08-04) contains 402,893 examples,
+including 402,193 training examples, 96,636,094 serialized tokens and
+31,977,724 supervised assistant tokens. Exact training prompt and response
+uniqueness is 100%, 22.09% of all examples are multi-turn, all 14 families are
+represented, all 17 invisible conditioning axes are recorded and no internal
+card or hand label remains in model-facing text. Binary lengths, indexes and
+manifest counts agree for every partition. The minimum-family-share diagnostic
+remains intentionally false because only 1,105 distinct training examples in
+`brainstorming_creativity` survive removal of hand identifiers and exact
+semantic duplicates; the release does not restore those duplicates merely to
+meet a ratio. Embedding proximity remains a separate semantic diagnostic rather
+than a release gate or a prediction of SFT quality.
 
 ## Repository layout
 

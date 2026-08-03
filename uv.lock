@@ -159,6 +159,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "scikit-learn" },
     { name = "tiktoken" },
+    { name = "tokenizers" },
 ]
 
 [package.optional-dependencies]
@@ -181,6 +182,7 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.5,<2" },
     { name = "sentence-transformers", marker = "extra == 'semantic-audit'", specifier = ">=5.1,<6" },
     { name = "tiktoken", specifier = ">=0.9" },
+    { name = "tokenizers", specifier = ">=0.22,<1" },
     { name = "wn", marker = "extra == 'wordnet-audit'", specifier = ">=1.1,<2" },
 ]
 provides-extras = ["dev", "wordnet-audit", "semantic-audit"]

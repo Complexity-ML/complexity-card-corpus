@@ -16,6 +16,36 @@ _HAND_PREFIX = re.compile(
 )
 
 
+# These labels describe the internal card store, not the user's request.  Keep
+# the card provenance in projected metadata while removing the storage syntax
+# from the model-facing conversation.
+_INTERNAL_CARD_LABEL = re.compile(
+    r"(?i)\b(?:learning|calculation|creative\s+constraint)\s+card"
+    r"(?:\s+ID)?(?:\s+[A-Z0-9-]{4,})?\s*:\s*"
+)
+
+
+def _without_internal_card_labels(text: str) -> str:
+    """Remove internal card labels while preserving their authored payload."""
+
+    cleaned = _INTERNAL_CARD_LABEL.sub("", text)
+    # A removed label can expose a lower-case imperative at the start of a
+    # paragraph (for example ``Calculation card A1B2: convert ...``).
+    paragraphs = re.split(r"(\n+)", cleaned)
+    for index in range(0, len(paragraphs), 2):
+        paragraph = paragraphs[index]
+        initial = re.search(r"[A-Za-z]", paragraph)
+        if initial is None:
+            continue
+        position = initial.start()
+        paragraphs[index] = (
+            paragraph[:position]
+            + paragraph[position].upper()
+            + paragraph[position + 1 :]
+        )
+    return "".join(paragraphs)
+
+
 def _stable_index(value: str, size: int) -> int:
     return int.from_bytes(hashlib.sha256(value.encode()).digest()[:8], "big") % size
 
@@ -36,7 +66,9 @@ def _card_sections(messages: list[dict[str, str]]) -> dict[str, str] | None:
     merged = _merged_user_content(messages)
     parts = _CARD_SECTION.split(merged)
     sections = {
-        parts[index].lower(): parts[index + 1].strip()
+        parts[index].lower(): _without_internal_card_labels(
+            parts[index + 1].strip()
+        )
         for index in range(1, len(parts) - 1, 2)
     }
     required = {"situation", "data", "rule", "goal"}

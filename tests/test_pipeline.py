@@ -6,14 +6,43 @@ from pathlib import Path
 
 import numpy as np
 import pyarrow.parquet as pq
+from tokenizers import Tokenizer
+from tokenizers.models import WordLevel
+from tokenizers.pre_tokenizers import Whitespace
 
 from complexity_card_corpus.build import build_corpus
 from complexity_card_corpus.package import package_for_hugging_face
 from complexity_card_corpus.source import discover_datasets
-from complexity_card_corpus.tokenize import tokenize_documents
+from complexity_card_corpus.tokenize import load_encoding, tokenize_documents
 
 
 ROOT = Path(__file__).parents[1]
+
+
+def test_load_encoding_supports_huggingface_tokenizer_directories(
+    tmp_path: Path,
+) -> None:
+    tokenizer = Tokenizer(
+        WordLevel(
+            vocab={"</s>": 0, "<unk>": 1, "hello": 2, "world": 3},
+            unk_token="<unk>",
+        )
+    )
+    tokenizer.pre_tokenizer = Whitespace()
+    tokenizer.save(str(tmp_path / "tokenizer.json"))
+    (tmp_path / "tokenizer_config.json").write_text(
+        json.dumps({"eos_token": "</s>", "tokenizer_class": "PreTrainedTokenizerFast"})
+    )
+
+    encoding, config = load_encoding(tmp_path)
+
+    assert encoding.n_vocab == 4
+    assert encoding.eot_token == 0
+    assert encoding.encode_single_token("</s>") == 0
+    assert encoding.encode("hello world", disallowed_special=()) == [2, 3]
+    assert encoding.decode([2, 3, 0]) == "hello world </s>"
+    assert config["backend"] == "huggingface_tokenizers"
+    assert config["encoding_name"].startswith("hf:")
 
 
 def test_sources_form_a_valid_graph() -> None:
