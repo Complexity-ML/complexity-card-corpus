@@ -509,9 +509,35 @@ within-family dispersion:
 ```bash
 uv sync --extra semantic-audit
 uv run card-corpus audit-embeddings \
-  --conversations build/post-training/conversations.parquet \
-  --output build/post-training/embedding-audit.json
+  --conversations build/post-training-o200k/projected.parquet \
+  --output build/post-training-o200k/embedding-audit.json
 ```
+
+Run response-level audits on `projected.parquet`, not on the authored card
+representation. The projection is the natural prompt and target surface seen
+by SFT; auditing the source cards instead would mostly measure repeated card
+labels. Completion contracts are audited separately from the authored
+conversation Parquet. The audit compares each natural intent with the distinct
+legitimate contracts available inside its family. Intents that intentionally
+share a contract are treated as equivalent candidates:
+
+```bash
+uv run card-corpus audit-contract-embeddings \
+  --conversations build/post-training/conversations.parquet \
+  --output build/post-training/contract-embedding-audit-minilm.json
+
+uv run card-corpus audit-contract-embeddings \
+  --conversations build/post-training/conversations.parquet \
+  --output build/post-training/contract-embedding-audit-mxbai.json \
+  --model mixedbread-ai/mxbai-embed-large-v1 \
+  --revision b33106f585b9ce46904ad7443a3b52b7a63e231c
+```
+
+The structural checks require one non-empty contract per family-intent pair
+and complete coverage of all fourteen families. Embedding alignment is a
+diagnostic for reviewing whether the semantic field names express their
+intent; it is not a reason to add artificial nesting or to reject two correct
+JSON objects merely because they share a schema.
 
 The embedding model truncates long inputs at its 256-wordpiece limit. The
 report therefore labels these measurements as a statistical semantic

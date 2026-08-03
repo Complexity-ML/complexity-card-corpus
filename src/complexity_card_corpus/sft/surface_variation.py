@@ -1956,11 +1956,11 @@ _COMMON_RULES: dict[str, tuple[_SurfaceRule, ...]] = {
                 (
                     "All options",
                     "The alternatives",
-                    "Every proposal",
-                    "The candidate set",
-                    "Each idea",
+                    "The proposals",
+                    "The candidates",
+                    "The ideas",
                     "The retained choices",
-                    "The option pool",
+                    "The options in the pool",
                     "These proposals",
                 ),
                 (

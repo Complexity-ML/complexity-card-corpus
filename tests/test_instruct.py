@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from complexity_card_corpus.sft.schema import INSTRUCTION_SCHEMA
 from complexity_card_corpus.sft.answer_development import develop_answer
 from complexity_card_corpus.sft.dialogue_links import preserve_linked_dialogue
 from complexity_card_corpus.sft.evaluation import (
+    _audit_sft_projection,
     _normalized_opening,
     _text_repetition_signatures,
     assert_sft_opening_diversity,
@@ -878,6 +880,51 @@ def test_every_generalist_contract_has_a_direct_projection_without_build() -> No
         )
 
 
+def test_brainstorm_projection_preserves_content_after_comparison() -> None:
+    response = (
+        "Candidate set: 1. Fold and Compare. 2. Fraction Match. 3. Missing Piece. "
+        "Fit with the brief: All three options fit the paper-only limit. "
+        "Comparison result: The alternatives emphasize different strengths. "
+        "Select this option: Fold and Compare because equality is directly visible."
+    )
+    _prompt, target, _cards = _project_sft_exchange(
+        [
+            {"role": "user", "content": "Propose three activities."},
+            {"role": "assistant", "content": response},
+        ],
+        example_id="brainstorm:preserve-tail",
+        task="brainstorming_creativity",
+        answer_json="{}",
+    )
+
+    assert "The alternatives emphasize different strengths." in target
+    assert target.endswith(
+        "Select Fold and Compare because equality is directly visible."
+    )
+    assert "Comparison result:" not in target
+
+
+@pytest.mark.parametrize(
+    "target",
+    (
+        "The options are feasible. Comparison result:",
+        "The recommendation is",
+        "The final alternative —",
+    ),
+)
+def test_projection_audit_rejects_incomplete_targets(target: str) -> None:
+    with pytest.raises(ValueError, match="model-facing answer is incomplete"):
+        _audit_sft_projection(
+            [
+                {
+                    "example_id": "incomplete:target",
+                    "task": "brainstorming_creativity",
+                    "_projected_target": target,
+                }
+            ]
+        )
+
+
 def test_troubleshooting_projection_naturalizes_inline_check_label() -> None:
     _prompt, target, _cards = _project_sft_exchange(
         [
@@ -1454,6 +1501,32 @@ def test_surface_variation_balances_existing_language_without_new_cards() -> Non
     assert audit["applications"] == {
         "brainstorming_creativity:user:brainstorm-directive": 100
     }
+
+
+def test_brainstorm_boundary_variants_preserve_subject_verb_agreement() -> None:
+    balancer = SurfaceVariationBalancer()
+    source = [
+        {"role": "user", "content": "Compare three feasible options."},
+        {
+            "role": "assistant",
+            "content": "The options remain bounded by the explicit brief.",
+        },
+    ]
+    generated = [
+        balancer.rewrite_messages(
+            source,
+            task="brainstorming_creativity",
+            example_id=f"brainstorm:agreement:{index}",
+        )[1]["content"]
+        for index in range(256)
+    ]
+
+    invalid = re.compile(
+        r"\b(?:every proposal|each idea|the candidate set|the option pool) "
+        r"(?:stay|respect|remain|fit)\b",
+        flags=re.IGNORECASE,
+    )
+    assert not any(invalid.search(text) for text in generated)
 
 
 def test_surface_variation_preserves_dynamic_grounded_request() -> None:

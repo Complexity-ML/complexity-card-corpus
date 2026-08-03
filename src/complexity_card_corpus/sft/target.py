@@ -587,9 +587,14 @@ def _naturalize_assistant_target(
         )
         return direct
     elif task == "brainstorming_creativity":
+        # Remove only the generic audit sentences themselves.  The previous
+        # tail-anchored expression removed everything after one of these
+        # sentences, including the actual comparison and selection whenever
+        # response-card ordering placed them later in the answer.
         direct = re.sub(
-            r"\s+(?:Each description states.*|The three retained ideas remain feasible.*|The alternatives emphasize.*)$",
-            "",
+            r"(?:^|\s+)(?:Each description states|"
+            r"The three retained ideas remain feasible)[^.!?]*(?:[.!?]|$)",
+            " ",
             response,
             flags=re.IGNORECASE,
         )
@@ -599,7 +604,20 @@ def _naturalize_assistant_target(
             direct,
             flags=re.IGNORECASE,
         )
-        return direct.strip()
+        direct = re.sub(
+            r"\b(?:Criteria review|Constraint review|Fit with the brief|"
+            r"Outcome review|Comparison result|Practical result):\s*",
+            "",
+            direct,
+            flags=re.IGNORECASE,
+        )
+        direct = re.sub(
+            r"\bSelect (?:this option|the strongest fit):\s*",
+            "Select ",
+            direct,
+            flags=re.IGNORECASE,
+        )
+        return re.sub(r"\s+", " ", direct).strip()
     elif task == "writing_transformation":
         direct = re.sub(
             r"^(?:Here is the revised text|The concise version is):\s*",

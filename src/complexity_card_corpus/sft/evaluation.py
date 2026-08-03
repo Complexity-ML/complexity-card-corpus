@@ -128,6 +128,15 @@ _SENTENCE_BOUNDARY = re.compile(r"(?:[.!?]+|\n+)")
 _ROLE_LABEL = re.compile(r"(?im)^\s*(?:user|assistant):\s*")
 _LIST_MARKER = re.compile(r"^\s*(?:\d+[.)]|[-*•])\s*")
 _STRUCTURED_RESPONSE_TASKS = {"extraction_classification"}
+_INCOMPLETE_TARGET_ENDING = re.compile(
+    r"(?:[:\-—]|\b(?:and|or|because|with|without|to|the|a|an|is|are|was|were))\s*$",
+    flags=re.IGNORECASE,
+)
+_EMPTY_RESPONSE_HEADING = re.compile(
+    r"\b(?:comparison result|criteria review|outcome review|practical result|"
+    r"fit with the brief|selection|recommendation):\s*$",
+    flags=re.IGNORECASE,
+)
 
 
 def _dimension_is_audited(task: str, dimension: str) -> bool:
@@ -691,9 +700,10 @@ def assert_sft_repetition_quality(
 
 def _audit_sft_projection(rows: list[dict[str, Any]]) -> dict[str, Any]:
     hits: list[dict[str, str]] = []
+    incomplete_targets: list[dict[str, str]] = []
     by_task: dict[str, Counter[str]] = defaultdict(Counter)
     for row in rows:
-        target = row["_projected_target"]
+        target = row["_projected_target"].strip()
         lowered = target.lower()
         for phrase in _FORBIDDEN_SFT_TARGET_PHRASES:
             if phrase in lowered:
@@ -704,9 +714,30 @@ def _audit_sft_projection(rows: list[dict[str, Any]]) -> dict[str, Any]:
                         "phrase": phrase,
                     }
                 )
+        if not target or _INCOMPLETE_TARGET_ENDING.search(target):
+            incomplete_targets.append(
+                {
+                    "example_id": row["example_id"],
+                    "task": row["task"],
+                    "ending": target[-120:],
+                }
+            )
+        elif _EMPTY_RESPONSE_HEADING.search(target):
+            incomplete_targets.append(
+                {
+                    "example_id": row["example_id"],
+                    "task": row["task"],
+                    "ending": target[-120:],
+                }
+            )
         by_task[row["task"]][_normalized_structure(target)] += 1
     if hits:
         raise ValueError(f"model-facing answer contains a control rubric: {hits[0]}")
+    if incomplete_targets:
+        raise ValueError(
+            "model-facing answer is incomplete: "
+            f"{incomplete_targets[0]}"
+        )
     task_stats = {
         task: {
             "examples": sum(counts.values()),
@@ -734,5 +765,6 @@ def _audit_sft_projection(rows: list[dict[str, Any]]) -> dict[str, Any]:
             len({row["_projected_target"] for row in rows}) / len(rows), 6
         ),
         "control_rubric_hits": 0,
+        "incomplete_target_hits": 0,
         "tasks": task_stats,
     }
