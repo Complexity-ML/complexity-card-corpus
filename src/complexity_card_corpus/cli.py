@@ -9,6 +9,7 @@ import pyarrow.parquet as pq
 
 from .build import build_corpus
 from .conversation_blueprint import build_conversation_blueprints
+from .contract_embedding_audit import audit_contract_dataset_with_embeddings
 from .dictionary_review import write_dictionary_review
 from .definition_acceptance import accept_definition_proposals
 from .embedding_guidance import build_embedding_guidance
@@ -227,9 +228,7 @@ def parser() -> argparse.ArgumentParser:
         type=Path,
         action="append",
         default=[],
-        help=(
-            "additional original instruction/conversation Parquet; may be repeated"
-        ),
+        help=("additional original instruction/conversation Parquet; may be repeated"),
     )
     tokenize_instruct.add_argument("--tokenizer", type=Path, required=True)
     tokenize_instruct.add_argument("--output", type=Path, required=True)
@@ -298,9 +297,7 @@ def parser() -> argparse.ArgumentParser:
         default=0,
         help="0 selects an adaptive value from the corpus size",
     )
-    sklearn_audit.add_argument(
-        "--near-duplicate-threshold", type=float, default=0.95
-    )
+    sklearn_audit.add_argument("--near-duplicate-threshold", type=float, default=0.95)
     sklearn_audit.add_argument(
         "--max-features",
         type=int,
@@ -343,14 +340,22 @@ def parser() -> argparse.ArgumentParser:
         "--workers", type=int, default=max(1, min(8, os.cpu_count() or 1))
     )
 
+    contract_embedding_audit = commands.add_parser("audit-contract-embeddings")
+    contract_embedding_audit.add_argument("--conversations", type=Path, required=True)
+    contract_embedding_audit.add_argument("--output", type=Path, required=True)
+    contract_embedding_audit.add_argument("--model", default=DEFAULT_EMBEDDING_MODEL)
+    contract_embedding_audit.add_argument(
+        "--revision", default=DEFAULT_EMBEDDING_REVISION
+    )
+    contract_embedding_audit.add_argument("--device")
+    contract_embedding_audit.add_argument("--batch-size", type=int, default=128)
+
     embedding_guidance = commands.add_parser("build-embedding-guidance")
     embedding_guidance.add_argument("--dictionary", type=Path, required=True)
     embedding_guidance.add_argument("--semantic-audit", type=Path, required=True)
     embedding_guidance.add_argument("--output", type=Path, required=True)
     embedding_guidance.add_argument("--model", default=DEFAULT_EMBEDDING_MODEL)
-    embedding_guidance.add_argument(
-        "--revision", default=DEFAULT_EMBEDDING_REVISION
-    )
+    embedding_guidance.add_argument("--revision", default=DEFAULT_EMBEDDING_REVISION)
     embedding_guidance.add_argument("--device")
     embedding_guidance.add_argument("--batch-size", type=int, default=128)
     embedding_guidance.add_argument("--alternatives-per-token", type=int, default=5)
@@ -626,9 +631,7 @@ def main() -> None:
             max_examples_per_family=(args.max_examples_per_family or None),
             max_per_structure=(args.max_per_structure or None),
             max_domain_share=(args.max_domain_share or None),
-            max_response_card_hand_share=(
-                args.max_response_card_hand_share or None
-            ),
+            max_response_card_hand_share=(args.max_response_card_hand_share or None),
             target_training_examples=(args.target_training_examples or None),
             target_supervised_tokens=(args.target_supervised_tokens or None),
         )
@@ -682,6 +685,16 @@ def main() -> None:
             semantic_duplicate_threshold=args.semantic_duplicate_threshold,
             batch_size=args.batch_size,
             workers=args.workers,
+        )
+        print(json.dumps(result, indent=2, sort_keys=True))
+    elif args.command == "audit-contract-embeddings":
+        result = audit_contract_dataset_with_embeddings(
+            args.conversations,
+            args.output,
+            model_name=args.model,
+            model_revision=args.revision,
+            device=args.device,
+            batch_size=args.batch_size,
         )
         print(json.dumps(result, indent=2, sort_keys=True))
     elif args.command == "build-embedding-guidance":

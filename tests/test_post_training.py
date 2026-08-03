@@ -34,7 +34,10 @@ from complexity_card_corpus.scenarios import (
 )
 from complexity_card_corpus.tasks import deal_task_hand
 from complexity_card_corpus.tasks.core import DealtCard, LinkedSubcardDeck, SubcardPool
-
+from complexity_card_corpus.tasks.intent_contracts import (
+    intent_contract_catalog,
+    intent_contract_for,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "data/scenario-forge/scenario-forge-v1.json"
@@ -127,14 +130,18 @@ def _task_row(
     domain: str,
     *,
     scenario: str = "abcdef123456",
+    intent: str | None = None,
     constraint: str = "Keep the action bounded.",
     state: str = "",
 ) -> dict:
+    if intent is None:
+        family_contracts = intent_contract_catalog().get(family)
+        intent = next(iter(family_contracts)) if family_contracts else "extract"
     return {
         "scenario_id": f"scenario:{scenario}",
         "family": family,
         "domain": domain,
-        "intent": "verify",
+        "intent": intent,
         "constraint": constraint,
         "state": state,
         "semantic_payload": json.dumps(
@@ -191,6 +198,41 @@ def test_every_registered_domain_deals_a_valid_task_hand() -> None:
                 assert len(layer.compatibility_links) == len(layer.pool_names) - 1
             if pair[0] != "extraction_classification":
                 assert len(hand.answer.deck_lineage) >= 2
+
+
+def test_every_non_json_family_intent_has_an_authored_completion_contract() -> None:
+    registry = load_scenario_registry(REGISTRY)
+    catalog = intent_contract_catalog()
+    expected = {
+        family.family_id: {intent.atom_id for intent in family.intents}
+        for family in registry.families
+        if family.family_id != "extraction_classification"
+    }
+
+    assert set(catalog) == set(expected)
+    for family, intents in expected.items():
+        assert set(catalog[family]) == intents
+        assert all(len(contract) >= 3 for contract in catalog[family].values())
+        assert len(set(catalog[family].values())) >= 4
+
+
+def test_dealt_non_json_hands_expose_their_intent_contract() -> None:
+    scenarios = compile_scenarios(
+        load_scenario_registry(REGISTRY),
+        target_scenarios=EXPECTED_SCENARIOS,
+    )
+    representatives: dict[tuple[str, str], dict] = {}
+    for scenario in scenarios:
+        if scenario["family"] != "extraction_classification":
+            representatives.setdefault(
+                (scenario["family"], scenario["intent"]),
+                scenario,
+            )
+
+    for pair, scenario in representatives.items():
+        assert deal_task_hand(scenario, 0).contract == intent_contract_for(
+            scenario
+        ), pair
 
 
 def test_every_family_answer_deck_has_deep_generalist_reservoirs() -> None:
@@ -473,6 +515,7 @@ def test_extraction_emits_exactly_the_requested_schema() -> None:
         0,
     )
     assert set(json.loads(hand.answer)) == {
+        "record_id",
         "case",
         "observed",
         "reported",
@@ -492,6 +535,61 @@ def test_extraction_record_labels_are_not_repeated() -> None:
             0,
         )
         assert "record record" not in hand.data.lower()
+
+
+def test_extraction_intents_deal_distinct_json_contracts() -> None:
+    expected_keys = {
+        "classify": {
+            "record_id",
+            "label",
+            "label_set",
+            "completeness",
+            "basis",
+        },
+        "missing": {
+            "record_id",
+            "record_type",
+            "missing_fields",
+            "present_fields",
+            "present_sample",
+            "next_action",
+        },
+        "standardize_records": {
+            "record_id",
+            "record_type",
+            "normalized_record",
+            "conflicts",
+        },
+    }
+    for intent, keys in expected_keys.items():
+        hand = deal_task_hand(
+            _task_row(
+                "extraction_classification",
+                "contact_record",
+                intent=intent,
+                state="At least one required field is absent.",
+            ),
+            0,
+        )
+        assert set(json.loads(hand.answer)) == keys
+
+
+def test_extraction_value_reservoir_varies_domain_records() -> None:
+    records = []
+    for index in range(24):
+        hand = deal_task_hand(
+            _task_row(
+                "extraction_classification",
+                "contact_record",
+                scenario=f"{index:06x}abcdef",
+                intent="extract",
+                state="At least one required field is absent.",
+            ),
+            0,
+        )
+        record = json.loads(hand.answer)
+        records.append((record["name"], record["role"], record["organization"]))
+    assert len(set(records)) >= 12
 
 
 def test_event_brainstorm_checks_every_hard_constraint() -> None:
@@ -799,10 +897,7 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
         for metrics in result["audit"]["family_metrics"].values()
     )
     scale = result["audit"]["scale_100k"]
-    assert (
-        required_distinct_surfaces_per_source_card(EXPECTED_SCENARIOS, 100_000)
-        == 4
-    )
+    assert required_distinct_surfaces_per_source_card(EXPECTED_SCENARIOS, 100_000) == 4
     assert scale["target_rows"] == 100_000
     assert scale["source_cards"] == EXPECTED_SCENARIOS
     assert scale["required_distinct_surfaces_per_source_card"] == 4

@@ -8,10 +8,11 @@ from typing import Any
 from .action import _planning, _practical, _troubleshooting
 from .communication import _clarification, _empathy, _explanation, _writing
 from .core import TaskHand, _code, _compose_subcards
-from .knowledge import _extraction, _grounded_qa, _summary
+from .extraction import render_extraction
+from .intent_contracts import intent_contract_for
+from .knowledge import _grounded_qa, _summary
 from .reasoning import _brainstorm, _critique, _reasoning
 from .safety import _safety
-
 
 _RENDERERS = {
     "practical_action": _practical,
@@ -23,7 +24,7 @@ _RENDERERS = {
     "safety_uncertainty": _safety,
     "grounded_qa": _grounded_qa,
     "summarization_synthesis": _summary,
-    "extraction_classification": _extraction,
+    "extraction_classification": render_extraction,
     "reasoning_verification": _reasoning,
     "critique_revision": _critique,
     "brainstorming_creativity": _brainstorm,
@@ -53,7 +54,11 @@ def deal_task_hand(row: dict[str, Any], variant: int) -> TaskHand:
             pool_names=("hand_reference", "family_answer"),
             cycle_first_pool=True,
         )
-        hand = replace(hand, answer=answer)
+        hand = replace(
+            hand,
+            answer=answer,
+            contract=intent_contract_for(row),
+        )
     validate_task_hand(row["family"], hand)
     return hand
 
@@ -69,14 +74,8 @@ def validate_task_hand(family: str, hand: TaskHand) -> None:
             all(x in hand.answer for x in ("Core idea:", "Example:", "Check:"))
             and "?" in hand.answer
         ),
-        "troubleshooting": lambda: (
-            hand.contract == ("steps", "direct_check", "regression_check")
-            and all(x in hand.answer for x in ("1.", "2.", "3."))
-        ),
-        "writing_transformation": lambda: (
-            hand.contract == ("faithful_rewrite", "owner", "timing")
-            and len(hand.answer.split()) >= 12
-        ),
+        "troubleshooting": lambda: (all(x in hand.answer for x in ("1.", "2.", "3."))),
+        "writing_transformation": lambda: (len(hand.answer.split()) >= 12),
         "planning_comparison": lambda: all(
             x in hand.answer for x in ("Choose", "Sequence:", "Fallback trigger:")
         ),
@@ -84,10 +83,7 @@ def validate_task_hand(family: str, hand: TaskHand) -> None:
         "safety_uncertainty": lambda: all(
             x in hand.answer for x in ("Immediate action:", "Boundary:", "Escalate")
         ),
-        "grounded_qa": lambda: (
-            hand.contract == ("direct_answer", "evidence", "unknown")
-            and "unknown" in hand.answer.lower()
-        ),
+        "grounded_qa": lambda: ("unknown" in hand.answer.lower()),
         "summarization_synthesis": lambda: all(
             x in hand.answer for x in ("Decision:", "Action:", "Open point:")
         ),
