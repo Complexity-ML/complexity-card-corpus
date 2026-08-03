@@ -650,7 +650,9 @@ stopping signal. `manifest.json` records both provenances, structural
 deduplication, target diversity by family, the held-out file hash and
 train/evaluation overlap. The same output directory contains
 `projected.parquet`: the exact retained model-facing conversations after
-exact-response cleanup, family capping and structural repetition control.
+exact-response cleanup, deterministic surface selection and structural
+repetition auditing. Family or hand caps are manual opt-ins; the default build
+preserves every non-exact row and reports realized ratios.
 
 Release readiness is decided from the generated manifest, not the number of
 source rows. The required checks include exact prompt and answer uniqueness,
@@ -660,13 +662,15 @@ addressed by authoring genuinely distinct answers and conversations in weak
 families, not by loosening deduplication or restoring generic resolution
 paragraphs.
 
-The audited 2026-08-03 projection retains 54,379 training examples and
-3,921,861 supervised assistant tokens. Exact prompt and response uniqueness is
-100%, 14.09% of examples are multi-turn, no audited repetition signature or
-response-card hand exceeds 5%, and grounded question answering realizes 525
-distinct response-card hands. The current release is still experimental:
-additional original cards are required to reach 100,000 examples, 10 million
-supervised tokens and the target family balance.
+The audited v1.0.8 projection (2026-08-03) contains 412,000 examples, including
+411,300 training examples, and 30,567,493 supervised assistant tokens. Exact
+training prompt and response uniqueness is 100%, 11.50% of training examples
+are multi-turn, every one of the 14 families represents between 2% and 15% of
+training, and the largest response-card hand occupies 4.35% of its family.
+The release manifest passes every lexical, structural, family-balance and
+scikit-learn statistical readiness check. Embedding proximity remains a
+separate semantic diagnostic rather than a release gate or a prediction of SFT
+quality.
 
 ## Repository layout
 
