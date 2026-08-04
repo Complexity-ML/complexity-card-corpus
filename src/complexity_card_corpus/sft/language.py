@@ -28,7 +28,9 @@ _INTERNAL_CARD_LABEL = re.compile(
 def _without_internal_card_labels(text: str) -> str:
     """Remove internal card labels while preserving their authored payload."""
 
-    cleaned = _INTERNAL_CARD_LABEL.sub("", text)
+    cleaned, removed_labels = _INTERNAL_CARD_LABEL.subn("", text)
+    if removed_labels == 0:
+        return cleaned
     # A removed label can expose a lower-case imperative at the start of a
     # paragraph (for example ``Calculation card A1B2: convert ...``).
     paragraphs = re.split(r"(\n+)", cleaned)

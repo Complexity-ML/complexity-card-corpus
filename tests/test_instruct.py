@@ -309,6 +309,11 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
     template_path = tmp_path / "tokenized" / "chat_template.json"
     assert template_path.exists()
     template = json.loads(template_path.read_text())
+    encoding = load_encoding(tokenizer)[0]
+    try:
+        eos_id = encoding.encode_single_token(template["eos_token"])
+    except AttributeError:
+        eos_id = encoding.eot_token
     assert template["id"] == CHAT_TEMPLATE_ID
     assert template["assistant_only_loss"] is True
     assert template["training_projection"] == (
@@ -416,8 +421,28 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
                 local_inputs[1:][local_supervised],
                 local_labels[:-1][local_supervised],
             )
-            decoded = load_encoding(tokenizer)[0].decode(local_inputs.tolist())
+            supervised_mask = local_labels != IGNORE_INDEX
+            boundaries = np.diff(
+                np.pad(supervised_mask.astype(np.int8), (1, 1))
+            )
+            supervised_starts = np.flatnonzero(boundaries == 1)
+            supervised_ends = np.flatnonzero(boundaries == -1)
             source = source_rows[example["example_id"]]
+            assert len(supervised_starts) == len(supervised_ends) == sum(
+                message["role"] == "assistant"
+                for message in row_by_id[example["example_id"]]["messages"]
+            )
+            for run_start, run_end in zip(
+                supervised_starts,
+                supervised_ends,
+                strict=True,
+            ):
+                assert local_labels[run_end - 1] == eos_id
+                decoded_target = encoding.decode(
+                    local_labels[run_start:run_end].tolist()
+                )
+                assert "\n\nUser:\n" not in decoded_target
+            decoded = load_encoding(tokenizer)[0].decode(local_inputs.tolist())
             assert decoded.startswith(render_system_prefix(template) + "User:\n")
             assert "\n\nAssistant:\n" in decoded
             assert "SITUATION CARD" not in decoded
@@ -890,6 +915,32 @@ def test_every_generalist_contract_has_a_direct_projection_without_build() -> No
             task,
             target,
         )
+
+
+def test_extraction_projection_canonicalizes_json_key_casing_recursively() -> None:
+    _prompt, answer, _cards = _project_sft_exchange(
+        [
+            {"role": "user", "content": "Normalize this record."},
+            {
+                "role": "assistant",
+                "content": (
+                    '{"Record_id":"A1","Environment":"iOS",'
+                    '"Nested":{"Name":"Rin"}}'
+                ),
+            },
+        ],
+        example_id="test:canonical-json",
+        task="extraction_classification",
+        answer_json="{}",
+    )
+    assert json.loads(answer) == {
+        "record_id": "A1",
+        "environment": "iOS",
+        "nested": {"name": "Rin"},
+    }
+    assert answer == (
+        '{"record_id":"A1","environment":"iOS","nested":{"name":"Rin"}}'
+    )
 
 
 def test_brainstorm_projection_preserves_content_after_comparison() -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
@@ -25,6 +26,40 @@ def _response_phrase(
 
 def _clean_prefix(value: str, pattern: str) -> str:
     return re.sub(pattern, "", value.strip(), flags=re.IGNORECASE).strip()
+
+
+def _canonicalize_json_keys(value: Any) -> Any:
+    """Normalize model-facing JSON keys without changing source values."""
+
+    if isinstance(value, list):
+        return [_canonicalize_json_keys(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    normalized: dict[str, Any] = {}
+    for key, item in value.items():
+        canonical_key = str(key).casefold()
+        if canonical_key in normalized:
+            raise ValueError(
+                f"JSON target contains colliding keys after normalization: {key!r}"
+            )
+        normalized[canonical_key] = _canonicalize_json_keys(item)
+    return normalized
+
+
+def _canonicalize_json_target(response: str) -> str:
+    """Return one compact, consistently cased JSON training contract."""
+
+    try:
+        payload = json.loads(response)
+    except json.JSONDecodeError:
+        return response
+    if not isinstance(payload, dict):
+        return response
+    return json.dumps(
+        _canonicalize_json_keys(payload),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
 
 
 def _split_clarification_response(
@@ -659,7 +694,7 @@ def _naturalize_assistant_target(
             return render_response_card_hand(clauses, cards=cards)
         return response
     elif task == "extraction_classification":
-        return response
+        return _canonicalize_json_target(response)
     elif task == "planning_comparison":
         match = re.fullmatch(
             r"(.*?)\s+Sequence:\s*(.*?)\s+Fallback trigger:\s*(.*)",
