@@ -279,8 +279,8 @@ ratios of 15.3% with MiniLM and 35.36% with Mixedbread. Scaling therefore means
 authoring more topic and context cards, not dealing more surfaces from the same
 400 semantic pairs. Embedding results are diagnostics, not correctness proofs.
 
-For GPT-2-style dialogue adaptation, the training framework selects this
-source at runtime. Its 568-row conversation profile retains the 398 casual
+For natural dialogue adaptation, the training framework selects this source at
+runtime. Its 568-row conversation profile retains the 398 casual
 training pairs and uses approximately 70% `casual_conversation`,
 20% `conversation_empathy`, and 10% `practical_action`; a separate
 `casual-only` stage is available for focused diagnostics. Rows are selected

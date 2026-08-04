@@ -359,7 +359,7 @@ def build_casual_conversation_surface(
     manifest = {
         "format": "casual-conversation-surface-v1",
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "purpose": "additive GPT-2-style natural conversation supplement",
+        "purpose": "additive natural conversation supplement",
         "seed": seed,
         "counts": {
             "examples": len(rows),
