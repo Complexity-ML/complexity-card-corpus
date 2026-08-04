@@ -1,0 +1,421 @@
+{
+  "version": "1.0.0",
+  "language": "en",
+  "license": "CC BY-NC 4.0",
+  "source": "Complexity original casual conversation cards",
+  "authorship": "Original semantic topics, contexts and surface subcards authored for Complexity.",
+  "topic_cards": [
+    {
+      "topic_id": "casual:morning:quiet_start",
+      "domain": "daily_life",
+      "subcards": {
+        "opening": "I have started enjoying the first quiet half hour of the morning more than I expected.",
+        "acknowledgement": "A calm beginning can change the feel of the whole day.",
+        "question": "What do you usually do during that quiet time?",
+        "detail": "I make breakfast, leave my phone in another room, and listen to the sounds outside.",
+        "reply": "That sounds less like a strict routine and more like a gentle way to arrive in the day.",
+        "follow_up_question": "Which part would you miss most if the morning became busy again?",
+        "shift": "Probably the few minutes when nothing is asking for my attention yet.",
+        "closing": "That small pocket of unclaimed time seems to be the real pleasure in the routine."
+      }
+    },
+    {
+      "topic_id": "casual:cooking:improvised_soup",
+      "domain": "food",
+      "subcards": {
+        "opening": "I made a surprisingly good soup from vegetables that needed to be used up.",
+        "acknowledgement": "Meals assembled from odds and ends can be especially satisfying when they come together.",
+        "question": "What gave the soup most of its flavor?",
+        "detail": "Roasted garlic, a little smoked paprika, and lemon at the end made the biggest difference.",
+        "reply": "The lemon probably kept the roasted flavors from feeling too heavy.",
+        "follow_up_question": "Would you try to reproduce it exactly or keep it as an improvised recipe?",
+        "shift": "I would keep the basic idea but use whatever vegetables happen to be around.",
+        "closing": "That leaves you with a useful method rather than a recipe that depends on one exact shopping list."
+      }
+    },
+    {
+      "topic_id": "casual:music:late_album",
+      "domain": "music",
+      "subcards": {
+        "opening": "An album I ignored for years has suddenly become the one I play most often.",
+        "acknowledgement": "Sometimes music reaches us only when our attention or circumstances have changed.",
+        "question": "What finally made the album click for you?",
+        "detail": "I heard one of the quieter songs alone at night and noticed details I had missed before.",
+        "reply": "A different setting can reveal the space and texture in a song more clearly.",
+        "follow_up_question": "Has that changed how you hear the rest of the album?",
+        "shift": "Yes, the louder tracks now feel connected to the quieter ones instead of competing with them.",
+        "closing": "It sounds as though one song gave you a new way into the whole record."
+      }
+    },
+    {
+      "topic_id": "casual:reading:slow_novel",
+      "domain": "books",
+      "subcards": {
+        "opening": "I am reading a novel very slowly, and for once I do not feel guilty about the pace.",
+        "acknowledgement": "Some books become richer when there is room to live with them between chapters.",
+        "question": "What makes this one worth reading slowly?",
+        "detail": "The plot is simple, but the observations about ordinary people keep staying with me.",
+        "reply": "That kind of writing often rewards attention more than momentum.",
+        "follow_up_question": "Do you find yourself returning to particular passages?",
+        "shift": "I have reread a few descriptions because they changed how I noticed similar moments outside the book.",
+        "closing": "Then the slower pace is letting the novel continue beyond the page, which seems fitting for this book."
+      }
+    },
+    {
+      "topic_id": "casual:film:comfort_rewatch",
+      "domain": "film",
+      "subcards": {
+        "opening": "I rewatched an old film and enjoyed the familiar parts more than the surprises.",
+        "acknowledgement": "A familiar film can feel like revisiting a place whose corners you already know.",
+        "question": "What felt different this time even though the story was the same?",
+        "detail": "I paid more attention to the background performances and the pauses between the main scenes.",
+        "reply": "Knowing the plot can free your attention for all the quieter choices around it.",
+        "follow_up_question": "Did any minor character become more interesting on this viewing?",
+        "shift": "The neighbor who barely speaks seemed much funnier once I watched his reactions.",
+        "closing": "That is one of the pleasures of a rewatch: the edges of the film can move toward the center."
+      }
+    },
+    {
+      "topic_id": "casual:walking:unplanned_route",
+      "domain": "outdoors",
+      "subcards": {
+        "opening": "I took a longer route home and found a small street I had never noticed.",
+        "acknowledgement": "An unplanned detour can make a familiar area feel new again.",
+        "question": "What caught your attention on that street?",
+        "detail": "There were old trees, a tiny workshop, and several front gardens with handmade signs.",
+        "reply": "Those details sound distinctive enough to make the street feel like its own little world.",
+        "follow_up_question": "Would you return there deliberately or keep it as part of a wandering route?",
+        "shift": "I think I will return, but I would like to approach it from another direction next time.",
+        "closing": "That keeps some of the discovery while giving you a place worth revisiting."
+      }
+    },
+    {
+      "topic_id": "casual:learning:language_phrase",
+      "domain": "learning",
+      "subcards": {
+        "opening": "A phrase in the language I am learning finally sounded natural when I said it today.",
+        "acknowledgement": "That moment can feel like a small shift from remembering words to actually using them.",
+        "question": "What helped the phrase feel natural this time?",
+        "detail": "I heard it in several conversations and copied the rhythm instead of translating each word.",
+        "reply": "Following the rhythm probably helped you treat the phrase as one usable unit.",
+        "follow_up_question": "Do you want to practice it in a few different situations now?",
+        "shift": "Yes, I want to vary the context without changing the basic pattern too quickly.",
+        "closing": "That should make the phrase flexible while preserving the sound that helped it settle."
+      }
+    },
+    {
+      "topic_id": "casual:garden:balcony_herbs",
+      "domain": "gardening",
+      "subcards": {
+        "opening": "The herbs on my balcony are finally growing faster than I can use them.",
+        "acknowledgement": "That is a pleasant problem after waiting for small plants to establish themselves.",
+        "question": "Which herb has surprised you most?",
+        "detail": "The mint has spread everywhere, while the basil is slower but smells wonderful in the evening.",
+        "reply": "The mint sounds determined, and the basil seems to be earning its space in a quieter way.",
+        "follow_up_question": "Have you found a simple use that lets each one stand out?",
+        "shift": "Mint goes into cold water, and I save the basil for tomatoes or warm bread.",
+        "closing": "Those small uses fit the plants well and make the balcony part of your daily meals."
+      }
+    },
+    {
+      "topic_id": "casual:pet:window_watch",
+      "domain": "animals",
+      "subcards": {
+        "opening": "My cat has developed a serious daily appointment with the same window.",
+        "acknowledgement": "Animals can turn a simple view into a ritual with impressive consistency.",
+        "question": "What usually appears outside at that time?",
+        "detail": "A pair of birds visits the roof, and sometimes a delivery bicycle passes below.",
+        "reply": "That gives your cat a dependable program with both recurring characters and occasional action.",
+        "follow_up_question": "Does the routine continue even on quiet days?",
+        "shift": "Yes, the window itself seems to be enough, even when nothing obvious happens.",
+        "closing": "Then the watching may matter as much as whatever appears in the view."
+      }
+    },
+    {
+      "topic_id": "casual:travel:station_memory",
+      "domain": "travel",
+      "subcards": {
+        "opening": "I remembered a train station from a trip more clearly than the famous places I visited.",
+        "acknowledgement": "Travel memories often attach themselves to ordinary pauses rather than planned highlights.",
+        "question": "What made that station stay with you?",
+        "detail": "It was early, the platforms were almost empty, and a bakery was just beginning to open.",
+        "reply": "The quiet timing and the smell from the bakery probably gave the moment a complete atmosphere.",
+        "follow_up_question": "Did anything important happen there, or was the mood itself enough?",
+        "shift": "Nothing important happened; I simply felt very present while waiting for the train.",
+        "closing": "That may be why the memory lasted: it was a brief moment with nothing competing for your attention."
+      }
+    },
+    {
+      "topic_id": "casual:photography:reflections",
+      "domain": "photography",
+      "subcards": {
+        "opening": "I have been noticing reflections in shop windows whenever I take photographs.",
+        "acknowledgement": "Reflections can layer a street scene without requiring anything dramatic to happen.",
+        "question": "What do you like to include in those layered images?",
+        "detail": "I try to combine a person inside, the buildings outside, and a small patch of sky.",
+        "reply": "That creates several spaces in one frame while still keeping the scene grounded in an ordinary place.",
+        "follow_up_question": "Do you plan the composition or wait until the layers align?",
+        "shift": "I choose the angle first, then wait for someone to move through the right part of the reflection.",
+        "closing": "So the photograph is partly composed and partly discovered, which suits that kind of image."
+      }
+    },
+    {
+      "topic_id": "casual:exercise:evening_stretch",
+      "domain": "wellbeing",
+      "subcards": {
+        "opening": "A short stretch in the evening has been easier to maintain than any ambitious exercise plan.",
+        "acknowledgement": "A modest habit often survives because it does not need ideal conditions.",
+        "question": "What makes the evening timing work for you?",
+        "detail": "It marks the end of work and only takes a few minutes before I start cooking.",
+        "reply": "Linking it to a transition you already make gives the habit a natural place in the day.",
+        "follow_up_question": "Do you want to expand it or protect its current simplicity?",
+        "shift": "I would rather keep it short and add movement elsewhere only when I genuinely want to.",
+        "closing": "Protecting the easy version may be more valuable than turning it into another demanding plan."
+      }
+    },
+    {
+      "topic_id": "casual:tea:afternoon_pot",
+      "domain": "food",
+      "subcards": {
+        "opening": "Making a small pot of tea has become my favorite part of the afternoon.",
+        "acknowledgement": "A repeated pause can become meaningful even when the action itself is very simple.",
+        "question": "What do you enjoy most about that pause?",
+        "detail": "I like waiting for the water, choosing a cup, and not doing anything else for a moment.",
+        "reply": "The sequence seems to create a boundary around the pause before you even drink the tea.",
+        "follow_up_question": "Does the kind of tea matter much to the ritual?",
+        "shift": "Not really; the preparation matters more, although I choose something lighter on warm days.",
+        "closing": "Then the ritual is portable because the attention, rather than one particular tea, carries it."
+      }
+    },
+    {
+      "topic_id": "casual:neighborhood:bakery_line",
+      "domain": "neighborhood",
+      "subcards": {
+        "opening": "The line at the neighborhood bakery has become an unexpectedly social place.",
+        "acknowledgement": "Repeated small encounters can give an ordinary queue a sense of community.",
+        "question": "What kinds of conversations happen there?",
+        "detail": "People compare what is left, comment on the weather, and sometimes recommend something new.",
+        "reply": "Those brief exchanges sound easy because everyone already shares the same immediate setting.",
+        "follow_up_question": "Have you started recognizing particular people?",
+        "shift": "A few faces are familiar now, even though we mostly know one another by our usual orders.",
+        "closing": "That is a small form of belonging, built from recognition rather than formal introductions."
+      }
+    },
+    {
+      "topic_id": "casual:home:desk_reset",
+      "domain": "daily_life",
+      "subcards": {
+        "opening": "Clearing my desk at the end of the day has made starting the next morning much easier.",
+        "acknowledgement": "A visible reset can spare you from reopening yesterday's clutter before new work begins.",
+        "question": "What do you leave on the desk overnight?",
+        "detail": "Only the notebook for tomorrow, a pen, and the lamp stay in place.",
+        "reply": "That is enough to suggest the next step without turning the desk into a display of unfinished tasks.",
+        "follow_up_question": "Was it difficult to decide where everything else should go?",
+        "shift": "At first it was, but a small tray now holds anything that needs attention later.",
+        "closing": "The tray gives unfinished work a home, so clearing the desk no longer means forgetting it."
+      }
+    },
+    {
+      "topic_id": "casual:sleep:late_reading",
+      "domain": "wellbeing",
+      "subcards": {
+        "opening": "Reading a few pages before sleep works better for me than trying to force myself to feel tired.",
+        "acknowledgement": "A quiet activity can make the transition to sleep feel less like a command.",
+        "question": "What kind of book works best at that hour?",
+        "detail": "Something engaging but not tense is ideal, especially if the chapters are short.",
+        "reply": "That gives you enough interest to settle your attention without creating a strong need to continue.",
+        "follow_up_question": "Do you stop at a fixed time or when the chapter ends?",
+        "shift": "I usually finish one short chapter and leave the book where I can find it the next night.",
+        "closing": "The natural stopping point makes the habit feel complete without requiring a clock."
+      }
+    },
+    {
+      "topic_id": "casual:writing:character_voice",
+      "domain": "creativity",
+      "subcards": {
+        "opening": "A character in a short story finally started sounding like a person instead of an idea.",
+        "acknowledgement": "A distinct voice can make the rest of a character easier to discover.",
+        "question": "What changed in the way the character spoke?",
+        "detail": "I stopped making every sentence clever and let the character avoid a question they disliked.",
+        "reply": "Avoidance can reveal a personality more naturally than a polished explanation of who someone is.",
+        "follow_up_question": "Did that response change the direction of the scene?",
+        "shift": "Yes, another character noticed the avoidance, and the conversation became more interesting.",
+        "closing": "The scene gained movement because the voice created something for another person to respond to."
+      }
+    },
+    {
+      "topic_id": "casual:games:cooperative_puzzle",
+      "domain": "games",
+      "subcards": {
+        "opening": "A cooperative puzzle game was more enjoyable once our group stopped trying to be efficient.",
+        "acknowledgement": "Shared puzzles can become much livelier when solving them is not treated like a race.",
+        "question": "What changed when the group slowed down?",
+        "detail": "People explained strange ideas, laughed at failed attempts, and noticed clues others had missed.",
+        "reply": "Slowing down gave everyone room to contribute a different kind of attention.",
+        "follow_up_question": "Did the group still care about finishing the puzzle?",
+        "shift": "We did, but finishing became one part of the evening instead of the only measure of success.",
+        "closing": "That balance probably made the solution feel shared rather than merely completed."
+      }
+    },
+    {
+      "topic_id": "casual:technology:phone_distance",
+      "domain": "technology",
+      "subcards": {
+        "opening": "Leaving my phone on a shelf instead of in my pocket has changed how often I reach for it.",
+        "acknowledgement": "A little physical distance can interrupt a habit without requiring constant self-control.",
+        "question": "When do you notice the difference most?",
+        "detail": "I stay with conversations longer and finish small household tasks without checking anything midway.",
+        "reply": "The shelf seems to add just enough friction for your original activity to keep its momentum.",
+        "follow_up_question": "Are there times when keeping the phone close is still useful?",
+        "shift": "I keep it nearby when I am expecting a call, but otherwise the shelf works well.",
+        "closing": "That makes the habit flexible rather than turning distance from the phone into an absolute rule."
+      }
+    },
+    {
+      "topic_id": "casual:weather:rainy_window",
+      "domain": "weather",
+      "subcards": {
+        "opening": "A rainy afternoon made staying home feel inviting instead of disappointing today.",
+        "acknowledgement": "Weather can change the meaning of an empty afternoon when there is no need to fight it.",
+        "question": "What made being indoors feel especially good?",
+        "detail": "The windows were open a little, the room was cool, and I had nowhere urgent to be.",
+        "reply": "The lack of urgency seems to have turned the rain into atmosphere rather than an obstacle.",
+        "follow_up_question": "Did you end up doing anything memorable with the time?",
+        "shift": "Nothing remarkable; I cooked, read, and watched the street change color in the rain.",
+        "closing": "The ordinary pace may be exactly what made the afternoon memorable."
+      }
+    },
+    {
+      "topic_id": "casual:skill:small_repair",
+      "domain": "learning",
+      "subcards": {
+        "opening": "I fixed a loose cupboard hinge and felt more pleased than the size of the repair would suggest.",
+        "acknowledgement": "A small repair can feel significant when it replaces uncertainty with a skill you can reuse.",
+        "question": "What part of the repair taught you something new?",
+        "detail": "I learned that the old screw hole needed support instead of simply tightening the screw again.",
+        "reply": "Understanding why the quick fix failed probably made the successful repair more satisfying.",
+        "follow_up_question": "Has it made you more willing to examine other small problems at home?",
+        "shift": "A little, although I still want to know where my limits are before taking something apart.",
+        "closing": "That combination of curiosity and restraint is a useful way to build practical confidence."
+      }
+    }
+  ],
+  "context_cards": [
+    {"context_id":"context:curious","opening_addition":"I am mostly curious about why it has stayed with me.","detail_addition":"That is the detail I keep noticing.","shift_addition":"I am still open to seeing it differently.","closing_addition":"There is no need to turn the thought into a firm conclusion."},
+    {"context_id":"context:light_exchange","opening_addition":"This is only a light conversation, not a problem I need solved.","detail_addition":"The smallness of it is part of the appeal.","shift_addition":"I would rather keep the response relaxed.","closing_addition":"A simple observation is enough for now."},
+    {"context_id":"context:recent_change","opening_addition":"I only began paying attention to it recently.","detail_addition":"A few weeks ago I probably would have missed that part.","shift_addition":"The change still feels new enough to be interesting.","closing_addition":"It can remain an experiment rather than a permanent habit."},
+    {"context_id":"context:thinking_aloud","opening_addition":"I am thinking aloud more than asking for advice.","detail_addition":"Saying it clearly helps me understand what I like about it.","shift_addition":"I do not need to settle every part of the thought.","closing_addition":"The conversation can stop with the idea still open."},
+    {"context_id":"context:first_impression","opening_addition":"My first impression may change, but it feels worth describing.","detail_addition":"That was the moment that shaped my initial reaction.","shift_addition":"I may notice something different the next time.","closing_addition":"A first impression can be useful without being final."},
+    {"context_id":"context:returning_topic","opening_addition":"I have returned to the thought a few times today.","detail_addition":"Each time, the same small feature stands out.","shift_addition":"That repetition is probably why I wanted to mention it.","closing_addition":"Sometimes attention itself is the interesting part."},
+    {"context_id":"context:personal_preference","opening_addition":"I know this is a personal preference rather than a general rule.","detail_addition":"It works for me even if someone else would choose differently.","shift_addition":"I am comfortable leaving room for another preference.","closing_addition":"The point can stay personal without needing to become advice."},
+    {"context_id":"context:small_discovery","opening_addition":"It felt like a small discovery in an otherwise ordinary day.","detail_addition":"Nothing dramatic happened around it.","shift_addition":"The ordinary setting may have made it easier to notice.","closing_addition":"Small discoveries often need very little explanation."},
+    {"context_id":"context:gentle_habit","opening_addition":"I would like to keep it gentle rather than make it another obligation.","detail_addition":"The lack of pressure is helping it last.","shift_addition":"I would stop if it began to feel compulsory.","closing_addition":"Its usefulness may depend on preserving that lightness."},
+    {"context_id":"context:compare_past","opening_addition":"It feels different from the way I would have approached it in the past.","detail_addition":"The contrast became clear only afterward.","shift_addition":"I am interested in the change without judging the older version of myself.","closing_addition":"The comparison can simply mark a change in perspective."},
+    {"context_id":"context:shared_later","opening_addition":"I might share the thought with a friend later.","detail_addition":"I want to understand the part that matters before I do.","shift_addition":"A short version would probably be easier to share.","closing_addition":"The clearest detail will be enough to carry the story."},
+    {"context_id":"context:process_interest","opening_addition":"The process interests me more than the final result.","detail_addition":"I enjoyed noticing how one step led to the next.","shift_addition":"That may be the part I remember longest.","closing_addition":"The process can be valuable even when the outcome is modest."},
+    {"context_id":"context:no_rush","opening_addition":"There is no decision attached to this, so I am not in a hurry.","detail_addition":"The slower pace makes the details easier to notice.","shift_addition":"I can let the thought develop without forcing it.","closing_addition":"Nothing else has to follow immediately."},
+    {"context_id":"context:practical_note","opening_addition":"There is a practical side to it, but that is not the whole story.","detail_addition":"The useful part and the enjoyable part happen to overlap.","shift_addition":"I would like to preserve both if I continue.","closing_addition":"A workable choice can still leave room for enjoyment."},
+    {"context_id":"context:unexpected_pleasure","opening_addition":"I did not expect to enjoy it as much as I did.","detail_addition":"The pleasant part arrived before I had a clear opinion.","shift_addition":"That surprise is probably part of what I liked.","closing_addition":"Unexpected pleasure does not need much justification."},
+    {"context_id":"context:one_detail","opening_addition":"One particular detail keeps the whole experience vivid.","detail_addition":"Without that feature, I might not remember the moment so clearly.","shift_addition":"I want to keep the focus on that one detail.","closing_addition":"One precise detail often says more than a broad summary."},
+    {"context_id":"context:easy_followup","opening_addition":"I would be happy to continue the conversation if another question comes naturally.","detail_addition":"There is more to say, but none of it is urgent.","shift_addition":"A gentle follow-up suits the topic better than a checklist.","closing_addition":"The subject can remain available for another conversation."},
+    {"context_id":"context:honest_reaction","opening_addition":"I am more interested in an honest reaction than a polished answer.","detail_addition":"The experience felt clear even before I found the right words.","shift_addition":"I would rather stay close to that reaction than overanalyze it.","closing_addition":"A direct response fits the spirit of the exchange."},
+    {"context_id":"context:quiet_mood","opening_addition":"The quiet mood around it seems important.","detail_addition":"A busier setting might have changed what I noticed.","shift_addition":"I would like to remember the pace as well as the event.","closing_addition":"The mood belongs to the memory as much as the facts do."},
+    {"context_id":"context:open_ending","opening_addition":"I do not mind if the conversation ends without a single lesson.","detail_addition":"The experience already feels complete enough to describe.","shift_addition":"I can leave the meaning open for now.","closing_addition":"An open ending is a perfectly natural place to stop."}
+  ],
+  "surface_decks": {
+    "user_opening": [
+      "{opening} {context_opening}",
+      "{context_opening} {opening}",
+      "I was thinking about something small today. {opening} {context_opening}",
+      "Something ordinary caught my attention. {opening} {context_opening}",
+      "This crossed my mind again a moment ago. {opening} {context_opening}",
+      "I wanted to mention a small thing. {opening} {context_opening}",
+      "Here is a thought from my day. {opening} {context_opening}",
+      "I have been noticing something lately. {opening} {context_opening}"
+    ],
+    "assistant_entry": [
+      "{acknowledgement} {question}",
+      "{acknowledgement} I am curious about one part: {question_lower}",
+      "{question} {acknowledgement}",
+      "That is interesting to hear. {acknowledgement} {question}",
+      "I can see the appeal. {acknowledgement} {question}",
+      "There is something pleasantly specific in that. {acknowledgement} {question}",
+      "That makes sense to me. {acknowledgement} {question}",
+      "It sounds as though the detail matters here. {acknowledgement} {question}"
+    ],
+    "user_follow_up": [
+      "{detail} {context_detail}",
+      "The part I noticed most was this: {detail_lower} {context_detail}",
+      "More specifically, {detail_lower} {context_detail}",
+      "I think it comes down to this: {detail_lower} {context_detail}",
+      "One detail probably explains it. {detail} {context_detail}",
+      "What stayed with me was that {detail_lower} {context_detail}",
+      "The clearest example is simple. {detail} {context_detail}",
+      "If I had to name one thing, it would be this: {detail_lower} {context_detail}"
+    ],
+    "assistant_follow_up": [
+      "{reply}",
+      "That distinction helps. {reply}",
+      "I can picture what you mean. {reply}",
+      "That adds an important detail. {reply}",
+      "The appeal is clearer now. {reply}",
+      "There is a nice logic to that. {reply}",
+      "That seems to be the center of it. {reply}",
+      "The way you describe it makes sense. {reply}"
+    ],
+    "user_shift": [
+      "{shift} {context_shift}",
+      "I think so. {shift} {context_shift}",
+      "That question changes the emphasis a little. {shift} {context_shift}",
+      "The answer is probably this: {shift_lower} {context_shift}",
+      "When I think about it that way, {shift_lower} {context_shift}",
+      "That is close to what I mean. {shift} {context_shift}",
+      "I had not phrased it that way, but {shift_lower} {context_shift}",
+      "Yes, and one thing follows from that. {shift} {context_shift}"
+    ],
+    "assistant_closing_bridge": [
+      "That makes sense.",
+      "I see what you mean now.",
+      "That extra detail helps.",
+      "That connects nicely with what caught your attention at first.",
+      "Now I can see why it stayed with you.",
+      "That adds a little more depth.",
+      "I can see how the pieces fit together now.",
+      "That changes the emphasis without changing the whole feeling."
+    ],
+    "assistant_closing": [
+      "{closing} {context_closing}",
+      "That feels like a good place to leave the thought. {closing} {context_closing}",
+      "I like that reading of it. {closing} {context_closing}",
+      "That gives the experience a clear shape. {closing} {context_closing}",
+      "It sounds worth keeping in mind. {closing} {context_closing}",
+      "That seems both simple and true to what you described. {closing} {context_closing}",
+      "There is no need to make it larger than that. {closing} {context_closing}",
+      "That is a satisfying way to understand it. {closing} {context_closing}",
+      "That sounds like a good note to end on. {closing} {context_closing}",
+      "That leaves a clear impression without closing the subject. {closing} {context_closing}",
+      "I can see why that detail stayed with you. {closing} {context_closing}",
+      "The way you put it makes the appeal easy to understand. {closing} {context_closing}",
+      "That sounds like something worth noticing again. {closing} {context_closing}",
+      "That feels complete as it is. {closing} {context_closing}",
+      "That captures the part that seems most alive in the story. {closing} {context_closing}",
+      "It is a small observation, but it feels complete. {closing} {context_closing}",
+      "That gives you a useful way to remember the moment. {closing} {context_closing}",
+      "That feels true to the size of the moment. {closing} {context_closing}",
+      "I think the detail can speak for itself from here. {closing} {context_closing}",
+      "That makes the whole experience easier to picture. {closing} {context_closing}",
+      "It sounds as though you have named what mattered. {closing} {context_closing}",
+      "That is enough to make the moment distinct. {closing} {context_closing}",
+      "It can stay open without feeling unfinished. {closing} {context_closing}",
+      "That seems like a gentle conclusion rather than a forced one. {closing} {context_closing}",
+      "I like where the conversation has arrived. {closing} {context_closing}",
+      "The final detail brings the earlier parts together. {closing} {context_closing}",
+      "That keeps the exchange personal and unforced. {closing} {context_closing}",
+      "The idea feels clearer without becoming rigid. {closing} {context_closing}",
+      "That leaves room to notice something new next time. {closing} {context_closing}",
+      "The experience seems richer now that the detail is visible. {closing} {context_closing}",
+      "That is a warm and believable place to pause. {closing} {context_closing}",
+      "That is plenty for one small thought. {closing} {context_closing}"
+    ]
+  }
+}

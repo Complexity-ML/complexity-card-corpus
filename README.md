@@ -249,6 +249,43 @@ source anchors remain visible in unmasked statistics; subjects, intents,
 states, constraints, outcomes, fallbacks, IDs, dates, amounts, times and numeric
 slots are masked only when measuring response-template repetition.
 
+### Casual conversation supplement
+
+V13 adds an independent casual-conversation source instead of converting task
+instructions into artificial chat. Twenty original topic cards and twenty
+context cards are connected to stage-specific subcard decks for openings,
+acknowledgements, follow-ups, topic shifts, closing bridges and conclusions.
+The supplement is additive: none of the V12 task families or card hands is
+removed.
+
+```bash
+uv run card-corpus build-casual-conversation \
+  --registry data/conversation/original/casual-conversation-decks-v1.json \
+  --output build/casual-conversation-v13 \
+  --seed 42
+```
+
+The current training build contains one four- or six-turn English conversation
+for each of the 420 topic/context pairs. Exact conversation and final-response
+uniqueness are both 100%, topic/context groups do not cross the
+train/validation split, and the most frequent four-word phrase remains below
+5% of messages. At cosine 0.98, MiniLM reports semantic-neighbor ratios of
+3.10% / 0% / 0% for prompts, responses and combined conversations; Mixedbread
+reports 0.5% for each view.
+
+A 30,000-row surface stress build remains exact-text unique but is rejected as
+training data: its 75 renderings per semantic pair produce response-neighbor
+ratios of 15.3% with MiniLM and 35.36% with Mixedbread. Scaling therefore means
+authoring more topic and context cards, not dealing more surfaces from the same
+400 semantic pairs. Embedding results are diagnostics, not correctness proofs.
+
+For GPT-2-style dialogue adaptation, the training framework selects this
+source at runtime. Its 600-row conversation profile uses 70%
+`casual_conversation`,
+20% `conversation_empathy`, and 10% `practical_action`; a separate
+`casual-only` stage is available for focused diagnostics. Rows are selected
+without duplication and the canonical dataset remains unchanged.
+
 ### 100K scale contract
 
 The semantic nucleus contains 33,320 source cards. A 100,000-row release
@@ -644,6 +681,7 @@ uv run card-corpus tokenize \
 uv run card-corpus tokenize-instruct \
   --instructions build/post-training/conversations.parquet \
   --supplement build/conversation-surface-10k/conversations.parquet \
+  --supplement build/casual-conversation-v13/conversations.parquet \
   --tokenizer /path/to/tokenizer-o200k \
   --heldout-evaluation data/evaluation/generalist-heldout-v2.json \
   --workers 8 \

@@ -9,6 +9,7 @@ import pyarrow.parquet as pq
 
 from .build import build_corpus
 from .conversation_blueprint import build_conversation_blueprints
+from .conversational import build_casual_conversation_surface
 from .contract_embedding_audit import audit_contract_dataset_with_embeddings
 from .dictionary_review import write_dictionary_review
 from .definition_acceptance import accept_definition_proposals
@@ -221,6 +222,17 @@ def parser() -> argparse.ArgumentParser:
         )
         conversation_surface.add_argument("--seed", type=int, default=42)
         conversation_surface.add_argument("--validation-percent", type=int, default=5)
+
+    casual_conversation = commands.add_parser("build-casual-conversation")
+    casual_conversation.add_argument("--registry", type=Path, required=True)
+    casual_conversation.add_argument("--output", type=Path, required=True)
+    casual_conversation.add_argument(
+        "--examples",
+        type=int,
+        help="rows to render; omitted means one row per semantic topic/context pair",
+    )
+    casual_conversation.add_argument("--seed", type=int, default=42)
+    casual_conversation.add_argument("--validation-percent", type=int, default=5)
 
     tokenize_instruct = commands.add_parser("tokenize-instruct")
     tokenize_instruct.add_argument("--instructions", type=Path, required=True)
@@ -621,6 +633,21 @@ def main() -> None:
                 seed=args.seed,
                 validation_percent=args.validation_percent,
             )
+        print(
+            json.dumps(
+                {"counts": result["counts"], "audit": result["audit"]},
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    elif args.command == "build-casual-conversation":
+        result = build_casual_conversation_surface(
+            args.registry,
+            args.output,
+            examples=args.examples,
+            seed=args.seed,
+            validation_percent=args.validation_percent,
+        )
         print(
             json.dumps(
                 {"counts": result["counts"], "audit": result["audit"]},
