@@ -5,6 +5,27 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 
+# Families whose model-facing renderer materially applies response order and
+# layout. Other families retain card metadata, but their output contract is
+# atomic (for example JSON extraction or faithful prose rewriting), so hidden
+# one-card-away signatures must not be mistaken for visible diversity.
+RESPONSE_STRUCTURE_SIBLING_TASKS = frozenset(
+    {
+        "context_clarification",
+        "conversation_empathy",
+        "critique_revision",
+        "explanation_learning",
+        "grounded_qa",
+        "planning_comparison",
+        "practical_action",
+        "reasoning_verification",
+        "safety_uncertainty",
+        "summarization_synthesis",
+        "troubleshooting",
+    }
+)
+
+
 @dataclass(frozen=True)
 class TrainingCards:
     """Invisible conditioning choices used to naturalize one SFT example."""
@@ -42,6 +63,31 @@ class TrainingCards:
                 self.response_opening,
             )
         )
+
+    @property
+    def response_structure_sibling_signatures(self) -> dict[str, str]:
+        """Return the four one-card-away neighbourhoods of this response hand.
+
+        Exact-hand balancing alone can hide a repetitive family: many hands may
+        differ only by their opening, bridge, layout, or clause order. Each
+        signature removes one axis and groups all hands that are structural
+        siblings along that axis.
+        """
+
+        axes = {
+            "order": self.response_order,
+            "bridge": self.response_bridge,
+            "layout": self.response_layout,
+            "opening": self.response_opening,
+        }
+        return {
+            f"without_{omitted}": "|".join(
+                f"{name}={value}"
+                for name, value in axes.items()
+                if name != omitted
+            )
+            for omitted in axes
+        }
 
 
 def _stable_index(value: str, size: int) -> int:
@@ -92,6 +138,15 @@ _STYLE_BY_TASK = {
 
 
 _RESPONSE_ORDERS_BY_TASK = {
+    "context_clarification": (
+        "restatement>question>default",
+        "restatement>default>question",
+    ),
+    "conversation_empathy": (
+        "acknowledgment>state_reflection>agency>question",
+        "acknowledgment>agency>state_reflection>question",
+        "state_reflection>acknowledgment>agency>question",
+    ),
     "grounded_qa": (
         "documented>boundary>verification",
         "documented>verification>boundary",
@@ -151,6 +206,7 @@ _RESPONSE_LAYOUTS_BY_TASK = {
         "opening_break",
     ),
     "conversation_empathy": ("paragraph", "line_breaks"),
+    "critique_revision": ("paragraph", "line_breaks"),
     "explanation_learning": ("paragraph", "paragraph", "line_breaks"),
     "grounded_qa": ("paragraph", "line_breaks", "bullets", "numbered"),
     "planning_comparison": ("paragraph", "paragraph", "line_breaks"),
@@ -158,7 +214,13 @@ _RESPONSE_LAYOUTS_BY_TASK = {
     "reasoning_verification": ("paragraph", "paragraph", "line_breaks"),
     "safety_uncertainty": ("paragraph", "line_breaks", "bullets"),
     "summarization_synthesis": ("paragraph", "paragraph", "line_breaks"),
-    "troubleshooting": ("numbered", "bullets", "paragraph"),
+    "troubleshooting": (
+        "numbered",
+        "bullets",
+        "paragraph",
+        "line_breaks",
+        "spaced_lines",
+    ),
 }
 
 _RESPONSE_BRIDGES = (
@@ -415,3 +477,47 @@ def natural_dialogue_deck() -> dict[str, dict[str, tuple[str, ...]]]:
     """Expose the immutable family deck for audits and documentation."""
 
     return _NATURAL_DIALOGUE_BY_TASK
+
+
+def projected_difficulty(
+    cards: TrainingCards,
+    messages: list[dict[str, str]],
+) -> str:
+    """Classify the realized request rather than its generator variant.
+
+    Difficulty is Viewer metadata, not a balancing target.  The score uses
+    only observable conversation complexity and the conditioning cards that
+    produced it; it never depends on a hard-coded variant number.
+    """
+
+    user_messages = [
+        message["content"]
+        for message in messages
+        if message.get("role") == "user"
+    ]
+    user_words = sum(len(content.split()) for content in user_messages)
+    score = 0
+    if len(user_messages) > 1:
+        score += 1
+    if user_words >= 60:
+        score += 1
+    if user_words >= 140:
+        score += 1
+    if cards.context_density == "full":
+        score += 1
+    if cards.noise != "none":
+        score += 1
+    if cards.evidence in {"partial", "distributed"}:
+        score += 1
+    elif cards.evidence == "conflicting":
+        score += 2
+    if cards.uncertainty != "answerable":
+        score += 1
+    if cards.natural_depth == "linked":
+        score += 1
+
+    if score >= 5:
+        return "hard"
+    if score >= 2:
+        return "medium"
+    return "easy"

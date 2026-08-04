@@ -11,8 +11,11 @@ from complexity_card_corpus.sft.dialogue_links import (
     preserve_linked_dialogue,
 )
 from complexity_card_corpus.training_cards import (
+    RESPONSE_STRUCTURE_SIBLING_TASKS,
+    TrainingCards,
     deal_training_cards,
     natural_dialogue_deck,
+    projected_difficulty,
 )
 
 
@@ -84,6 +87,50 @@ def test_training_cards_respect_task_and_evidence_compatibility() -> None:
     assert cards.evidence == "conflicting"
     assert cards.uncertainty == "preserve_conflict"
     assert cards.context_density in {"full", "focused"}
+
+
+def test_projected_difficulty_uses_realized_conversation_complexity() -> None:
+    easy = TrainingCards(
+        surface="direct",
+        dialogue_state="new_request",
+        output="direct_prose",
+        evidence="sufficient",
+        reasoning="direct_response",
+        style="plain",
+        context_density="focused",
+        noise="none",
+        uncertainty="answerable",
+    )
+    assert projected_difficulty(
+        easy,
+        [{"role": "user", "content": "Explain this briefly."}],
+    ) == "easy"
+
+    medium = TrainingCards(
+        **{
+            **easy.as_dict(),
+            "context_density": "full",
+            "natural_depth": "linked",
+        }
+    )
+    linked_messages = [
+        {"role": "user", "content": "Compare the available options."},
+        {"role": "assistant", "content": "Which constraint matters most?"},
+        {"role": "user", "content": "Cost matters most."},
+    ]
+    assert projected_difficulty(medium, linked_messages) == "medium"
+
+    hard = TrainingCards(
+        **{
+            **easy.as_dict(),
+            "context_density": "full",
+            "noise": "secondary_detail",
+            "evidence": "conflicting",
+            "uncertainty": "preserve_conflict",
+            "natural_depth": "linked",
+        }
+    )
+    assert projected_difficulty(hard, linked_messages) == "hard"
 
 
 def test_constraint_tension_is_not_mislabeled_as_conflicting_evidence() -> None:
@@ -160,6 +207,29 @@ def test_grounded_qa_deals_many_visible_response_structures() -> None:
     }
 
     assert len(hands) >= 400
+
+
+def test_every_compositional_family_can_stay_below_five_percent_siblings() -> None:
+    for task in sorted(RESPONSE_STRUCTURE_SIBLING_TASKS):
+        dealt = [
+            deal_training_cards(
+                task=task,
+                mode="instruct",
+                example_id=f"sibling-capacity:{task}:{index}",
+            )
+            for index in range(8_192)
+        ]
+        neighbourhoods = {
+            dimension: {
+                cards.response_structure_sibling_signatures[dimension]
+                for cards in dealt
+            }
+            for dimension in dealt[0].response_structure_sibling_signatures
+        }
+        assert min(map(len, neighbourhoods.values())) >= 20, (
+            task,
+            {dimension: len(values) for dimension, values in neighbourhoods.items()},
+        )
 
 
 def test_weak_families_deal_multiple_visible_response_layouts() -> None:

@@ -1307,9 +1307,9 @@ def test_sft_repetition_filter_preserves_twenty_domain_subcard_balance() -> None
                 noise="none",
                 uncertainty="answerable",
                 response_order=f"order-{domain}-{item_index}",
-                response_bridge="plain",
-                response_layout="paragraph",
-                response_opening="bare",
+                response_bridge=f"bridge-{domain}-{item_index}",
+                response_layout=f"layout-{domain}-{item_index}",
+                response_opening=f"opening-{domain}-{item_index}",
             )
             rows.append(
                 {
@@ -1372,6 +1372,52 @@ def test_sft_repetition_gate_includes_invisible_response_card_hands() -> None:
     hand = audit["tasks"]["grounded_qa"]["dimensions"]["response_card_hand"]
     assert hand["maximum_share"] == 0.08
     assert hand["passed"] is False
+
+
+def test_sft_repetition_gate_includes_one_card_away_response_siblings() -> None:
+    rows = []
+    for index in range(100):
+        marker = chr(ord("a") + index // 26) + chr(ord("a") + index % 26)
+        if index < 8:
+            # Eight exact hands remain unique, but differ only by opening.
+            order = "idea>example>check"
+            bridge = "plain"
+            layout = "paragraph"
+        else:
+            order = f"order-{marker}"
+            bridge = f"bridge-{marker}"
+            layout = f"layout-{marker}"
+        cards = TrainingCards(
+            surface="plain",
+            dialogue_state="new_request",
+            output="direct_prose",
+            evidence="sufficient",
+            reasoning="direct_response",
+            style="plain",
+            context_density="focused",
+            noise="none",
+            uncertainty="answerable",
+            response_order=order,
+            response_bridge=bridge,
+            response_layout=layout,
+            response_opening=f"opening-{marker}",
+        )
+        rows.append(
+            {
+                "example_id": f"sibling:{index:03d}",
+                "task": "explanation_learning",
+                "_projected_prompt": f"Prompt marker {marker} asks one question.",
+                "_projected_target": f"Answer marker {marker} explains one fact.",
+                "_conditioning_cards": cards,
+            }
+        )
+
+    audit = audit_sft_repetition_quality(rows)
+    dimensions = audit["tasks"]["explanation_learning"]["dimensions"]
+    assert dimensions["response_card_hand"]["maximum_share"] == 0.01
+    sibling = dimensions["response_card_sibling_without_opening"]
+    assert sibling["maximum_share"] == 0.08
+    assert sibling["passed"] is False
 
 
 def test_sft_repetition_gate_only_exempts_json_from_prose_shape_checks() -> None:
@@ -1450,9 +1496,9 @@ def test_surface_selection_balances_existing_hands_without_new_card_axes() -> No
             noise="none",
             uncertainty="answerable",
             response_order=label,
-            response_bridge="plain",
-            response_layout="paragraph",
-            response_opening="bare",
+            response_bridge=f"bridge-{label}",
+            response_layout=f"layout-{label}",
+            response_opening=f"opening-{label}",
         )
 
     def projector(row, selection_key):
@@ -1479,6 +1525,13 @@ def test_surface_selection_balances_existing_hands_without_new_card_axes() -> No
     )
     assert len(hands) == 32
     assert max(hands.values()) == 4
+    assert audit["method"] == (
+        "least_used_response_hand_and_sibling_neighbourhood"
+    )
+    assert (
+        audit["tasks"]["grounded_qa"]["maximum_selected_sibling_share"]
+        <= 0.05
+    )
     assert audit["new_card_axes"] == 0
 
 

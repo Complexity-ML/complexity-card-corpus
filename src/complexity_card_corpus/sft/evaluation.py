@@ -10,6 +10,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
+from ..training_cards import RESPONSE_STRUCTURE_SIBLING_TASKS
 from .language import _render_messages
 from .selection import _normalized_structure
 
@@ -140,10 +141,16 @@ _EMPTY_RESPONSE_HEADING = re.compile(
 
 
 def _dimension_is_audited(task: str, dimension: str) -> bool:
+    if (
+        dimension.startswith("response_card_sibling_")
+        and task not in RESPONSE_STRUCTURE_SIBLING_TASKS
+    ):
+        return False
     return not (
         task in _STRUCTURED_RESPONSE_TASKS
         and dimension.startswith("response_")
-        and dimension not in {"response_exact", "response_card_hand"}
+        and dimension != "response_exact"
+        and not dimension.startswith("response_card_")
     )
 
 
@@ -299,6 +306,14 @@ def _row_repetition_signatures(
     cards = row.get("_conditioning_cards")
     if cards is not None:
         signatures["response_card_hand"] = {cards.response_structure_signature}
+        signatures.update(
+            {
+                f"response_card_sibling_{dimension}": {signature}
+                for dimension, signature in (
+                    cards.response_structure_sibling_signatures.items()
+                )
+            }
+        )
     return signatures
 
 
@@ -592,9 +607,10 @@ def audit_sft_repetition_quality(
 
     The audit covers prompt and response duplicates, normalized structures,
     3/5/8-word openings and endings, repeated full sentences, repeated internal
-    8-word spans, and invisible response-card hands. Structured JSON responses
-    are exempt only from prose-shape checks; their exact responses and card
-    hands remain audited.
+    8-word spans, invisible response-card hands, and every one-card-away
+    response-hand neighbourhood. Structured JSON responses are exempt only
+    from prose-shape checks; their exact responses and card structures remain
+    audited.
     """
 
     if not 0 < maximum_share <= 1:
@@ -624,6 +640,10 @@ def audit_sft_repetition_quality(
             cards = row.get("_conditioning_cards")
             if cards is not None:
                 counters["response_card_hand"][cards.response_structure_signature] += 1
+                for dimension, signature in (
+                    cards.response_structure_sibling_signatures.items()
+                ):
+                    counters[f"response_card_sibling_{dimension}"][signature] += 1
 
         total = len(task_rows)
         task_audited = total >= minimum_examples

@@ -21,7 +21,12 @@ from ..chat_template import (
     render_user_turn,
 )
 from ..tokenize import directory_sha256, load_encoding
-from ..training_cards import TrainingCards, deal_training_cards
+from ..training_cards import (
+    RESPONSE_STRUCTURE_SIBLING_TASKS,
+    TrainingCards,
+    deal_training_cards,
+    projected_difficulty,
+)
 from .evaluation import (
     _audit_sft_projection,
     load_heldout_evaluation,
@@ -425,7 +430,10 @@ def tokenize_instruction_dataset(
             "example_id": row["example_id"],
             "task": row["task"],
             "mode": row["mode"],
-            "difficulty": row["difficulty"],
+            "difficulty": projected_difficulty(
+                row["_conditioning_cards"],
+                row["_projected_messages"],
+            ),
             "domain": row["domain"],
             "language": row["language"],
             "split": "validation" if partition == "eval" else partition,
@@ -655,12 +663,37 @@ def tokenize_instruction_dataset(
         {(row["task"], row["structure_signature"]) for row in train_records}
     )
     card_hands_by_task: dict[str, Counter[str]] = defaultdict(Counter)
+    card_siblings_by_task: dict[str, dict[str, Counter[str]]] = defaultdict(
+        lambda: defaultdict(Counter)
+    )
     for row in train_records:
-        card_hands_by_task[row["task"]][row["response_card_hand"]] += 1
+        task = row["task"]
+        hand = row["response_card_hand"]
+        card_hands_by_task[task][hand] += 1
+        if task in RESPONSE_STRUCTURE_SIBLING_TASKS:
+            axes = hand.split("|")
+            if len(axes) != 4:
+                raise ValueError(f"invalid response-card hand signature: {hand!r}")
+            for omitted, name in enumerate(
+                ("order", "bridge", "layout", "opening")
+            ):
+                sibling = "|".join(
+                    value for index, value in enumerate(axes) if index != omitted
+                )
+                card_siblings_by_task[task][f"without_{name}"][sibling] += 1
     maximum_card_hand_share = max(
         (
             max(counts.values()) / sum(counts.values())
             for counts in card_hands_by_task.values()
+            if counts
+        ),
+        default=0.0,
+    )
+    maximum_card_sibling_share = max(
+        (
+            max(counts.values()) / sum(counts.values())
+            for dimensions in card_siblings_by_task.values()
+            for counts in dimensions.values()
             if counts
         ),
         default=0.0,
@@ -697,6 +730,10 @@ def tokenize_instruction_dataset(
         "maximum_response_card_hand_share_at_most_5_percent": (
             maximum_card_hand_share <= TRAIN_QUALITY_MAX_RESPONSE_CARD_HAND_SHARE
         ),
+        "maximum_response_card_sibling_share_at_most_5_percent": (
+            maximum_card_sibling_share
+            <= TRAIN_QUALITY_MAX_RESPONSE_CARD_HAND_SHARE
+        ),
         "sklearn_statistical_quality_audit_passed": statistical_quality_audit[
             "passed"
         ],
@@ -731,6 +768,21 @@ def tokenize_instruction_dataset(
             task: len(counts) for task, counts in sorted(card_hands_by_task.items())
         },
         "maximum_response_card_hand_share": round(maximum_card_hand_share, 6),
+        "maximum_response_card_sibling_share": round(
+            maximum_card_sibling_share, 6
+        ),
+        "response_card_sibling_neighbourhoods_by_family": {
+            task: {
+                dimension: {
+                    "distinct": len(counts),
+                    "maximum_share": round(
+                        max(counts.values(), default=0) / sum(counts.values()), 6
+                    ),
+                }
+                for dimension, counts in sorted(dimensions.items())
+            }
+            for task, dimensions in sorted(card_siblings_by_task.items())
+        },
         "statistical_quality_audit": statistical_quality_audit,
         "multi_turn_examples": multi_turn_count,
         "multi_turn_share": round(

@@ -834,18 +834,19 @@ def _naturalize_assistant_target(
                     rendered_steps.append(f"Next, {_inline_sentence(step)}")
                 else:
                     rendered_steps.append(_sentence(step))
-            return render_response_card_hand(
-                {"steps": " ".join(rendered_steps)},
-                cards=cards,
-            ) if cards.response_layout == "paragraph" else (
-                "\n".join(
-                    (
-                        f"{index}. {text}"
-                        if cards.response_layout == "numbered"
-                        else f"- {text}"
-                    )
-                    for index, text in enumerate(rendered_steps, start=1)
+            if cards.response_layout == "paragraph":
+                return " ".join(rendered_steps)
+            if cards.response_layout == "line_breaks":
+                return "\n".join(rendered_steps)
+            if cards.response_layout == "spaced_lines":
+                return "\n\n".join(rendered_steps)
+            return "\n".join(
+                (
+                    f"{index}. {text}"
+                    if cards.response_layout == "numbered"
+                    else f"- {text}"
                 )
+                for index, text in enumerate(rendered_steps, start=1)
             )
         return direct
     return re.sub(

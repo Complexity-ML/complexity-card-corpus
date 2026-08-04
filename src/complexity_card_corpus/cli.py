@@ -29,6 +29,7 @@ from .vocabulary import (
 from .package import (
     package_for_hugging_face,
     package_instructions_for_hugging_face,
+    package_sft_views_for_hugging_face,
 )
 from .posttrain import audit_human_review, build_post_training_corpus
 from .proposal_embedding_review import (
@@ -287,6 +288,13 @@ def parser() -> argparse.ArgumentParser:
     package_instruct.add_argument("--instructions", type=Path, required=True)
     package_instruct.add_argument("--tokenized", type=Path, required=True)
     package_instruct.add_argument("--output", type=Path, required=True)
+
+    package_sft_views = commands.add_parser("package-sft-views-hf")
+    package_sft_views.add_argument("--projected", type=Path, required=True)
+    package_sft_views.add_argument("--output", type=Path, required=True)
+    package_sft_views.add_argument("--release-slug", required=True)
+    package_sft_views.add_argument("--max-rows-per-shard", type=int, default=50_000)
+    package_sft_views.add_argument("--row-group-size", type=int, default=5_000)
 
     sklearn_audit = commands.add_parser("audit-sklearn")
     sklearn_audit.add_argument("--conversations", type=Path, required=True)
@@ -657,6 +665,25 @@ def main() -> None:
                 {
                     "files": len(result["files"]),
                     "bytes": sum(item["bytes"] for item in result["files"].values()),
+                    "output": str(args.output.resolve()),
+                },
+                indent=2,
+            )
+        )
+    elif args.command == "package-sft-views-hf":
+        result = package_sft_views_for_hugging_face(
+            args.projected,
+            args.output,
+            release_slug=args.release_slug,
+            max_rows_per_shard=args.max_rows_per_shard,
+            row_group_size=args.row_group_size,
+        )
+        print(
+            json.dumps(
+                {
+                    "examples": result["examples"],
+                    "parquet_shards": len(result["parquet_shards"]),
+                    "views": result["views"],
                     "output": str(args.output.resolve()),
                 },
                 indent=2,

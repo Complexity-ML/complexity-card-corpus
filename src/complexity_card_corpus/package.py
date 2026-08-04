@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import json
+import math
 import shutil
 from pathlib import Path
 from typing import Any
 
 import pyarrow.compute as pc
+import pyarrow as pa
 import pyarrow.parquet as pq
 
 from .build import file_sha256
+from .domain_taxonomy import domain_group
 
 DATASET_CARD = """---
 language:
@@ -166,6 +169,242 @@ License: <https://creativecommons.org/licenses/by-nc/4.0/>
 
 No warranty is provided.
 """
+
+
+def _sft_view_configs(release_slug: str) -> str:
+    return f"""configs:
+- config_name: chat
+  data_files:
+  - split: train
+    path: data/{release_slug}/chat/train-*.parquet
+- config_name: instruct
+  data_files:
+  - split: train
+    path: data/{release_slug}/instruct/train-*.parquet
+  - split: validation
+    path: data/{release_slug}/instruct/validation.parquet
+  - split: diagnostic
+    path: data/{release_slug}/instruct/diagnostic.parquet
+"""
+
+
+_HF_VIEW_COLUMNS = {
+    "chat": (
+        "task",
+        "difficulty",
+        "domain",
+        "domain_group",
+        "language",
+        "messages",
+        "structure_signature",
+        "response_card_hand",
+        "source_representation",
+        "source",
+        "license",
+        "version",
+    ),
+    "instruct": (
+        "task",
+        "difficulty",
+        "domain",
+        "domain_group",
+        "language",
+        "prompt",
+        "response",
+        "structure_signature",
+        "response_card_hand",
+        "source_representation",
+        "source",
+        "license",
+        "version",
+    ),
+}
+
+
+def _project_hf_view(table, mode: str):
+    """Return the explicit, stable schema exposed by one Hub subset.
+
+    ``mode`` and ``split`` are routing metadata. Hugging Face already exposes
+    them as the subset and split selectors, so repeating them inside every row
+    makes the Viewer harder to read. ``example_id`` remains in the canonical
+    projection and token indexes but is omitted here: the Hub statistics
+    service currently fails its string-length histogram when hundreds of
+    thousands of unique identifiers have only two adjacent lengths. Chat rows
+    expose ``messages``; instruct rows expose the direct
+    ``prompt``/``response`` pair.
+    """
+
+    if "domain_group" not in table.column_names:
+        groups = pa.array(
+            [domain_group(value) for value in table["domain"].to_pylist()],
+            type=pa.string(),
+        )
+        table = table.append_column("domain_group", groups)
+    columns = _HF_VIEW_COLUMNS[mode]
+    missing = set(columns).difference(table.column_names)
+    if missing:
+        raise ValueError(
+            f"Projected SFT {mode} view is missing columns: {sorted(missing)}"
+        )
+    return table.select(columns)
+
+
+def _replace_dataset_card_configs(dataset_card: Path, release_slug: str) -> None:
+    text = dataset_card.read_text()
+    if not text.startswith("---\n"):
+        raise ValueError(f"Dataset card has no YAML front matter: {dataset_card}")
+    closing = text.find("\n---\n", 4)
+    if closing < 0:
+        raise ValueError(f"Dataset card has unterminated YAML front matter: {dataset_card}")
+
+    front_matter = text[4:closing]
+    lines = front_matter.splitlines()
+    config_start = next(
+        (index for index, line in enumerate(lines) if line == "configs:"),
+        None,
+    )
+    if config_start is None:
+        lines.append(_sft_view_configs(release_slug).rstrip())
+    else:
+        # Dataset cards produced by this project keep configs as the final
+        # top-level YAML field. Refuse an ambiguous rewrite instead of silently
+        # deleting metadata that follows it.
+        later_top_level = [
+            line
+            for line in lines[config_start + 1 :]
+            if line and not line.startswith((" ", "-"))
+        ]
+        if later_top_level:
+            raise ValueError(
+                "Dataset card configs must be the final YAML field before rewriting"
+            )
+        lines = lines[:config_start]
+        lines.append(_sft_view_configs(release_slug).rstrip())
+
+    updated_front_matter = "\n".join(lines).rstrip() + "\n"
+    body = text[closing + len("\n---\n") :]
+    dataset_card.write_text(
+        f"---\n{updated_front_matter}---\n{body}"
+    )
+
+
+def package_sft_views_for_hugging_face(
+    projected_parquet: Path,
+    output_root: Path,
+    *,
+    release_slug: str,
+    max_rows_per_shard: int = 50_000,
+    row_group_size: int = 5_000,
+) -> dict[str, Any]:
+    """Publish one projection as separate chat and instruct Hub subsets.
+
+    Rows are stored exactly once. Hugging Face exposes ``chat`` and
+    ``instruct`` as subsets, with train/validation/diagnostic beneath them as
+    splits. Each subset has a small, explicit column schema instead of a union
+    of every internal projection field.
+    """
+
+    if max_rows_per_shard <= 0:
+        raise ValueError("max_rows_per_shard must be positive")
+    if row_group_size <= 0:
+        raise ValueError("row_group_size must be positive")
+    dataset_card = output_root / "README.md"
+    if not dataset_card.exists():
+        raise FileNotFoundError(dataset_card)
+
+    table = pq.read_table(projected_parquet)
+    required_columns = {"mode", "split"}
+    missing_columns = required_columns.difference(table.column_names)
+    if missing_columns:
+        raise ValueError(
+            f"Projected SFT table is missing columns: {sorted(missing_columns)}"
+        )
+
+    modes = set(pc.unique(table["mode"]).to_pylist())
+    unsupported_modes = modes.difference({"chat", "instruct"})
+    if unsupported_modes:
+        raise ValueError(f"Unsupported SFT modes: {sorted(unsupported_modes)}")
+
+    temporary = output_root / f".{release_slug}.partial"
+    if temporary.exists():
+        shutil.rmtree(temporary)
+    temporary.mkdir(parents=True)
+
+    parquet_shards: list[dict[str, Any]] = []
+    view_counts: dict[str, dict[str, int]] = {
+        "chat": {},
+        "instruct": {},
+    }
+    for mode in ("chat", "instruct"):
+        mode_root = temporary / mode
+        mode_root.mkdir()
+        for split in ("train", "validation", "diagnostic"):
+            split_table = table.filter(
+                pc.and_(
+                    pc.equal(table["mode"], mode),
+                    pc.equal(table["split"], split),
+                )
+            )
+            row_count = len(split_table)
+            if row_count == 0:
+                continue
+            view_counts[mode][split] = row_count
+            split_table = _project_hf_view(split_table, mode)
+
+            shard_count = math.ceil(row_count / max_rows_per_shard)
+            for shard_index in range(shard_count):
+                shard = split_table.slice(
+                    shard_index * max_rows_per_shard,
+                    max_rows_per_shard,
+                )
+                if shard_count == 1:
+                    filename = f"{split}.parquet"
+                else:
+                    filename = (
+                        f"{split}-{shard_index:05d}-of-{shard_count:05d}.parquet"
+                    )
+                destination = mode_root / filename
+                pq.write_table(
+                    shard,
+                    destination,
+                    compression="zstd",
+                    use_dictionary=True,
+                    write_statistics=True,
+                    row_group_size=row_group_size,
+                    write_page_index=True,
+                )
+                parquet_shards.append(
+                    {
+                        "path": str(
+                            Path("data") / release_slug / mode / filename
+                        ),
+                        "mode": mode,
+                        "split": split,
+                        "rows": len(shard),
+                        "bytes": destination.stat().st_size,
+                        "sha256": file_sha256(destination),
+                    }
+                )
+
+    destination_root = output_root / "data" / release_slug
+    destination_root.parent.mkdir(parents=True, exist_ok=True)
+    if destination_root.exists():
+        shutil.rmtree(destination_root)
+    temporary.replace(destination_root)
+    _replace_dataset_card_configs(dataset_card, release_slug)
+
+    release_path = output_root / "release.json"
+    release = json.loads(release_path.read_text()) if release_path.exists() else {}
+    release.update(
+        {
+            "examples": len(table),
+            "source_projected_sha256": file_sha256(projected_parquet),
+            "parquet_shards": parquet_shards,
+            "views": view_counts,
+        }
+    )
+    release_path.write_text(json.dumps(release, indent=2, sort_keys=True) + "\n")
+    return release
 
 
 def _copy_tree(source: Path, destination: Path) -> None:

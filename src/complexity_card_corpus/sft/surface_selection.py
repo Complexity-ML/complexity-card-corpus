@@ -7,7 +7,7 @@ from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from typing import Any
 
-from ..training_cards import TrainingCards
+from ..training_cards import RESPONSE_STRUCTURE_SIBLING_TASKS, TrainingCards
 from .language import _render_messages
 
 
@@ -25,7 +25,7 @@ def select_balanced_sft_surfaces(
     candidates_per_example: int = SURFACE_HAND_CANDIDATES_PER_EXAMPLE,
     workers: int = 1,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Balance existing response-card hands before rendering each example.
+    """Balance response-card hands and their one-card-away neighbourhoods.
 
     Candidate dealing is cheap: only the current card combinations are hashed.
     The selected key is rendered once, so this avoids multiplying full prompt
@@ -87,7 +87,7 @@ def select_balanced_sft_surfaces(
         )
     selected.sort(key=lambda row: row["example_id"])
     return selected, {
-        "method": "least_used_existing_response_card_hand",
+        "method": "least_used_response_hand_and_sibling_neighbourhood",
         "execution": execution,
         "workers": worker_count,
         "candidates_per_training_example": candidates_per_example,
@@ -103,6 +103,7 @@ def _select_task_surfaces(
     task, task_rows, dealer, projector, candidates_per_example = arguments
     selected: list[dict[str, Any]] = []
     hand_counts: Counter[str] = Counter()
+    sibling_counts: dict[str, Counter[str]] = defaultdict(Counter)
     candidate_hands: set[str] = set()
     for row in sorted(
         task_rows,
@@ -110,14 +111,26 @@ def _select_task_surfaces(
             f"surface-row:{task}:{item['example_id']}".encode()
         ).digest(),
     ):
-        options: list[tuple[int, bytes, str]] = []
+        options: list[tuple[int, int, int, bytes, str]] = []
         for candidate_index in range(candidates_per_example):
             selection_key = f"{row['example_id']}:surface-candidate:{candidate_index}"
             cards = dealer(row, selection_key)
             hand = cards.response_structure_signature
             candidate_hands.add(hand)
+            sibling_loads = (
+                [
+                    sibling_counts[dimension][signature]
+                    for dimension, signature in (
+                        cards.response_structure_sibling_signatures.items()
+                    )
+                ]
+                if task in RESPONSE_STRUCTURE_SIBLING_TASKS
+                else []
+            )
             options.append(
                 (
+                    max(sibling_loads, default=0),
+                    sum(sibling_loads),
                     hand_counts[hand],
                     hashlib.sha256(
                         f"surface-choice:{selection_key}".encode()
@@ -125,9 +138,14 @@ def _select_task_surfaces(
                     selection_key,
                 )
             )
-        _, _, selection_key = min(options)
+        _, _, _, _, selection_key = min(options)
         messages, cards = projector(row, selection_key)
         hand_counts[cards.response_structure_signature] += 1
+        if task in RESPONSE_STRUCTURE_SIBLING_TASKS:
+            for dimension, signature in (
+                cards.response_structure_sibling_signatures.items()
+            ):
+                sibling_counts[dimension][signature] += 1
         selected.append(
             {
                 **row,
@@ -146,5 +164,24 @@ def _select_task_surfaces(
             "maximum_selected_hand_share": round(
                 max(hand_counts.values(), default=0) / len(task_rows), 6
             ),
+            "maximum_selected_sibling_share": round(
+                max(
+                    (
+                        max(counts.values(), default=0) / len(task_rows)
+                        for counts in sibling_counts.values()
+                    ),
+                    default=0.0,
+                ),
+                6,
+            ),
+            "sibling_neighbourhoods": {
+                dimension: {
+                    "distinct": len(counts),
+                    "maximum_share": round(
+                        max(counts.values(), default=0) / len(task_rows), 6
+                    ),
+                }
+                for dimension, counts in sorted(sibling_counts.items())
+            },
         }
     }
