@@ -96,6 +96,18 @@ _FORBIDDEN_SFT_TARGET_PHRASES = (
     "treat the task as complete",
     "if that cannot be established",
     "return to a smaller causal model",
+    # Generic answer-development language is not a user-facing answer.  These
+    # phrases used to be spread across many lexical variants, allowing every
+    # individual n-gram to remain below five percent while preserving the same
+    # repetitive discourse act.
+    "the supported takeaway",
+    "the response can therefore",
+    "the answer is complete on this basis",
+    "that gives a concrete completion criterion",
+    "the evidence and conclusion remain aligned",
+    "the closing test is satisfied",
+    "the supplied material keeps",
+    "the supplied numbers give",
 )
 
 

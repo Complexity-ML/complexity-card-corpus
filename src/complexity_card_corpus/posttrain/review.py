@@ -71,7 +71,14 @@ def _review_sample(
                     if len(family_scenarios) == quota:
                         break
             if not made_progress:
-                raise ValueError(f"insufficient review candidates for {family}")
+                available = sum(len(values) for values in strata.values())
+                raise ValueError(
+                    "insufficient review candidates for "
+                    f"{family}: found {available} complete instruct/chat "
+                    f"scenarios but {quota} are required; increase "
+                    "variants_per_scenario, raise max_examples_per_family, "
+                    "or lower review_scenarios"
+                )
         for scenario_id in family_scenarios:
             answer = scenario_answers[scenario_id]
             for mode in ("instruct", "chat"):

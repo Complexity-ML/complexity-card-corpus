@@ -6,436 +6,518 @@ from .core import (
     TaskHand,
     _code,
     _compose_subcards,
-    _deal_task_frames,
     _number,
+    _pick,
     _render_domain,
+)
+from ..variable_by import (
+    brainstorming_variable_by,
+    critique_variable_by,
+    reasoning_variable_by,
+)
+from ..variable_by.templates import CRITIQUE_TEMPLATES, REASONING_TEMPLATES
+from ..variable_by.brainstorm_templates import (
+    BRAINSTORM_GOAL_TEMPLATES,
+    _BRAINSTORM_SCALE_CLOSINGS,
+)
+from ..variable_by.reservoirs import (
+    BrainstormFacts,
+    CritiqueFacts,
+    brainstorm_cases,
+    brainstorm_checks,
+    brainstorm_pilot_cards,
+    critique_cases,
+    reasoning_case,
 )
 
 
 def _reasoning(row: dict[str, Any], variant: int) -> TaskHand:
     code = _code(row)
-    units = _number(f"units:{code}", 4, 12)
-    each = _number(f"each:{code}", 3, 9)
-    extra = _number(f"extra:{code}", 2, 7)
     domain = _render_domain(row)
-    if domain == "shopping_arithmetic":
-        result = units * each + extra
-        data = f"Problem {code}: {units} items cost ${each} each, plus a ${extra} delivery fee."
-        equation = f"{units} × {each} + {extra} = {result}"
-        total, check = (
-            f"${result}",
-            f"the item subtotal is ${units * each}, and adding ${extra} gives ${result}",
-        )
-    elif domain == "schedule_math":
-        result = units * each + extra
-        data = f"Problem {code}: {units} sessions last {each} minutes each, followed by a {extra}-minute break."
-        equation = f"{units} × {each} + {extra} = {result}"
-        total, check = (
-            f"{result} minutes",
-            f"removing the {extra}-minute break leaves {units * each} session minutes",
-        )
-    elif domain == "unit_conversion":
-        result = units * 100
-        data = f"Problem {code}: convert {units} metres to centimetres using 1 metre = 100 centimetres."
-        equation = f"{units} × 100 = {result}"
-        total, check = (
-            f"{result} centimetres",
-            f"dividing {result} by 100 returns {units} metres",
-        )
-    elif domain == "proportions":
-        result = units * each
-        data = f"Problem {code}: one batch uses {each} cups; keep the ratio for {units} batches."
-        equation = f"{units} × {each} = {result}"
-        total, check = (
-            f"{result} cups",
-            f"{result} divided by {units} returns {each} cups per batch",
-        )
-    elif domain == "table_comparison":
-        result = max(units * each, units * extra)
-        data = f"Problem {code}: table A reports {units} × {each}; table B reports {units} × {extra}. Compare the totals."
-        equation = f"max({units} × {each}, {units} × {extra}) = {result}"
-        total, check = (
-            f"{result}",
-            "computing both products independently confirms the larger entry",
-        )
-    elif domain == "sequence_pattern":
-        result = units + 3 * each
-        data = f"Problem {code}: the sequence is {units}, {units + each}, {units + 2 * each}, __; use the constant difference."
-        equation = f"{units} + 3 × {each} = {result}"
-        total, check = f"{result}", f"each adjacent pair differs by {each}"
-    elif domain == "logical_constraints":
-        result = each - 1 + units
-        data = f"Problem {code}: A must occur immediately before B; B is at slot {each}; C is at slot {units}. Find A's slot and add it to C's slot."
-        equation = f"({each} - 1) + {units} = {result}"
-        total, check = (
-            f"{result}",
-            f"slot {each - 1} is occupied by A, immediately before B at slot {each}",
-        )
-    elif domain == "work_allocation":
-        data = (
-            f"Problem {code}: distribute 24 items equally among 3 people, "
-            "then divide each person's share equally across two rounds."
-        )
-        equation = "24 / 3 = 8; 8 / 2 = 4"
-        total, check = (
-            "8 items per person and 4 items per person per round",
-            "3 people × 2 rounds × 4 items = 24 items",
-        )
-    else:
-        result = units
-        total_outcomes = units + each
-        data = f"Problem {code}: a bag has {units} blue and {each} amber tokens; one token is drawn uniformly."
-        equation = f"{units} / ({units} + {each}) = {units}/{total_outcomes}"
-        total, check = (
-            f"{units}/{total_outcomes} probability of blue",
-            f"the favorable and total counts are {units} and {total_outcomes}",
-        )
-    data, goal = _deal_task_frames(
+    ranges = {
+        "shopping_arithmetic": ((2, 80), (4, 250), (3, 95)),
+        "schedule_math": ((2, 48), (10, 180), (5, 90)),
+        "unit_conversion": ((10, 999), (3, 99), (2, 99)),
+        "proportions": ((2, 120), (2, 80), (2, 99)),
+        "table_comparison": ((10, 999), (10, 999), (10, 999)),
+        "sequence_pattern": ((10, 999), (2, 120), (2, 99)),
+        "logical_constraints": ((2, 60), (2, 60), (2, 60)),
+        "simple_probability": ((10, 999), (10, 999), (2, 99)),
+        "work_allocation": ((10, 999), (10, 999), (10, 999)),
+    }
+    unit_range, each_range, extra_range = ranges[domain]
+    units = _number(f"units:{code}", *unit_range)
+    each = _number(f"each:{code}", *each_range)
+    extra = _number(f"extra:{code}", *extra_range)
+    data, equation, total, check, components = reasoning_case(
+        domain,
+        code,
+        units,
+        each,
+        extra,
+        number=_number,
+    )
+    answer_variables = reasoning_variable_by(
+        equation=equation,
+        total=total,
+        check=check,
+        quantity_roles=components,
+        domain=domain,
+        code=code,
+        data=data,
+    )
+    data = _compose_subcards(
         row,
         variant,
-        "reasoning",
-        (
-            data,
-            f"Calculation card {code}: {data.split(': ', 1)[-1]}",
-            f"Use the supplied values only — {data}",
-        ),
-        (
-            "Calculate the result, show the equation, and verify it with an independent check.",
-            "Give the equation and total, then confirm them through a second calculation.",
-            "Solve the supplied problem and include one independent numerical check.",
-        ),
+        "reasoning-data",
+        (REASONING_TEMPLATES["data"],),
+        pool_names=("problem",),
+        variable_by=answer_variables,
+    )
+    goal = _compose_subcards(
+        row,
+        variant,
+        "reasoning-goal",
+        (REASONING_TEMPLATES["goal"],),
+        pool_names=("calculation_instruction",),
+        variable_by=answer_variables,
     )
     answer = _compose_subcards(
         row,
         variant,
         "reasoning-answer",
         (
-            (
-                f"Equation: {equation}.",
-                f"Equation: using the supplied values, {equation}.",
-                f"Equation: the direct calculation is {equation}.",
-                f"Equation: represent the required operation as {equation}.",
-                f"Equation: evaluating the quantities gives {equation}.",
-                f"Equation: the numerical relation is {equation}.",
-            ),
-            (
-                f"Total: {total}.",
-                f"Total: this gives {total}.",
-                f"Total: the result is {total}.",
-                f"Total: the computed value is {total}.",
-                f"Total: therefore, {total}.",
-                f"Total: the supplied values produce {total}.",
-            ),
-            (
-                f"Check: {check}.",
-                f"Check: independently, {check}.",
-                f"Check: a second view confirms that {check}.",
-                f"Check: verify the result by noting that {check}.",
-            ),
+            REASONING_TEMPLATES["calculation"],
+            REASONING_TEMPLATES["verification"],
         ),
-        pool_names=("equation", "result", "verification"),
+        pool_names=("calculation", "verification"),
+        variable_by=answer_variables,
     )
     subject = domain.replace("_", " ").title()
+    situation = _compose_subcards(
+        row,
+        variant,
+        "reasoning-situation",
+        (REASONING_TEMPLATES["situation"],),
+        pool_names=("calculation_context",),
+        variable_by=answer_variables,
+    )
     return TaskHand(
         data,
         goal,
         answer,
         ("equation", "result", "check"),
         situation_title=f"{subject} — calculate and verify",
-        situation=(
-            "The supplied values define a complete calculation with an independently "
-            "checkable result."
-        ),
+        situation=situation,
     )
+
+
+# Reusable vocabulary reservoirs for _critique, grouped like a dictionary of
+# card decks so a new word or a wider numeric range can be added in one place
+# instead of hunting through the case bodies below. Add entries here, not as
+# anonymous inline tuples, to keep the family easy to enrich later.
+_CRITIQUE_WORD_RESERVOIRS: dict[str, tuple[str, ...]] = {
+    "doc_type": ("report", "spreadsheet", "summary", "audit", "proposal"),
+    "doc_qualifier": ("quarterly", "final", "draft", "revised", "updated"),
+    "feature_qualifier": ("new", "updated", "redesigned", "streamlined", "automated"),
+    "feature_name": (
+        "workflow", "checkout flow", "onboarding process", "search pipeline", "sync engine",
+    ),
+    "product_area": ("payments", "search", "onboarding", "notifications", "analytics"),
+    "artifact_type": ("prototype", "pilot", "beta", "proof of concept"),
+    "key_bits": ("128", "192", "256"),
+    "data_category": ("payment", "medical", "HR", "authentication", "financial"),
+    "data_noun": ("records", "files", "logs", "forms"),
+    "system_area": ("accounting", "inventory", "scheduling", "customer", "reporting"),
+    "system_noun": ("app", "system", "portal", "dashboard", "tool"),
+    "team_name": ("platform", "growth", "mobile", "data", "security"),
+    "team_noun": ("team", "group", "squad"),
+    "venue_qualifier": ("internal", "public", "beta", "official"),
+    "venue_noun": ("forum", "review site", "feedback channel", "community board"),
+    "action_name": ("upload", "sync", "payment", "export", "login"),
+    "initiative_area": ("payments", "search", "onboarding", "checkout", "notifications"),
+    "initiative_noun": ("migration", "relaunch", "redesign", "revamp"),
+    "surveyed_qualifier": ("new", "redesigned", "updated", "simplified"),
+    "surveyed_feature": (
+        "navigation", "homepage", "pricing page", "checkout flow", "search bar",
+    ),
+    "location_name": (
+        "building", "VPN", "office network", "shared workspace", "data center",
+    ),
+    "change_type": (
+        "interface redesign", "pricing update", "onboarding flow", "checkout process",
+    ),
+    "caption_product": ("mobile app", "desktop client", "API", "website", "dashboard"),
+    "release_component": (
+        "sync engine", "notification service", "billing pipeline", "search index", "cache layer",
+    ),
+    "support_feature": ("login", "checkout", "file upload", "export", "password reset"),
+    "support_issue": (
+        "intermittent failures", "slow response times", "occasional errors", "unexpected timeouts",
+    ),
+    "risk_system": (
+        "payment processing", "data pipeline", "authentication service",
+        "customer database", "search infrastructure",
+    ),
+}
+
+_CRITIQUE_COUNT_RESERVOIRS: dict[str, tuple[int, int]] = {
+    "files": (2, 5),
+    "arg_success": (2, 4),
+    "arg_gap": (1, 3),
+    "plan_days": (5, 14),
+    "update_minutes": (5, 30),
+    "topics": (3, 8),
+    "comments": (2, 5),
+    "error_code": (400, 599),
+    "blocked_days": (2, 10),
+    "survey_total": (10, 16),
+    "cutoff_hour": (17, 22),
+    "release_ver": (2, 9),
+    "quiet_weeks": (2, 6),
+    "page_count": (3, 48),
+    "budget_amount": (5_000, 95_000),
+    "record_count": (100, 9_999),
+    "attendee_count": (4, 22),
+    "view_count": (200, 9_800),
+    "retry_limit": (1, 9),
+    "percent_complete": (10, 95),
+    "exception_count": (2, 40),
+    "metric_delta": (3, 68),
+    "tested_system_count": (2, 24),
+    "affected_user_count": (50, 4_800),
+    "incident_count": (0, 3),
+    "exposure_amount": (5_000, 250_000),
+}
 
 
 def _critique(row: dict[str, Any], variant: int) -> TaskHand:
     code = _code(row)
-    cases = {
-        "email_draft": (
-            "Send the files soon because everyone should know what I mean.",
-            "the request has no recipient, deadline, or named files",
-            "Please send the files. First confirm the recipient, deadline, and file names.",
-        ),
-        "argument": (
-            "Our trial proves the workflow is always faster because three of five testers finished sooner.",
-            "a universal claim is not supported by three successes among five testers",
-            "Three of five testers finished sooner in this trial. That result does not establish that the workflow is always faster.",
-        ),
-        "project_plan": (
-            "Build the prototype, test it, and launch next week.",
-            "the plan gives no owner, dependency, or completion criterion",
-            "Build and test the prototype before launch. Assign an owner, dependencies, completion criteria, and a launch date before execution.",
-        ),
-        "explanation": (
-            "Encryption makes data safe by turning it into random text.",
-            "the explanation omits keys and overstates safety",
-            "Encryption transforms readable data using a key. Authorized holders can reverse it, while security still depends on key protection and implementation.",
-        ),
-        "instructions": (
-            "Install the update, delete the old folder, and check whether it works.",
-            "the destructive deletion comes before verification or backup",
-            "Back up the old folder and install the update separately. Verify the application before deleting anything, and retain rollback until the checks pass.",
-        ),
-        "summary": (
-            "The meeting discussed many topics and everyone agreed the project was important.",
-            "the summary omits the actual decision and action",
-            "The notes record only that the project was considered important. Add the actual decision and assigned action before using this as a complete summary.",
-        ),
-        "claim_evidence": (
-            "Users prefer the redesign; two positive comments prove it.",
-            "two comments cannot support a general preference claim",
-            "Two respondents commented positively on the redesign. Broader user preference remains unmeasured.",
-        ),
-        "interface_copy": (
-            "Error. Something went wrong. Try again.",
-            "the message gives neither the failed action nor a useful next step",
-            "The requested action could not be completed. Review the available error details before trying again.",
-        ),
-        "status_update": (
-            "Everything is on track, although integration is blocked and the delivery date is no longer known.",
-            "the opening claim conflicts with the stated blocker and missing delivery date",
-            "Core work is progressing, but integration remains blocked. Reassess the delivery date after that blocker is resolved.",
-        ),
-        "survey_report": (
-            "Most users prefer the new layout because six of twelve participants selected it.",
-            "six responses in a twelve-person sample do not establish a majority or a broader user preference",
-            "Six of twelve participants selected the new layout. This sample does not establish a broader user preference.",
-        ),
-        "policy_notice": (
-            "Access after 18:00 is prohibited unless approved, and exceptions may be available.",
-            "the notice gives no approval authority or exception process",
-            "Access after 18:00 requires prior approval. Name the approving authority and exception process before publishing the notice.",
-        ),
-        "data_caption": (
-            "The results improved significantly after the change.",
-            "the caption names no metric, comparator, magnitude, or uncertainty",
-            "The figure compares results before and after the change. Add the metric, magnitude, comparator, and uncertainty before claiming an improvement.",
-        ),
-        "release_note": (
-            "This update fixes all synchronization problems and works on every supported system.",
-            "the universal reliability and compatibility claims exceed the stated evidence",
-            "This update fixes the synchronization cases verified in the release tests. List the tested systems and retain any known limitations.",
-        ),
-        "support_macro": (
-            "We resolved your issue. Please repeat the failed action to confirm that it now works.",
-            "the reply claims resolution before the requested verification is complete",
-            "We applied a possible fix for the reported issue. Please repeat the failed action so we can verify whether it is resolved.",
-        ),
-        "risk_assessment": (
-            "The risk is low because no incident occurred last month.",
-            "one incident-free month does not establish low likelihood or low impact",
-            "No incident was recorded last month. Assess likelihood, impact, exposure, and mitigation evidence before assigning a risk level.",
-        ),
-    }
-    draft, weakness, revision = cases[_render_domain(row)]
+
+    def word(name: str) -> str:
+        return _pick(f"critique-{name}:{code}", _CRITIQUE_WORD_RESERVOIRS[name])
+
+    def count(name: str) -> int:
+        low, high = _CRITIQUE_COUNT_RESERVOIRS[name]
+        return _number(f"critique-{name}:{code}", low, high)
+
+    file_count = count("files")
+    doc_type = word("doc_type")
+    doc_qualifier = word("doc_qualifier")
+    arg_success = count("arg_success")
+    arg_total = arg_success + count("arg_gap")
+    feature_qualifier = word("feature_qualifier")
+    feature_name = word("feature_name")
+    plan_days = count("plan_days")
+    product_area = word("product_area")
+    artifact_type = word("artifact_type")
+    key_bits = word("key_bits")
+    data_category = word("data_category")
+    data_noun = word("data_noun")
+    update_minutes = count("update_minutes")
+    system_area = word("system_area")
+    system_noun = word("system_noun")
+    topic_count = count("topics")
+    team_name = word("team_name")
+    team_noun = word("team_noun")
+    comment_count = count("comments")
+    venue_qualifier = word("venue_qualifier")
+    venue_noun = word("venue_noun")
+    error_code = count("error_code")
+    action_name = word("action_name")
+    blocked_days = count("blocked_days")
+    initiative_area = word("initiative_area")
+    initiative_noun = word("initiative_noun")
+    survey_total = count("survey_total")
+    survey_selected = survey_total // 2
+    surveyed_qualifier = word("surveyed_qualifier")
+    surveyed_feature = word("surveyed_feature")
+    cutoff_hour = count("cutoff_hour")
+    location_name = word("location_name")
+    change_type = word("change_type")
+    caption_product = word("caption_product")
+    release_ver = count("release_ver")
+    release_component = word("release_component")
+    support_feature = word("support_feature")
+    support_issue = word("support_issue")
+    quiet_weeks = count("quiet_weeks")
+    risk_system = word("risk_system")
+
+    page_count = count("page_count")
+    budget_amount = count("budget_amount")
+    record_count = count("record_count")
+    attendee_count = count("attendee_count")
+    view_count = count("view_count")
+    retry_limit = count("retry_limit")
+    percent_complete = count("percent_complete")
+    exception_count = count("exception_count")
+    metric_delta = count("metric_delta")
+    tested_system_count = count("tested_system_count")
+    affected_user_count = count("affected_user_count")
+    incident_count = count("incident_count")
+    exposure_amount = count("exposure_amount")
+
+    cases = critique_cases(
+        CritiqueFacts(
+            action_name=action_name,
+            affected_user_count=affected_user_count,
+            arg_success=arg_success,
+            arg_total=arg_total,
+            artifact_type=artifact_type,
+            attendee_count=attendee_count,
+            blocked_days=blocked_days,
+            budget_amount=budget_amount,
+            caption_product=caption_product,
+            change_type=change_type,
+            comment_count=comment_count,
+            cutoff_hour=cutoff_hour,
+            data_category=data_category,
+            data_noun=data_noun,
+            doc_qualifier=doc_qualifier,
+            doc_type=doc_type,
+            error_code=error_code,
+            exception_count=exception_count,
+            exposure_amount=exposure_amount,
+            feature_name=feature_name,
+            feature_qualifier=feature_qualifier,
+            file_count=file_count,
+            incident_count=incident_count,
+            initiative_area=initiative_area,
+            initiative_noun=initiative_noun,
+            key_bits=key_bits,
+            location_name=location_name,
+            metric_delta=metric_delta,
+            page_count=page_count,
+            percent_complete=percent_complete,
+            plan_days=plan_days,
+            product_area=product_area,
+            quiet_weeks=quiet_weeks,
+            record_count=record_count,
+            release_component=release_component,
+            release_ver=release_ver,
+            retry_limit=retry_limit,
+            risk_system=risk_system,
+            support_feature=support_feature,
+            support_issue=support_issue,
+            survey_selected=survey_selected,
+            survey_total=survey_total,
+            surveyed_feature=surveyed_feature,
+            surveyed_qualifier=surveyed_qualifier,
+            system_area=system_area,
+            system_noun=system_noun,
+            team_name=team_name,
+            team_noun=team_noun,
+            tested_system_count=tested_system_count,
+            topic_count=topic_count,
+            update_minutes=update_minutes,
+            venue_noun=venue_noun,
+            venue_qualifier=venue_qualifier,
+            view_count=view_count,
+        )
+    )
+    draft, weakness, revision, consequence_pool = cases[_render_domain(row)]
     draft = f"Draft {code}: {draft}"
-    data, goal = _deal_task_frames(
+    critique_variables = critique_variable_by(
+        code,
+        weakness=weakness,
+        revision=revision,
+        consequences=consequence_pool,
+    )
+    data = _compose_subcards(
         row,
         variant,
-        "critique",
-        (
+        "critique-data",
+        ((
             f"Text to review: {draft}",
             f"Review candidate {code}: {draft}",
             f"Editing input — {draft}",
-        ),
-        (
-            "Identify the highest-impact weakness and provide a faithful two-sentence revision.",
-            "Name the main evidence or clarity problem, then rewrite the text in exactly two sentences.",
-            "Diagnose the most consequential flaw and revise it without inventing any fact.",
-        ),
+        ),),
+        pool_names=("draft",),
+    )
+    goal = _compose_subcards(
+        row,
+        variant,
+        "critique-goal",
+        (CRITIQUE_TEMPLATES["goal"],),
+        pool_names=("critique_instruction",),
+        variable_by=critique_variables,
     )
     answer = _compose_subcards(
         row,
         variant,
         "critique-answer",
-        (
-            (
-                f"Weakness: {weakness}.",
-                f"Weakness: {weakness}; the wording exceeds the supplied evidence.",
-                f"Weakness: {weakness}. The correction must remain within the recorded facts.",
-                f"Weakness: {weakness}, making the original difficult to verify.",
-            ),
-            (
-                f"Revision: {revision}",
-                f"Faithful Revision: {revision}",
-                f"Bounded Revision: {revision}",
-            ),
-        ),
-        pool_names=("weakness", "revision"),
+        (CRITIQUE_TEMPLATES["answer"],),
+        pool_names=("critique_response",),
+        variable_by=critique_variables,
     )
     return TaskHand(data, goal, answer, ("weakness", "reason", "revision"))
 
 
+
+_BRAINSTORM_SCALE_RANGES: dict[str, tuple[int, int]] = {
+    "names": (100, 999),
+    "lesson_activity": (20, 90),
+    "event_plan": (20, 30),
+    "feature_ideas": (100, 999),
+    "writing_prompts": (20, 99),
+    "low_cost_activity": (6, 10),
+    "outreach": (100, 999),
+    "workflow": (20, 99),
+}
+
+_BRAINSTORM_DAY_RANGES: dict[str, tuple[int, int]] = {
+    "names": (14, 90),
+    "lesson_activity": (7, 60),
+    "event_plan": (30, 180),
+    "feature_ideas": (14, 90),
+    "writing_prompts": (7, 60),
+    "low_cost_activity": (7, 60),
+    "outreach": (7, 60),
+    "workflow": (14, 90),
+}
+
+
+
 def _brainstorm(row: dict[str, Any], variant: int) -> TaskHand:
     code = _code(row)
-    cases = {
-        "names": (
-            (
-                "name a neighborhood tool library for adult residents; names must be short and welcoming",
-                "1. Tool Harbor — suggests shared access. 2. Common Kit — emphasizes practical community use. 3. Borrow Bench — makes the action memorable. All are short and audience-appropriate. Select Common Kit for its clearest meaning.",
-            ),
-            (
-                "name a free weekend reading circle for adult beginners; use at most two welcoming words",
-                "1. Open Pages — signals easy entry. 2. Story Neighbors — emphasizes community. 3. First Chapter — welcomes beginners. Each uses two words and a friendly tone. Select Open Pages for immediate clarity.",
-            ),
-            (
-                "name a community seed exchange; the name must be short, inclusive, and easy to say",
-                "1. Seed Circle — conveys exchange. 2. Common Ground — stresses shared participation. 3. Garden Share — states the activity directly. All are concise and inclusive. Select Seed Circle for its clearest action.",
-            ),
+    domain = _render_domain(row)
+    domain_label = domain.replace("_", " ")
+    name_audience = _pick(
+        f"brainstorm-nameaudience:{code}",
+        (
+            "adult residents", "new neighbors", "local volunteers",
+            "first-time visitors", "multilingual households", "community members",
         ),
-        "lesson_activity": (
-            (
-                "teach cause and effect to learners in 20 minutes using paper only",
-                "1. Cause Chain — order event cards. 2. Change One Thing — predict an outcome after one variable changes. 3. Evidence Match — connect claims to observations. All fit the material and time limits. Select Change One Thing for its direct observable check.",
-            ),
-            (
-                "teach equivalent fractions in 20 minutes using paper only",
-                "1. Fold and Compare — align folded strips. 2. Fraction Match — pair equal diagrams. 3. Missing Piece — complete a paper whole. Each fits the time and material limits. Select Fold and Compare because equality is directly visible.",
-            ),
-            (
-                "teach claims and evidence in 20 minutes with printed cards",
-                "1. Claim Sort — separate claims from facts. 2. Evidence Trail — link each claim to a supporting card. 3. Source Ladder — rank support strength. All use the supplied cards. Select Evidence Trail for its explicit reasoning step.",
-            ),
+    )
+    name_quality = _pick(
+        f"brainstorm-namequality:{code}",
+        (
+            "welcoming", "easy to pronounce", "memorable",
+            "inclusive", "plain-language", "clear in conversation",
         ),
-        "event_plan": (
-            (
-                "design a two-hour neighborhood event for 30 people with a $60 budget and step-free access",
-                "1. Skill Tables — rotating demonstrations. 2. Story Map — residents place anonymous local memories. 3. Repair Circle — shared guidance for small fixes. Each fits two hours, supports three step-free groups of ten, and can use no more than $60 in common supplies. Select Skill Tables for flexible participation.",
-            ),
-            (
-                "design a quiet 90-minute library event for 20 people with a $40 budget and step-free access",
-                "1. Mini Talks — three short resident presentations. 2. Swap Shelf — exchange labeled recommendations. 3. Local Puzzle — solve a seated team challenge. Each fits 90 minutes, seats 20 people with step-free access, remains quiet, and can use no more than $40 in common supplies. Select Local Puzzle for shared participation.",
-            ),
-            (
-                "design a two-hour intergenerational event for 24 people without collecting participant data",
-                "1. Story Stations — share optional memories at tables. 2. Skill Exchange — demonstrate simple techniques. 3. Object Stories — discuss an everyday object. Each fits two hours as rotations for three groups of eight and requires neither registration nor personal records. Select Skill Exchange for active participation.",
-            ),
+    )
+    name_word_limit = _number(f"brainstorm-namewords:{code}", 2, 4)
+    lesson_minutes = _number(f"brainstorm-lessonminutes:{code}", 25, 90)
+    lesson_learners = _number(f"brainstorm-lessonlearners:{code}", 12, 48)
+    lesson_material = _pick(
+        f"brainstorm-lessonmaterial:{code}",
+        (
+            "paper strips", "index cards", "printed diagrams",
+            "folded worksheets", "sticky notes", "cardstock tiles",
         ),
-        "feature_ideas": (
-            (
-                "reduce missed handoffs in a small team without removing approval checks",
-                "1. Owner Badge — show the current responsible person. 2. Ready Queue — list items that passed approval. 3. Handoff Receipt — record sender, receiver, and time. All preserve review controls. Select Handoff Receipt because it makes every transfer auditable.",
-            ),
-            (
-                "reduce forgotten approvals while keeping the final decision with a human reviewer",
-                "1. Approval Timer — flag aging requests. 2. Ready Signal — mark complete evidence packs. 3. Decision Receipt — record reviewer and outcome. Each retains human authority. Select Ready Signal because it removes avoidable review starts.",
-            ),
-            (
-                "improve incident follow-up without allowing automatic closure",
-                "1. Recovery Owner — show one accountable person. 2. Checkpoint List — expose unresolved checks. 3. Closure Note — require evidence before a human closes the incident. All prevent silent closure. Select Checkpoint List for continuous visibility.",
-            ),
+    )
+    event_minutes = _number(f"brainstorm-eventminutes:{code}", 90, 240)
+    event_attendees = _number(f"brainstorm-eventattendees:{code}", 20, 60)
+    event_budget = _number(f"brainstorm-eventbudget:{code}", 100, 999)
+    event_groups = _number(f"brainstorm-eventgroups:{code}", 3, 6)
+    event_group_size = (event_attendees + event_groups - 1) // event_groups
+    feature_team_size = _number(f"brainstorm-featureteam:{code}", 10, 99)
+    feature_approval_steps = _number(f"brainstorm-approvalsteps:{code}", 2, 12)
+    feature_review_hours = _number(f"brainstorm-reviewhours:{code}", 12, 96)
+    prompt_word_limit = _number(f"brainstorm-promptwords:{code}", 100, 999)
+    prompt_draft_minutes = _number(f"brainstorm-draftminutes:{code}", 20, 180)
+    prompt_audience = _pick(
+        f"brainstorm-promptaudience:{code}",
+        (
+            "adult beginners", "first-time fiction writers", "community writers",
+            "returning learners", "library workshop participants", "peer-writing groups",
         ),
-        "writing_prompts": (
-            (
-                "create short speculative-fiction prompts about memory for adult beginners",
-                "1. A town forgets one street each sunrise. 2. A diver finds a memory labeled with tomorrow's date. 3. Two siblings remember the same childhood differently. All use a clear memory premise. Select the diver prompt for its immediate mystery.",
-            ),
-            (
-                "create short speculative-fiction prompts about unusual weather for adult beginners",
-                "1. Rain begins falling upward. 2. A storm calls residents by name. 3. Tomorrow's forecast describes yesterday. Each starts from one accessible twist. Select the named storm for its personal tension.",
-            ),
-            (
-                "create short speculative-fiction prompts about ordinary objects for adult beginners",
-                "1. A key refuses every lock except one. 2. A chair remembers each person who sat in it. 3. A clock offers to trade an hour. All center one familiar object. Select the clock for its immediate choice.",
-            ),
+    )
+    activity_minutes = _number(f"brainstorm-activityminutes:{code}", 30, 180)
+    activity_participants = _number(f"brainstorm-activitypeople:{code}", 6, 40)
+    activity_material = _pick(
+        f"brainstorm-activitymaterial:{code}",
+        (
+            "recycled paper", "index cards", "sticky notes",
+            "paper strips", "cardboard pieces", "plain worksheets",
         ),
-        "low_cost_activity": (
-            (
-                "create a 30-minute indoor activity for eight people using common paper supplies",
-                "1. Paper Bridge — build for a fixed span. 2. Sequence Swap — reorder illustrated events. 3. Constraint Sketch — draw under one changing rule. Each avoids specialist materials and hidden cost. Select Paper Bridge for a clear shared test.",
-            ),
-            (
-                "create a 20-minute teamwork activity for six people using index cards",
-                "1. Silent Sort — arrange cards without speech. 2. Priority Relay — revise a shared ranking. 3. Pattern Build — reproduce a hidden sequence. Each uses only cards and fits 20 minutes. Select Silent Sort for strong coordination practice.",
-            ),
-            (
-                "create a 40-minute reflection activity for ten people using sticky notes",
-                "1. Theme Wall — group anonymous observations. 2. Decision River — order turning points. 3. Question Garden — cluster open questions. Each needs only sticky notes. Select Theme Wall for a concrete shared result.",
-            ),
+    )
+    outreach_capacity = _number(f"brainstorm-outreachcapacity:{code}", 100, 999)
+    outreach_days = _number(f"brainstorm-outreachdays:{code}", 7, 90)
+    outreach_partner = _pick(
+        f"brainstorm-outreachpartner:{code}",
+        (
+            "public libraries", "local schools", "community centers",
+            "repair groups", "adult-learning programs", "neighborhood associations",
         ),
-        "outreach": (
-            (
-                "invite local students to a free weekend science session without collecting personal data",
-                "1. Library Poster — direct readers to open attendance hours. 2. School Bulletin — share a short teacher-ready notice. 3. Community Demo — offer a public five-minute preview. All avoid personal-data collection. Select School Bulletin for trusted distribution.",
-            ),
-            (
-                "invite residents to a free repair workshop without requiring online registration",
-                "1. Notice Board — post time and walk-in capacity. 2. Partner Bulletin — ask local groups to share the notice. 3. Open Demo — preview one repair in public. None requires registration. Select Partner Bulletin for broader trusted reach.",
-            ),
-            (
-                "invite adult beginners to a free reading circle while keeping attendance optional",
-                "1. Library Slip — place a concise invitation in borrowed books. 2. Community Calendar — list open meeting times. 3. Five-Minute Reading — demonstrate the format publicly. Each preserves optional attendance. Select Community Calendar for clear recurring access.",
-            ),
-        ),
-        "workflow": (
-            (
-                "reduce review delays while retaining the final human approval",
-                "1. Intake Checklist — reject incomplete submissions early. 2. Parallel Evidence Check — review independent facts together. 3. Approval Queue — surface only complete items. All retain final approval. Select Intake Checklist because it prevents avoidable rework first.",
-            ),
-            (
-                "speed incident triage while keeping closure under operator control",
-                "1. Evidence Pack — collect logs before review. 2. Parallel Diagnosis — test independent causes together. 3. Decision Gate — require operator sign-off for closure. Each preserves operator control. Select Evidence Pack because it improves every later step.",
-            ),
-            (
-                "reduce content-approval rework without bypassing editorial sign-off",
-                "1. Brief Template — require audience and claims up front. 2. Independent Review — check facts and style in parallel. 3. Release Receipt — record final editor approval. All preserve sign-off. Select Brief Template because it prevents incomplete drafts.",
-            ),
-        ),
-    }
-    case_cards = cases[_render_domain(row)]
+    )
+    workflow_items = _number(f"brainstorm-workitems:{code}", 100, 999)
+    workflow_reviewers = _number(f"brainstorm-reviewers:{code}", 3, 20)
+    workflow_target_hours = _number(f"brainstorm-targethours:{code}", 12, 96)
+    cases = brainstorm_cases(
+        BrainstormFacts(
+            activity_material=activity_material,
+            activity_minutes=activity_minutes,
+            activity_participants=activity_participants,
+            event_attendees=event_attendees,
+            event_budget=event_budget,
+            event_group_size=event_group_size,
+            event_groups=event_groups,
+            event_minutes=event_minutes,
+            feature_approval_steps=feature_approval_steps,
+            feature_review_hours=feature_review_hours,
+            feature_team_size=feature_team_size,
+            lesson_learners=lesson_learners,
+            lesson_material=lesson_material,
+            lesson_minutes=lesson_minutes,
+            name_audience=name_audience,
+            name_quality=name_quality,
+            name_word_limit=name_word_limit,
+            outreach_capacity=outreach_capacity,
+            outreach_days=outreach_days,
+            outreach_partner=outreach_partner,
+            prompt_audience=prompt_audience,
+            prompt_draft_minutes=prompt_draft_minutes,
+            prompt_word_limit=prompt_word_limit,
+            workflow_items=workflow_items,
+            workflow_reviewers=workflow_reviewers,
+            workflow_target_hours=workflow_target_hours,
+        )
+    )
+    case_cards = cases[domain]
     brief, answer = case_cards[
         _number(f"brainstorm-case:{row['scenario_id']}", 0, len(case_cards) - 1)
     ]
-    constraint_checks = {
-        "Make the options meaningfully different rather than cosmetic rewrites.": (
-            "The options differ in mechanism rather than wording alone."
-        ),
-        "Avoid ideas that create unnecessary safety, privacy, or exclusion risks.": (
-            "None of the options requires sensitive personal data or an avoidable safety risk."
-        ),
-        "Explain briefly how each retained option meets the named criteria.": (
-            "Each description states how its option fits the brief."
-        ),
-        "Keep every option feasible within the stated resources.": (
-            "All three options stay within the resources named in the brief."
-        ),
-        "Keep the intended audience visible in each option.": (
-            "Each option remains directed to the audience named in the brief."
-        ),
-        "Keep the proposal small enough to test and revise.": (
-            "The selected option can be tested at the stated scale before expansion."
-        ),
-    }
-    outcome_checks = {
-        "The remaining ideas are feasible within the available resources.": (
-            "The three retained ideas remain feasible under the stated limits."
-        ),
-        "The main trade-off of each leading option is visible.": (
-            "The alternatives emphasize different strengths, making the choice explicit."
-        ),
-        "Each retained option satisfies the stated criteria.": (
-            "Each retained option satisfies the stated criteria."
-        ),
-        "One idea is developed into a small testable proposal.": (
-            "The selected idea is the smallest concrete proposal to test first."
-        ),
-        "Compatible strengths are combined without preserving their conflicts.": (
-            "The selection keeps the most compatible strengths without combining conflicting requirements."
-        ),
-        "The candidate options differ in a meaningful and useful way.": (
-            "The candidate options differ in a way that changes how the brief would be carried out."
-        ),
-    }
+    (
+        constraint_checks,
+        outcome_checks,
+        default_constraint,
+        default_outcome,
+    ) = brainstorm_checks(domain_label)
     constraint_check = constraint_checks.get(
         row.get("constraint", ""),
-        "The options remain bounded by the explicit brief.",
+        default_constraint,
     )
     outcome_check = outcome_checks.get(
         row.get("desired_outcome", ""),
-        "The selected option is concrete enough to test first.",
+        default_outcome,
     )
     options, selection = answer.rsplit(" Select ", 1)
+    scale_low, scale_high = _BRAINSTORM_SCALE_RANGES[domain]
+    day_low, day_high = _BRAINSTORM_DAY_RANGES[domain]
+    generated_scale = _number(f"brainstorm-scale:{code}", scale_low, scale_high)
+    scale_count = {
+        "lesson_activity": lesson_learners,
+        "event_plan": event_attendees,
+        "feature_ideas": feature_team_size,
+        "low_cost_activity": activity_participants,
+        "outreach": outreach_capacity,
+        "workflow": workflow_reviewers,
+    }.get(domain, generated_scale)
+    days_to_test = _number(f"brainstorm-testdays:{code}", day_low, day_high)
+    pilot_rounds = _number(f"brainstorm-rounds:{code}", 3, 12)
+    pilot_settings, pilot_signals = brainstorm_pilot_cards(domain)
+    pilot_setting = _pick(f"brainstorm-setting:{code}", pilot_settings)
+    pilot_signal = _pick(f"brainstorm-signal:{code}", pilot_signals)
+    closing_templates = _BRAINSTORM_SCALE_CLOSINGS[domain]
+    lexical_variables = brainstorming_variable_by(
+        domain,
+        scale=scale_count,
+        days=days_to_test,
+        rounds=pilot_rounds,
+        setting=pilot_setting,
+        signal=pilot_signal,
+    )
     answer = _compose_subcards(
         row,
         variant,
@@ -457,12 +539,13 @@ def _brainstorm(row: dict[str, Any], variant: int) -> TaskHand:
                 f"Practical result: {outcome_check}",
             ),
             (
-                f"Select {selection}",
-                f"Select this option: {selection}",
-                f"Select the strongest fit: {selection}",
+                f"Select {selection} " + closing_templates[0],
+                f"Select this option: {selection} " + closing_templates[1],
+                f"Select the strongest fit: {selection} " + closing_templates[2],
             ),
         ),
         pool_names=("options", "criteria", "outcome", "selection"),
+        variable_by=lexical_variables,
     )
     data = _compose_subcards(
         row,
@@ -479,22 +562,11 @@ def _brainstorm(row: dict[str, Any], variant: int) -> TaskHand:
         variant,
         "brainstorm-objective",
         (
-            (
-                "Generate three meaningfully different options.",
-                "Propose three distinct approaches.",
-                "Create three feasible alternatives.",
-            ),
-            (
-                "Test each against the brief.",
-                "Compare their fit with the stated limits.",
-                "Check each option against the named criteria.",
-            ),
-            (
-                "Select the strongest one.",
-                "Recommend one option and explain the choice.",
-                "Choose the best bounded proposal to test first.",
-            ),
+            BRAINSTORM_GOAL_TEMPLATES["generate"],
+            BRAINSTORM_GOAL_TEMPLATES["compare"],
+            BRAINSTORM_GOAL_TEMPLATES["select"],
         ),
         pool_names=("generation", "criteria", "selection"),
+        variable_by=lexical_variables,
     )
     return TaskHand(data, goal, answer, ("three_options", "criteria", "selection"))

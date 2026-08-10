@@ -6,6 +6,7 @@ import statistics
 from collections import Counter, defaultdict
 from typing import Any
 
+from ..sft.language import _HAND_PREFIX
 from .constants import (
     DATASET_LICENSE,
     _FORBIDDEN_ASSISTANT_META_PHRASES,
@@ -14,6 +15,7 @@ from .constants import (
     _MASKED_RESPONSE_FIELDS,
     _MAX_FAMILY_SKELETON_SHARE,
     _MAX_SURFACE_FORMULATION_SHARE,
+    _STRUCTURED_OUTPUT_FAMILIES,
     _WORD,
 )
 
@@ -131,30 +133,52 @@ def _masked_response(response: str, answer: dict[str, Any]) -> str:
         for source, target in _MASKED_RESPONSE_FIELDS
         if str(answer.get(source, "")).strip().rstrip(".")
     ]
-    masked = response
-    for value, placeholder in sorted(replacements, key=lambda item: -len(item[0])):
-        masked = re.sub(re.escape(value), placeholder, masked, flags=re.IGNORECASE)
     scenario_id = str(answer.get("scenario_id", ""))
     codes = {scenario_id.split(":")[-1][:6] if scenario_id else ""}
-    prefix = re.match(r"^(?:for\s+)?hand\s+([0-9a-f]{6})\s*[:—-]", masked, re.I)
-    if prefix:
-        codes.add(prefix.group(1))
+    prefix_code = re.match(r"^(?:for\s+)?hand\s+([a-z0-9]+)\s*(?:—|:|-)", response, re.I)
+    if prefix_code:
+        codes.add(prefix_code.group(1))
+    # The hand-reference tag ("Hand ABCDEF —") is a review-time scenario
+    # pointer, not answer content: `_final_assistant_target` (sft/language.py)
+    # strips it with this same regex before the text ever becomes a training
+    # target, so diversity is measured on what the model actually sees.
+    masked = _HAND_PREFIX.sub("", response, count=1)
+    for value, placeholder in sorted(replacements, key=lambda item: -len(item[0])):
+        masked = re.sub(re.escape(value), placeholder, masked, flags=re.IGNORECASE)
     for code in sorted(filter(None, codes), key=len, reverse=True):
+        # "<id>" would tokenize to the plain English word "id", which
+        # collides with genuine content like the JSON key "record_id"
+        # (itself tokenized "record"+"id") and inflates unrelated n-grams.
+        # Use a placeholder no real answer text would ever contain.
         masked = re.sub(
             rf"\b{re.escape(code)}(?:-[ab])?\b",
-            "<id>",
+            "<scenariocode>",
             masked,
             flags=re.IGNORECASE,
         )
+    # An "Equation: ..." segment (reasoning_verification) is arithmetic, not
+    # narrative surface formulation: its digits *are* the scenario's real
+    # entropy, so masking them to a single <number> token would erase the
+    # only signal that distinguishes one problem from another and falsely
+    # register every equation as an identical repeated phrase. Shield that
+    # span from the generic digit masking below and restore it verbatim.
+    equation_match = re.search(
+        r"Equation:\s*.*?(?=\s*(?:Total:|Check:|$))", masked, re.IGNORECASE
+    )
+    equation_span = equation_match.group(0) if equation_match else None
+    if equation_span:
+        masked = masked.replace(equation_span, "\x00EQUATION\x00", 1)
     masked = re.sub(r"\b\d{4}-\d{2}-\d{2}\b", "<date>", masked)
     masked = re.sub(r"\$\d+(?:\.\d+)?", "<amount>", masked)
     masked = re.sub(r"\b\d{1,2}:\d{2}\b", "<time>", masked)
     masked = re.sub(r"\b\d+(?:\.\d+)?\b", "<number>", masked)
+    if equation_span:
+        masked = masked.replace("\x00EQUATION\x00", equation_span, 1)
     return re.sub(r"\s+", " ", masked).strip().lower()
 
 
 def _masked_diversity(
-    responses: list[str], answers: list[dict[str, Any]]
+    responses: list[str], answers: list[dict[str, Any]], *, enforce: bool = True
 ) -> dict[str, Any]:
     skeletons = [
         _masked_response(response, answer)
@@ -163,7 +187,7 @@ def _masked_diversity(
     counts = Counter(skeletons)
     maximum = max(counts.values(), default=0)
     maximum_share = maximum / len(skeletons) if skeletons else 0.0
-    if maximum_share >= _MAX_SURFACE_FORMULATION_SHARE:
+    if enforce and maximum_share >= _MAX_SURFACE_FORMULATION_SHARE:
         raise ValueError(
             "masked response skeleton reaches the five-percent ceiling: "
             f"{maximum_share:.3%}"
@@ -186,7 +210,9 @@ def _masked_diversity(
         "maximum_examples_per_skeleton": maximum,
         "maximum_skeleton_share": round(maximum_share, 6),
         "strict_share_limit": _MAX_SURFACE_FORMULATION_SHARE,
+        "three_gram_stats": _ngram_statistics(skeletons, 3),
         "four_gram_stats": _ngram_statistics(skeletons, 4),
+        "five_gram_stats": _ngram_statistics(skeletons, 5),
         "eight_gram_stats": _ngram_statistics(skeletons, 8),
         "top_repeated_skeletons": [
             {"text": text, "examples": count, "share": round(count / len(skeletons), 6)}
@@ -348,16 +374,37 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
         raise ValueError("post-training card hands do not cover all task families")
 
     final_response_stats = _text_statistics(responses)
-    masked_response_diversity = _masked_diversity(responses, answers)
-    maximum_final_phrase_share = masked_response_diversity["eight_gram_stats"][
-        "maximum_message_coverage"
+    narrative_pairs = [
+        (response, answer)
+        for response, answer in zip(responses, answers, strict=True)
+        if answer["family"] not in _STRUCTURED_OUTPUT_FAMILIES
     ]
-    if maximum_final_phrase_share >= _MAX_SURFACE_FORMULATION_SHARE:
-        raise ValueError(
-            "a masked final-response eight-token phrase reaches the "
-            "five-percent ceiling: "
-            f"{maximum_final_phrase_share:.3%}"
+    structured_pairs = [
+        (response, answer)
+        for response, answer in zip(responses, answers, strict=True)
+        if answer["family"] in _STRUCTURED_OUTPUT_FAMILIES
+    ]
+    narrative_responses, narrative_answers = (
+        map(list, zip(*narrative_pairs)) if narrative_pairs else ([], [])
+    )
+    masked_response_diversity = _masked_diversity(narrative_responses, narrative_answers)
+    for gram_size, stats_key in ((3, "three_gram_stats"), (5, "five_gram_stats"), (8, "eight_gram_stats")):
+        maximum_final_phrase_share = masked_response_diversity[stats_key][
+            "maximum_message_coverage"
+        ]
+        if maximum_final_phrase_share >= _MAX_SURFACE_FORMULATION_SHARE:
+            raise ValueError(
+                f"a masked final-response {gram_size}-token phrase reaches the "
+                "five-percent ceiling: "
+                f"{maximum_final_phrase_share:.3%}"
+            )
+    if structured_pairs:
+        structured_responses, structured_answers = map(list, zip(*structured_pairs))
+        structured_output_diversity = _masked_diversity(
+            structured_responses, structured_answers, enforce=False
         )
+    else:
+        structured_output_diversity = None
     all_message_tokens = [token for message in messages for token in _tokens(message)]
     vocabulary = set(all_message_tokens)
     family_metrics: dict[str, dict[str, Any]] = {}
@@ -465,11 +512,21 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
             ],
         },
         "response_repetition_gate": {
-            "maximum_masked_eight_token_message_coverage": maximum_final_phrase_share,
+            "maximum_masked_three_token_message_coverage": masked_response_diversity[
+                "three_gram_stats"
+            ]["maximum_message_coverage"],
+            "maximum_masked_five_token_message_coverage": masked_response_diversity[
+                "five_gram_stats"
+            ]["maximum_message_coverage"],
+            "maximum_masked_eight_token_message_coverage": masked_response_diversity[
+                "eight_gram_stats"
+            ]["maximum_message_coverage"],
             "strict_share_limit": _MAX_SURFACE_FORMULATION_SHARE,
             "measured_from_rendered_responses": True,
         },
         "masked_response_diversity": masked_response_diversity,
+        "structured_output_families": sorted(_STRUCTURED_OUTPUT_FAMILIES),
+        "structured_output_diversity_unenforced": structured_output_diversity,
         "role_text_stats": {
             "user_prompts": _text_statistics(user_prompts),
             "assistant_messages": _text_statistics(assistant_messages),

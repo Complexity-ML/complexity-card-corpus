@@ -43,6 +43,12 @@ def build_post_training_corpus(
 ) -> dict[str, Any]:
     if variants_per_scenario < 1:
         raise ValueError("variants_per_scenario must be positive")
+    if review_scenarios and variants_per_scenario < 2:
+        raise ValueError(
+            "variants_per_scenario must be at least 2 when building the human "
+            "review set because every reviewed scenario requires one instruct "
+            "and one chat projection"
+        )
     if workers < 1:
         raise ValueError("workers must be positive")
     scenarios = pq.read_table(scenarios_path).to_pylist()

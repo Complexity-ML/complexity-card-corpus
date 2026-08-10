@@ -36,6 +36,14 @@ _MAX_SURFACE_FORMULATION_SHARE = 0.05
 _MAX_FAMILY_SKELETON_SHARE = 0.20
 
 
+# These families answer with a fixed structured-data schema (JSON field
+# names) rather than narrative prose. Consistent key vocabulary across every
+# row is the *correct*, required behavior for a schema contract, not
+# repeated surface formulation, so they are measured but not gated by the
+# narrative repetition ceilings below.
+_STRUCTURED_OUTPUT_FAMILIES = frozenset({"extraction_classification"})
+
+
 _FORBIDDEN_ASSISTANT_META_PHRASES = (
     "the response should",
     "the response must",

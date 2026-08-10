@@ -149,6 +149,9 @@ def audit_rows_quality(
         _normalize(f"{row.get(prompt_key, '')}\n{row.get(response_key, '')}")
         for row in sampled
     ]
+    response_texts = [
+        _normalize(str(row.get(response_key, ""))) for row in sampled
+    ]
     labels = [str(row.get("task", "unknown")) for row in sampled]
     splits = [str(row.get("split", "train")) for row in sampled]
 
@@ -158,6 +161,12 @@ def audit_rows_quality(
     )
     normalized_counts = Counter(all_normalized_texts)
     exact_duplicate_rows = sum(count - 1 for count in normalized_counts.values())
+    normalized_response_counts = Counter(
+        _normalize(str(row.get(response_key, ""))) for row in rows
+    )
+    exact_duplicate_responses = sum(
+        count - 1 for count in normalized_response_counts.values()
+    )
 
     train_groups: set[str] = set()
     evaluation_groups: set[str] = set()
@@ -177,6 +186,27 @@ def audit_rows_quality(
     matrix = vectorizer.fit_transform(texts)
     nearest = _nearest_other_similarity(matrix, workers=workers)
     near_duplicate_rows = int(np.count_nonzero(nearest >= near_duplicate_threshold))
+
+    # Prompt diversity can conceal a collapsed answer surface when both roles
+    # are embedded together.  Score final responses independently so lexical
+    # substitutions around one learned discourse pattern cannot pass merely
+    # because their prompts differ.
+    response_vectorizer = TfidfVectorizer(
+        analyzer="char_wb",
+        ngram_range=(3, 5),
+        min_df=2,
+        max_features=resolved_max_features,
+        sublinear_tf=True,
+        dtype=np.float32,
+    )
+    response_matrix = response_vectorizer.fit_transform(response_texts)
+    response_nearest = _nearest_other_similarity(
+        response_matrix,
+        workers=workers,
+    )
+    near_duplicate_responses = int(
+        np.count_nonzero(response_nearest >= near_duplicate_threshold)
+    )
 
     train_indices = np.asarray([i for i, split in enumerate(splits) if split == "train"])
     eval_indices = np.asarray([i for i, split in enumerate(splits) if split != "train"])
@@ -345,6 +375,23 @@ def audit_rows_quality(
             "maximum_similarity": float(nearest.max(initial=0.0)),
             "p95_similarity": float(np.quantile(nearest, 0.95)) if len(nearest) else 0.0,
         },
+        "response_only_repetition": {
+            "method": "tfidf_char_wb_nearest_response",
+            "threshold": near_duplicate_threshold,
+            "sample_rows": len(sampled),
+            "exact_duplicate_rows": exact_duplicate_responses,
+            "near_duplicate_rows": near_duplicate_responses,
+            "near_duplicate_ratio": near_duplicate_responses
+            / max(1, len(sampled)),
+            "maximum_similarity": float(response_nearest.max(initial=0.0)),
+            "p95_similarity": float(np.quantile(response_nearest, 0.95))
+            if len(response_nearest)
+            else 0.0,
+            "interpretation": (
+                "Responses are measured without prompts so prompt diversity "
+                "cannot conceal repeated answer behaviour."
+            ),
+        },
         "split_leakage": {
             "source_group_overlap_count": len(leaking_groups),
             "source_group_overlap_preview": leaking_groups[:20],
@@ -397,6 +444,9 @@ def audit_rows_quality(
             "no_source_group_leakage": not leaking_groups,
             "near_duplicate_ratio_below_five_percent": (
                 near_duplicate_rows / max(1, len(sampled)) < 0.05
+            ),
+            "response_near_duplicate_ratio_below_five_percent": (
+                near_duplicate_responses / max(1, len(sampled)) < 0.05
             ),
             "all_clusters_occupied": (
                 len(all_cluster_sizes) == resolved_cluster_count

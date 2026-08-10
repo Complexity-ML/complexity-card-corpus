@@ -6,6 +6,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from ..variable_by import VariableBy2D
+
 
 # Newly authored Scenario Forge domains reuse a compatible concrete task deck
 # until they accumulate their own family-specific renderer reservoir. The
@@ -133,6 +135,7 @@ class DeckTopology:
 
     name: str
     pool_names: tuple[str, ...]
+    variable_by: tuple[str, ...]
     pool_sizes: tuple[int, ...]
     link_counts: tuple[int, ...]
 
@@ -144,6 +147,7 @@ class DealtCard(str):
     deck_lineage: tuple[str, ...]
     deck_topologies: tuple[DeckTopology, ...]
     pool_names: tuple[str, ...]
+    variable_by: tuple[str, ...]
     compatibility_links: tuple[tuple[tuple[int, int], ...], ...]
 
     def __new__(
@@ -153,6 +157,7 @@ class DealtCard(str):
         deck_name: str,
         deck_topologies: tuple[DeckTopology, ...],
         pool_names: tuple[str, ...],
+        variable_by: tuple[str, ...],
         compatibility_links: tuple[tuple[tuple[int, int], ...], ...],
     ) -> DealtCard:
         card = super().__new__(cls, value)
@@ -160,6 +165,7 @@ class DealtCard(str):
         card.deck_lineage = tuple(topology.name for topology in deck_topologies)
         card.deck_topologies = deck_topologies
         card.pool_names = pool_names
+        card.variable_by = variable_by
         card.compatibility_links = compatibility_links
         return card
 
@@ -280,31 +286,62 @@ def _compose_subcards(
     *,
     pool_names: tuple[str, ...],
     links: tuple[tuple[tuple[int, int], ...], ...] = (),
+    variable_by: VariableBy2D | None = None,
     cycle_first_pool: bool = False,
     separator: str = " ",
 ) -> DealtCard:
     """Compose one card by walking compatible links between named reservoirs."""
     if len(pool_names) != len(slots):
         raise ValueError("every subcard reservoir requires exactly one semantic name")
+    dealt_variables = (
+        variable_by.deal(f"{deck}:{row['scenario_id']}:{variant}")
+        if variable_by is not None
+        else {}
+    )
+    variable_templates = tuple(str(card) for cards in slots for card in cards)
+    requested_variables = (
+        variable_by.expand_dependencies(
+            variable_by.validate_templates(variable_templates)
+        )
+        if variable_by is not None
+        else ()
+    )
+    nested_topologies = tuple(
+        topology
+        for slot in slots
+        for card in slot
+        if isinstance(card, DealtCard)
+        for topology in card.deck_topologies
+    )
+    rendered_slots = tuple(
+        tuple(
+            variable_by.render(str(card), dealt_variables)
+            if variable_by is not None
+            else card
+            for card in cards
+        )
+        for cards in slots
+    )
     pools = tuple(
         SubcardPool(name=name, cards=cards)
-        for name, cards in zip(pool_names, slots, strict=True)
+        for name, cards in zip(pool_names, rendered_slots, strict=True)
     )
     linked_deck = LinkedSubcardDeck(
         pools,
         links,
         cycle_first_pool=cycle_first_pool,
     )
-    nested_topologies = tuple(
-        topology
-        for pool in pools
-        for card in pool.cards
-        if isinstance(card, DealtCard)
-        for topology in card.deck_topologies
-    )
     own_topology = DeckTopology(
         name=deck,
         pool_names=linked_deck.pool_names,
+        variable_by=tuple(
+            dict.fromkeys(
+                (
+                    *linked_deck.pool_names,
+                    *requested_variables,
+                )
+            )
+        ),
         pool_sizes=tuple(len(pool.cards) for pool in pools),
         link_counts=tuple(
             len(edges) for edges in linked_deck.compatibility_links()
@@ -319,6 +356,13 @@ def _compose_subcards(
         deck_name=deck,
         deck_topologies=deck_topologies,
         pool_names=linked_deck.pool_names,
+        variable_by=tuple(
+            dict.fromkeys(
+                variable
+                for topology in deck_topologies
+                for variable in topology.variable_by
+            )
+        ),
         compatibility_links=linked_deck.compatibility_links(),
     )
 

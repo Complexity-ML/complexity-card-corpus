@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..variable_by.reservoirs import GroundedQAFacts, grounded_qa_variable_by
+from ..variable_by.templates import GROUNDED_QA_TEMPLATES
 from .core import (
     TaskHand,
     _code,
     _compose_subcards,
-    _deal_task_frames,
     _number,
     _pick,
     _render_domain,
@@ -63,147 +64,72 @@ def _grounded_qa(row: dict[str, Any], variant: int) -> TaskHand:
     quote_price = _number(f"quote-price:{code}", 18, 95)
     tested_pages = _number(f"accessibility-pages:{code}", 8, 30)
     operating_limit = _number(f"equipment-limit:{code}", 30, 75)
-    cases = {
-        "product_specs": (
-            f"The Lumen Mini supports Wi-Fi 6 and USB-C charging. Its rated battery life is {battery_hours} hours. No water-resistance rating is listed.",
-            "State the rated battery life and whether water resistance is documented.",
-            f"The rated battery life is {battery_hours} hours. A water-resistance rating is unknown because the specification does not list one.",
-        ),
-        "policy_excerpt": (
-            f"Returns are accepted within {return_days} days with proof of purchase. Opened safety equipment is excluded. The text gives no holiday extension.",
-            "State the ordinary return window and whether a holiday extension is defined.",
-            f"The ordinary return window is {return_days} days with proof of purchase. A holiday extension is unknown because the policy does not define one.",
-        ),
-        "science_passage": (
-            f"A {year} trial exposed identical samples to light for {exposure_hours} hours. The treated sample warmed by {temperature_change}°C. The passage does not identify the molecular mechanism.",
-            "State the observed temperature change and whether the mechanism is established.",
-            f"The treated sample warmed by {temperature_change}°C. The molecular mechanism is unknown because the passage reports no mechanism.",
-        ),
-        "historical_note": (
-            f"The archive records that the bridge opened in {year} under mayor Elena Voss. It does not name the original architect.",
-            "State the opening year and whether the architect is identified.",
-            f"The bridge opened in {year}. The original architect is unknown because the note does not name one.",
-        ),
-        "project_brief": (
-            f"The brief assigns the prototype to {owner} and sets delivery for day {delivery_day}. Hosting approval remains pending, and no approver is named.",
-            "State the prototype owner and whether the hosting approver is known.",
-            f"{owner} owns the prototype. The hosting approver is unknown because the brief names none.",
-        ),
-        "travel_information": (
-            f"Train {train_number} departs at {departure_hour:02d}:{departure_minute} from platform {platform}. Bicycles require a reservation. The notice gives no information about onboard meals.",
-            "State the departure details and whether meal service is documented.",
-            f"Train {train_number} departs at {departure_hour:02d}:{departure_minute} from platform {platform}. Meal service is unknown because the notice does not mention it.",
-        ),
-        "technical_documentation": (
-            f"Version {release_major}.{release_minor} requires Python 3.{python_minor} and supports Linux arm64. Offline activation is not described in this excerpt.",
-            "State the Python requirement and whether offline activation is supported by the excerpt.",
-            f"The requirement is Python 3.{python_minor}. Offline activation is unknown because the excerpt does not describe it.",
-        ),
-        "comparison_table": (
-            f"Table: Cedar—$48, {longest_battery} hours, repairable yes; Flint—$42, {other_battery} hours, repairable no; Vale—$45, battery value missing, repairable yes.",
-            "Identify the longest stated battery life and whether Vale's battery life can be compared.",
-            f"Cedar has the longest stated battery life at {longest_battery} hours. Vale's battery life is unknown, so it cannot be compared on that field.",
-        ),
-        "conflicting_service_reports": (
-            f"At 09:{status_minute}, the public status check reports that the {available_region} service endpoint is available. At 09:{ticket_minute}, a support ticket reports that one {ticket_region} account cannot {failed_operation}. The reports cover different regions, scopes, times, and operations.",
-            "Explain what the two reports establish, what remains unknown, and the next direct verification step.",
-            f"The reports appear to conflict, but they describe different scopes and therefore do not establish one global service state; that remains unknown. Do not choose either report as universally correct. Compare the same time window, region, account scope, and operation, then reproduce the attempt to {failed_operation} with a direct check.",
-        ),
-        "public_event_notice": (
-            f"The Open Methods workshop starts on August {event_day} at 18:30 in Room {event_room}. Step-free access is available. The notice does not say whether advance registration is required.",
-            "State the workshop time and venue, and whether advance registration is required.",
-            f"The workshop starts on August {event_day} at 18:30 in Room {event_room}. Advance registration is unknown because the notice does not state whether it is required.",
-        ),
-        "energy_bill": (
-            f"The statement covers 30 days and records {energy_kwh} kWh at {energy_rate} cents per kWh before fixed charges. It lists no rebate or credit.",
-            "State the recorded usage and unit rate, and whether a rebate is documented.",
-            f"The statement records {energy_kwh} kWh at {energy_rate} cents per kWh before fixed charges. A rebate is unknown because none is documented.",
-        ),
-        "course_catalog": (
-            f"Course CS-{course_number} meets on Tuesdays and requires Introductory Programming. The entry describes weekly labs but does not identify the final assessment format.",
-            "State the prerequisite and whether the final assessment format is documented.",
-            f"The prerequisite for CS-{course_number} is Introductory Programming. The final assessment format is unknown because the entry does not identify it.",
-        ),
-        "maintenance_log": (
-            f"On August {maintenance_day}, a technician replaced the intake filter after recording reduced airflow. A follow-up test restored normal flow. The log does not establish the original cause of the blockage.",
-            "State the maintenance action and test result, and whether the original cause is established.",
-            "The intake filter was replaced and the follow-up test restored normal airflow. The original cause of the blockage is unknown because the log does not establish it.",
-        ),
-        "environmental_report": (
-            f"At the north site, {sensor_count} sensors recorded a median value of {measured_value} units during the survey window. The report provides no pre-survey baseline.",
-            "State the reported measurement and whether change from baseline can be calculated.",
-            f"The north site had a median measurement of {measured_value} units across {sensor_count} sensors. Change from baseline is unknown because no pre-survey baseline is provided.",
-        ),
-        "software_release_note": (
-            f"Release {release_major}.{release_minor} adds export filters and fixes duplicate notifications on Linux. A legacy import option is marked deprecated, but no removal date is given.",
-            "State the added behavior and whether the legacy import removal date is known.",
-            f"Release {release_major}.{release_minor} adds export filters. The legacy import removal date is unknown because the note gives no date.",
-        ),
-        "contract_clause": (
-            f"Clause 8 requires {notice_days} calendar days of written notice before termination. Notices must be sent to the registered office. The clause does not identify an arbitration venue.",
-            "State the notice period and whether an arbitration venue is identified.",
-            f"The notice period is {notice_days} calendar days in writing. The arbitration venue is unknown because Clause 8 does not identify one.",
-        ),
-        "lab_report": (
-            f"The laboratory tested {sample_count} samples with the same calibrated probe and recorded a median pH of {ph_value}. The report does not state when the probe was last calibrated.",
-            "State the median pH and whether the last calibration date is documented.",
-            f"The median pH is {ph_value} across {sample_count} samples. The last calibration date is unknown because the report does not state it.",
-        ),
-        "procurement_quote": (
-            f"Quote Q-{code} offers {quote_units} units at ${quote_price} each and remains valid for 21 days. Tax is included, but shipping time is not listed.",
-            "State the quoted quantity and unit price, and whether shipping time is documented.",
-            f"The quote covers {quote_units} units at ${quote_price} each. Shipping time is unknown because the quote does not list it.",
-        ),
-        "accessibility_statement": (
-            f"The accessibility statement reports a WCAG 2.2 AA review of {tested_pages} public pages and names keyboard navigation as tested. It gives no remediation date for remaining issues.",
-            "State the reported conformance target and tested scope, and whether a remediation date is documented.",
-            f"The reported target is WCAG 2.2 AA across {tested_pages} public pages. A remediation date is unknown because the statement gives none.",
-        ),
-        "equipment_manual": (
-            f"The manual permits continuous operation below {operating_limit}°C in supervised mode and requires a five-minute cooldown after an overload warning. Remote control is not described.",
-            "State the operating limit and cooldown requirement, and whether remote control is documented.",
-            f"The operating limit is below {operating_limit}°C, with a five-minute cooldown after an overload warning. Remote control is unknown because the manual does not describe it.",
-        ),
-    }
-    passage, requested_answer, supported = cases[_render_domain(row)]
-    data, goal = _deal_task_frames(
+    facts = GroundedQAFacts(
+        code=code,
+        year=year,
+        battery_hours=battery_hours,
+        return_days=return_days,
+        exposure_hours=exposure_hours,
+        temperature_change=temperature_change,
+        owner=owner,
+        delivery_day=delivery_day,
+        train_number=train_number,
+        departure_hour=departure_hour,
+        departure_minute=departure_minute,
+        platform=platform,
+        python_minor=python_minor,
+        release_major=release_major,
+        release_minor=release_minor,
+        longest_battery=longest_battery,
+        other_battery=other_battery,
+        status_minute=status_minute,
+        ticket_minute=ticket_minute,
+        available_region=available_region,
+        ticket_region=ticket_region,
+        failed_operation=failed_operation,
+        event_day=event_day,
+        event_room=event_room,
+        energy_kwh=energy_kwh,
+        energy_rate=energy_rate,
+        course_number=course_number,
+        maintenance_day=maintenance_day,
+        sensor_count=sensor_count,
+        measured_value=measured_value,
+        notice_days=notice_days,
+        sample_count=sample_count,
+        ph_value=ph_value,
+        quote_units=quote_units,
+        quote_price=quote_price,
+        tested_pages=tested_pages,
+        operating_limit=operating_limit,
+    )
+    variables = grounded_qa_variable_by(_render_domain(row), facts)
+    data = _compose_subcards(
         row,
         variant,
-        "grounded",
-        (
-            f"Source {code}: {passage}",
-            f"Evidence excerpt {code}: {passage}",
-            f"Use this supplied record only — {code}: {passage}",
-        ),
-        (
-            requested_answer,
-            f"Using only Source {code}, {requested_answer[:1].lower() + requested_answer[1:]}",
-            f"Answer the documented parts of this request and mark the rest unknown: {requested_answer}",
-        ),
+        "grounded-data",
+        (GROUNDED_QA_TEMPLATES["data"],),
+        pool_names=("source",),
+        variable_by=variables,
+    )
+    goal = _compose_subcards(
+        row,
+        variant,
+        "grounded-goal",
+        (GROUNDED_QA_TEMPLATES["goal"],),
+        pool_names=("request",),
+        variable_by=variables,
     )
     answer = _compose_subcards(
         row,
         variant,
         "grounded-answer",
         (
-            (
-                f"Based on Source {code}:",
-                f"Source {code} supports this answer:",
-                "The documented answer is:",
-                f"According to Source {code}:",
-            ),
-            (
-                supported,
-                f"Supported facts: {supported}",
-                f"The supplied record establishes this: {supported}",
-            ),
-            (
-                f"The answer remains limited to Source {code}.",
-                "No unstated detail is inferred.",
-                "Anything not documented remains unknown.",
-            ),
+            GROUNDED_QA_TEMPLATES["answer_scope"],
+            GROUNDED_QA_TEMPLATES["answer_complete"],
         ),
-        pool_names=("evidence_scope", "supported_answer", "unknown_boundary"),
+        pool_names=("evidence_scope", "grounded_result"),
+        variable_by=variables,
     )
     subject = row["domain"].replace("_", " ").title()
     return TaskHand(
@@ -212,61 +138,95 @@ def _grounded_qa(row: dict[str, Any], variant: int) -> TaskHand:
         answer,
         ("direct_answer", "evidence", "unknown"),
         situation_title=f"{subject} — answer from the supplied source",
-        situation=(
-            "The supplied source answers the documented part of the request and leaves "
-            "one requested field undocumented."
+        situation=_compose_subcards(
+            row,
+            variant,
+            "grounded-situation",
+            (GROUNDED_QA_TEMPLATES["situation"],),
+            pool_names=("situation",),
+            variable_by=variables,
         ),
-        rule=(
-            "Use only the supplied source. Mark any requested field that the source does "
-            "not document as unknown."
+        rule=_compose_subcards(
+            row,
+            variant,
+            "grounded-rule",
+            (GROUNDED_QA_TEMPLATES["rule"],),
+            pool_names=("rule",),
+            variable_by=variables,
         ),
     )
+
+
+_SUMMARY_COUNT_RESERVOIRS: dict[str, tuple[int, int]] = {
+    "contrast_ratio": (3, 21),
+    "sample_count": (8, 96),
+    "case_count": (20, 850),
+    "test_coverage": (60, 99),
+    "employee_count": (15, 480),
+    "citation_count": (5, 140),
+    "downtime_minutes": (5, 240),
+    "example_count": (10, 220),
+}
 
 
 def _summary(row: dict[str, Any], variant: int) -> TaskHand:
     code = _code(row)
     owner = _pick(f"summary-owner:{code}", ("Mina", "Paul", "Sora", "Theo", "Lina"))
     day = _number(f"summary-day:{code}", 12, 27)
+
+    def count(name: str) -> int:
+        low, high = _SUMMARY_COUNT_RESERVOIRS[name]
+        return _number(f"summary-{name}:{code}", low, high)
+
+    contrast_ratio = count("contrast_ratio")
+    sample_count = count("sample_count")
+    case_count = count("case_count")
+    test_coverage = count("test_coverage")
+    employee_count = count("employee_count")
+    citation_count = count("citation_count")
+    downtime_minutes = count("downtime_minutes")
+    example_count = count("example_count")
+
     cases = {
         "meeting_transcript": (
-            "approve the interface copy",
-            "run two accessibility checks",
-            "release timing",
+            f"approve the revised interface copy for the settings page redesign, targeting a {contrast_ratio}:1 contrast ratio",
+            f"run two accessibility checks (targeting a {contrast_ratio}:1 contrast ratio): screen-reader navigation and color contrast ratios",
+            f"the exact release date and rollout order for the change ahead of {contrast_ratio}:1 sign-off",
         ),
         "research_notes": (
-            "retain the observed temperature result",
-            "replicate two uncertain measurements",
-            "the causal explanation",
+            f"retain the observed temperature result from the first of {sample_count} recorded trial runs",
+            f"replicate two uncertain measurements across {sample_count} samples: the peak temperature and the cooling rate",
+            f"the underlying causal explanation for the observed thermal effect across {sample_count} samples",
         ),
         "support_thread": (
-            "keep the case open",
-            "test two account-recovery paths",
-            "whether the issue is device-specific",
+            f"keep the support case open pending further diagnosis, alongside {case_count} similar cases",
+            f"test two account-recovery paths across the {case_count} cases: email reset and device verification",
+            f"whether the reported issue, seen in {case_count} similar cases, is limited to one device type",
         ),
         "project_update": (
-            "accept the completed prototype",
-            "finish two integration checks",
-            "the launch date",
+            f"accept the completed prototype at {test_coverage}% test coverage pending two remaining rounds of final integration testing",
+            f"finish two integration checks at {test_coverage}% coverage: payment gateway and notification delivery",
+            f"the confirmed public launch date for the wider release, currently at {test_coverage}% coverage",
         ),
         "policy_memo": (
-            "adopt the revised access rule",
-            "document two listed exceptions",
-            "the enforcement start date",
+            f"adopt the revised after-hours access rule for the {employee_count}-person shared workspace",
+            f"document two exceptions for the {employee_count}-person workspace: emergency access and approved contractors",
+            f"the confirmed enforcement start date for the revised rule affecting {employee_count} employees",
         ),
         "article_excerpt": (
-            "retain the article's central claim",
-            "verify two cited examples",
-            "whether the pattern generalizes",
+            f"retain the article's central claim about the observed pattern, backed by {citation_count} citations",
+            f"verify two examples among the {citation_count} citations: pilot study and follow-up survey",
+            f"whether the pattern, cited {citation_count} times, generalizes beyond the cited examples",
         ),
         "incident_log": (
-            "keep the service in monitored recovery",
-            "inspect two remaining error sources",
-            "the incident's root cause",
+            f"keep the affected service running in monitored recovery mode after {downtime_minutes} minutes of downtime",
+            f"after {downtime_minutes} minutes, inspect two remaining sources: load balancer and cache layer",
+            f"the incident's confirmed, precise underlying root cause behind the {downtime_minutes}-minute outage",
         ),
         "learning_notes": (
-            "retain the working definition",
-            "test it on two new examples",
-            "where the rule stops applying",
+            f"retain the current working definition of the rule, validated against {example_count} training examples",
+            f"extend the {example_count}-example check with a boundary case and a negative case",
+            f"the exact point where the rule, tested on {example_count} examples, stops applying",
         ),
     }
     decision, action, open_point = cases[_render_domain(row)]
@@ -299,13 +259,13 @@ def _summary(row: dict[str, Any], variant: int) -> TaskHand:
                 "Condense the record without adding context.",
             ),
             (
-                "Preserve the decision, assigned action, owner, and timing.",
-                "Name the decision and the owned, timed action.",
-                "Keep ownership and deadline attached to the action.",
+                f"Preserve the decision, assigned action, owner {owner}, and day {day} timing.",
+                f"Name the decision and the action owned by {owner} for day {day}.",
+                f"Keep {owner}'s ownership and the day {day} deadline attached to the action.",
             ),
             (
                 "Leave the unresolved point explicitly open.",
-                "Do not resolve the uncertainty on the source's behalf.",
+                f"Do not turn {owner}'s day {day} assignment into an answer to the unresolved point.",
                 "Report the open point as unresolved.",
             ),
         ),
@@ -323,14 +283,14 @@ def _summary(row: dict[str, Any], variant: int) -> TaskHand:
                 f"Decision: the agreed direction is to {decision}.",
             ),
             (
-                f"Action: {owner} will {action} by day {day}.",
-                f"Action: by day {day}, {owner} will {action}.",
-                f"Action: {action}, owned by {owner}, is due by day {day}.",
-                f"Action: {owner} owns {action} for day {day}.",
+                f"Action: due day {day}, {owner} will {action}.",
+                f"Action: no later than day {day}, {owner} will {action}.",
+                f"Action: {action}, owned by {owner}, closing out on day {day}, once confirmed.",
+                f"Action: {owner} is assigned to {action}; day {day} is the outside limit.",
             ),
             (
                 f"Open point: {open_point} remains unresolved.",
-                f"Open point: the source does not resolve {open_point}.",
+                f"Open point: nothing in the source resolves {open_point}.",
                 f"Open point: {open_point} is still unresolved.",
                 f"Open point: no resolution is recorded for {open_point}.",
             ),

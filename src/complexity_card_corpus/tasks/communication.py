@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..variable_by import empathy_variable_by
+from ..variable_by.reservoirs import ExplanationFacts, explanation_reservoir
+from ..variable_by.templates import EMPATHY_TEMPLATES
 from .core import (
     TaskHand,
     _code,
@@ -14,87 +17,161 @@ from .core import (
 )
 
 
-_LESSONS = {
-    "computing": (
-        "RAM holds working data temporarily; storage retains files after power is removed.",
-        "Closing an application frees its RAM, but its saved file remains on storage.",
-        "Why does a saved file survive a restart while an unsaved edit may not?",
-    ),
-    "software_resilience": (
-        "A backup is a separate restorable copy that preserves a known-good state if an update corrupts or removes working files.",
-        "Before updating an application, copy its data and configuration to another location and confirm that the copy can be restored.",
-        "Why should restore capability be checked before the update begins?",
-    ),
-    "data_literacy": (
-        "The mean uses every value; the median is the middle value after sorting.",
-        "For 2, 3, and 100, the mean is 35 while the median is 3.",
-        "Which measure better represents a typical value when one value is extreme?",
-    ),
-    "physical_science": (
-        "Mass measures matter; weight is the gravitational force acting on that mass.",
-        "The same object keeps its mass on the Moon but weighs less there.",
-        "What changes on the Moon: mass, weight, or both?",
-    ),
-    "life_science": (
-        "A gene is a DNA sequence; an expressed trait also depends on regulation and environment.",
-        "Two cells can contain the same DNA while activating different genes.",
-        "Why can a skin cell and a muscle cell behave differently?",
-    ),
-    "mathematics": (
-        "Area counts square units inside a shape; perimeter measures the boundary length.",
-        "A 3 by 4 rectangle has area 12 square units and perimeter 14 units.",
-        "Which quantity changes when only the boundary length changes?",
-    ),
-    "personal_finance": (
-        "Interest is the price of borrowing; principal is the amount borrowed.",
-        "A $100 principal with $5 interest requires $105 in total repayment.",
-        "Which part of the repayment is the borrowing cost?",
-    ),
-    "civics": (
-        "A proposed bill is not a law until the required legislative and approval steps occur.",
-        "A committee vote can advance a bill without making it enforceable law.",
-        "Does committee approval alone make a proposal a law?",
-    ),
-    "media_literacy": (
-        "A primary source records direct evidence; a secondary source interprets other material.",
-        "An original interview is primary evidence, while an article analyzing it is secondary.",
-        "Which source should be checked for the speaker's exact words?",
-    ),
-    "probability": (
-        "Independent events do not change each other's probabilities; mutually exclusive events cannot occur together.",
-        "Two coin tosses are independent, while one toss cannot be both heads and tails.",
-        "Can two independent events still occur together?",
-    ),
-    "ecology": (
-        "Energy moves through a food web and is partly lost as heat, while matter is recycled through organisms and the environment.",
-        "A plant stores solar energy, an herbivore consumes it, and decomposers return matter to the soil.",
-        "In this food-web sequence, which is recycled: energy, matter, or both?",
-    ),
-    "electrical_energy": (
-        "Power is the rate of energy use, while energy is the accumulated amount used over time.",
-        "A 1-kilowatt device running for two hours uses 2 kilowatt-hours of energy.",
-        "What changes if the same device runs twice as long: its power, its energy use, or both?",
-    ),
-    "language_grammar": (
-        "A subject is the sentence element linked to the main verb's actor or topic; an object receives or completes the verb's action.",
-        "In 'Mira opens the window,' Mira is the subject and the window is the object.",
-        "What is the object in the example sentence?",
-    ),
-    "computer_networks": (
-        "The Domain Name System translates a human-readable host name into an IP address that a network connection can use.",
-        "A browser can ask for example.org, receive its current IP address, and then connect to that address.",
-        "Does DNS carry the whole web page, or does it help locate the destination?",
-    ),
-    "research_methods": (
-        "Correlation shows that two measurements vary together; causation requires evidence that changing one factor changes the other.",
-        "Ice-cream sales and sunburns can rise together because warm weather affects both.",
-        "Does the example show that ice-cream sales cause sunburns?",
-    ),
-}
-
-
 def _explanation(row: dict[str, Any], variant: int) -> TaskHand:
-    mechanism, example, check = _LESSONS[_render_domain(row)]
+    code = _code(row)
+    rendered_domain = _render_domain(row)
+    domain_label = rendered_domain.replace("_", " ")
+    app_name = _pick(
+        f"explain-app:{code}",
+        (
+            "a text editor", "a photo app", "a spreadsheet app", "a code editor",
+            "a music player", "a note-taking app", "a video editor", "a slideshow app",
+        ),
+    )
+    object_name = _pick(
+        f"explain-object:{code}",
+        (
+            "a rock", "a backpack", "a bicycle", "a laptop",
+            "a book", "a hammer", "a suitcase", "a chair",
+        ),
+    )
+    cell_pair = _pick(
+        f"explain-cells:{code}",
+        (
+            "a skin cell and a muscle cell",
+            "a liver cell and a neuron",
+            "a blood cell and a bone cell",
+            "a fat cell and a nerve cell",
+            "a kidney cell and a heart cell",
+            "a lung cell and a stomach cell",
+        ),
+    )
+    rect_w = _number(f"explain-rectw:{code}", 100, 999)
+    rect_h = _number(f"explain-recth:{code}", 100, 999)
+    principal = _number(f"explain-principal:{code}", 50, 950)
+    interest = _number(f"explain-interest:{code}", 5, 95)
+    bill_type = _pick(
+        f"explain-bill:{code}",
+        (
+            "a zoning bill", "a budget bill", "a transportation bill", "an education bill",
+            "a healthcare bill", "an energy bill", "a housing bill", "an agriculture bill",
+        ),
+    )
+    topic = _pick(
+        f"explain-topic:{code}",
+        (
+            "a product launch", "a policy change", "an election result", "a scientific study",
+            "a merger announcement", "a court ruling", "a sports upset", "a weather event",
+        ),
+    )
+    toss_count = _number(f"explain-tosses:{code}", 100, 999)
+    heads_count = _number(
+        f"explain-heads:{code}", toss_count // 3, (toss_count * 2) // 3
+    )
+    producer = _pick(
+        f"explain-producer:{code}",
+        ("A plant", "Algae", "A tree", "Phytoplankton", "Moss", "Seagrass"),
+    )
+    consumer = _pick(
+        f"explain-consumer:{code}",
+        ("an herbivore", "a grazing animal", "an insect", "a browsing deer", "a grazing rabbit"),
+    )
+    habitat_area = _number(f"explain-habitatarea:{code}", 100, 999)
+    kw = _number(f"explain-kw:{code}", 100, 999)
+    hours = _number(f"explain-hours:{code}", 100, 999)
+    grammar_subject = _pick(
+        f"explain-grammarsubj:{code}",
+        ("Mira", "Omar", "Lea", "Theo", "Nadia", "Sam", "Priya", "Iris", "Kofi", "Yara"),
+    )
+    grammar_verb_phrase = _pick(
+        f"explain-grammarverb:{code}",
+        (
+            "opens the window", "closes the door", "reads the letter", "paints the fence",
+            "locks the gate", "carries the box", "waters the garden", "folds the map",
+            "repairs the bicycle", "cleans the workshop",
+        ),
+    )
+    grammar_adverb = _pick(
+        f"explain-grammaradverb:{code}",
+        (
+            "carefully", "quietly", "quickly", "patiently", "eagerly",
+            "slowly", "deliberately", "gracefully", "calmly", "confidently",
+        ),
+    )
+    grammar_sentence = f"{grammar_subject} {grammar_adverb} {grammar_verb_phrase}"
+    grammar_object = grammar_verb_phrase.rsplit(" ", 1)[-1]
+    site = _pick(
+        f"explain-site:{code}",
+        (
+            "example.org", "example.com", "openweb.dev", "docsite.io",
+            "notesapp.net", "libraryhub.org", "mailrelay.io", "cloudpad.dev",
+        ),
+    )
+    dns_ttl_seconds = _number(f"explain-dnsttl:{code}", 100, 999)
+    correlated_pair = _pick(
+        f"explain-correlated:{code}",
+        (
+            "ice-cream sales and sunburns",
+            "umbrella sales and traffic accidents",
+            "hot chocolate sales and heating bills",
+            "sunglasses sales and lawn-mower rentals",
+            "fan sales and swimming-pool visits",
+        ),
+    )
+    mean_low = _number(f"explain-meanlow:{code}", 1, 4)
+    mean_mid = _number(f"explain-meanmid:{code}", 5, 8)
+    mean_outlier = _number(f"explain-meanoutlier:{code}", 40, 300)
+    dataset = (mean_low, mean_mid, mean_outlier)
+    dataset_mean = round(sum(dataset) / 3, 1)
+    minutes_open = _number(f"explain-minutesopen:{code}", 100, 999)
+    backup_version = _number(f"explain-backupversion:{code}", 100, 999)
+    weight_kg = _number(f"explain-weightkg:{code}", 1, 48)
+    gene_count = _number(f"explain-genecount:{code}", 100, 999)
+    chamber_size = _number(f"explain-chambersize:{code}", 100, 999)
+    vote_margin = _number(f"explain-votemargin:{code}", 10, 99)
+    interview_number = _number(f"explain-interviewnum:{code}", 1_000, 9_999)
+    port_number = _number(f"explain-port:{code}", 10_000, 65_535)
+    sample_days = _number(f"explain-sampledays:{code}", 100, 999)
+    lessons = explanation_reservoir(
+        ExplanationFacts(
+            app_name=app_name,
+            backup_version=backup_version,
+            bill_type=bill_type,
+            cell_pair=cell_pair,
+            chamber_size=chamber_size,
+            consumer=consumer,
+            correlated_pair=correlated_pair,
+            dataset_mean=dataset_mean,
+            dns_ttl_seconds=dns_ttl_seconds,
+            gene_count=gene_count,
+            grammar_object=grammar_object,
+            grammar_sentence=grammar_sentence,
+            grammar_subject=grammar_subject,
+            habitat_area=habitat_area,
+            heads_count=heads_count,
+            hours=hours,
+            interest=interest,
+            interview_number=interview_number,
+            kw=kw,
+            mean_low=mean_low,
+            mean_mid=mean_mid,
+            mean_outlier=mean_outlier,
+            minutes_open=minutes_open,
+            object_name=object_name,
+            port_number=port_number,
+            principal=principal,
+            producer=producer,
+            rect_h=rect_h,
+            rect_w=rect_w,
+            sample_days=sample_days,
+            site=site,
+            topic=topic,
+            toss_count=toss_count,
+            vote_margin=vote_margin,
+            weight_kg=weight_kg,
+        )
+    )
+    mechanism, example, check, transfer_pool = lessons[rendered_domain]
     embedded_mechanism = _lower_sentence_initial(mechanism)
     data, goal = _deal_task_frames(
         row,
@@ -106,9 +183,9 @@ def _explanation(row: dict[str, Any], variant: int) -> TaskHand:
             f"Teach from these supplied notes — mechanism: {mechanism} Example: {example}",
         ),
         (
-            "Explain the mechanism in plain language, apply the example, and end with one check question.",
-            "Connect the core idea to the example, then ask one question that checks transfer.",
-            "Give a concise explanation, demonstrate it with the example, and finish with one check question.",
+            f"Explain the {domain_label} mechanism '{mechanism}', apply '{example}', and finish with the check '{check}'.",
+            f"Connect the {domain_label} idea '{mechanism}' to the worked case '{example}', then use '{check}' as the transfer question.",
+            f"Give a concise {domain_label} explanation of '{mechanism}', demonstrate it through '{example}', and end by asking '{check}'.",
         ),
     )
     answer = _compose_subcards(
@@ -126,19 +203,22 @@ def _explanation(row: dict[str, Any], variant: int) -> TaskHand:
                 f"Example: {example} This turns the definition into a checkable case.",
                 f"Example: {example} The example makes the mechanism visible.",
             ),
+            transfer_pool,
             (
                 f"Check: {check}",
                 f"Check: As a transfer test, {_lower_sentence_initial(check)}",
                 f"Check: To verify the idea, {_lower_sentence_initial(check)}",
             ),
         ),
-        pool_names=("mechanism", "example", "transfer_check"),
+        pool_names=("mechanism", "example", "related_case", "transfer_check"),
     )
     return TaskHand(data, goal, answer, ("mechanism", "example", "question"))
 
 
 def _writing(row: dict[str, Any], variant: int) -> TaskHand:
     code = _code(row)
+    writing_domain = _render_domain(row)
+    writing_label = writing_domain.replace("_", " ")
     owner = _pick(f"owner:{code}", ("Maya", "Jon", "Ari", "Lea", "Noah", "Iris"))
     day = _number(f"write-day:{code}", 10, 28)
     content_cards = {
@@ -148,27 +228,27 @@ def _writing(row: dict[str, Any], variant: int) -> TaskHand:
         ),
         "project_update": (
             f"update {code}: review complete; captions missing on two figures; owner {owner}; target day {day}; release decision blocked",
-            f"Project update {code}: Review is complete. Remaining work: {owner} adds captions to two figures by day {day}. Blocker: the release decision remains pending.",
+            f"Project update {code}: Review is complete. Remaining work: {owner} adds captions to two figures, with completion expected day {day}. Blocker: the release decision remains pending.",
         ),
         "support_reply": (
             f"case {code}: issue reviewed; two screenshots need labels; {owner} will add them by day {day}; resolution waits for review",
-            f"Support reply {code}: We have completed the issue review. {owner} will label the two remaining screenshots by day {day}. We will confirm resolution after that review.",
+            f"Support reply {code}: We have completed the issue review. {owner} will label the two remaining screenshots ahead of day {day}. We will confirm resolution after that review.",
         ),
         "meeting_notes": (
             f"meeting {code}: review complete; two captions outstanding; {owner}; day {day}; no release decision yet",
-            f"Meeting {code} — Decision: review complete. Action: {owner} adds two captions by day {day}. Open item: no release decision has been made.",
+            f"Meeting {code} — Decision: review complete. Action: {owner} adds two captions, day {day} at the latest. Open item: no release decision has been made.",
         ),
         "technical_explanation": (
             f"draft {code}: validation complete; two diagrams lack captions; {owner} adds them by day {day}; publication waits",
-            f"Technical note {code}: Validation is complete, but two diagrams still lack captions. {owner} will add them by day {day}; publication timing remains undecided until they are reviewed.",
+            f"Technical note {code}: Validation is complete, but two diagrams still lack captions. {owner} will add them, deadline day {day}; publication timing remains undecided until they are reviewed.",
         ),
         "public_notice": (
             f"notice {code}: east entrance closed day {day}; inspection; use west entrance; {owner} posts signs; reopening not confirmed",
-            f"Public notice {code}: The east entrance will be closed on day {day} for inspection. Please use the west entrance. {owner} will post directions; the reopening time is not yet confirmed.",
+            f"Public notice {code}: The east entrance will be closed for inspection starting day {day}. Please use the west entrance. {owner} will post directions; the reopening time is not yet confirmed.",
         ),
         "handover_note": (
             f"handover {code}: source review done; two tables pending; {owner} owns checks day {day}; export not started",
-            f"Handover {code}: Source review is complete. {owner} will check the two pending tables by day {day}. The export has not started.",
+            f"Handover {code}: Source review is complete. {owner} will check the two pending tables, cutting off at day {day}. The export has not started.",
         ),
         "schedule_change": (
             f"schedule {code}: review moved from day {day - 1} to day {day}; room unchanged; {owner} confirms attendees; reason not provided",
@@ -176,11 +256,11 @@ def _writing(row: dict[str, Any], variant: int) -> TaskHand:
         ),
         "feedback_message": (
             f"feedback {code}: summary accurate; main decision appears after background; ask {owner} to move it first by day {day}; no content change",
-            f"Feedback {code}: The summary is accurate, but the main decision appears after the background. {owner}, please move the decision to the opening by day {day} without changing the content.",
+            f"Feedback {code}: The summary is accurate, but the main decision appears after the background. {owner}, please move the decision to the opening, aiming for day {day}, without changing the content.",
         ),
         "procedure_summary": (
             f"procedure {code}: preserve original; duplicate file; {owner} validates copy day {day}; publish only after match; fallback unspecified",
-            f"Procedure {code}: Preserve the original, duplicate the file, and have {owner} validate the copy by day {day}. Publish only after both versions match; no fallback is specified.",
+            f"Procedure {code}: Preserve the original, duplicate the file, and have {owner} validate the copy, day {day} being the last acceptable date. Publish only after both versions match; no fallback is specified.",
         ),
         "event_invitation": (
             f"invite {code}: open review session; team audience; room {day}; 15:00 day {day}; reply to {owner} by day {day - 2}; agenda pending",
@@ -188,10 +268,10 @@ def _writing(row: dict[str, Any], variant: int) -> TaskHand:
         ),
         "progress_brief": (
             f"brief {code}: 8 of 10 records checked; two awaiting sources; {owner} requests them day {day}; final count pending",
-            f"Progress brief {code}: Eight of ten records are checked. Two still await source documents, which {owner} will request by day {day}. The final count remains pending.",
+            f"Progress brief {code}: Eight of ten records are checked. Two still await source documents, which {owner} will request, with day {day} marking the deadline. The final count remains pending.",
         ),
     }
-    source, content = content_cards[_render_domain(row)]
+    source, content = content_cards[writing_domain]
     data, goal = _deal_task_frames(
         row,
         variant,
@@ -202,9 +282,9 @@ def _writing(row: dict[str, Any], variant: int) -> TaskHand:
             f"Project-team input {code}: {source}.",
         ),
         (
-            "Rewrite the source as a short, clear update without adding facts or commitments.",
-            "Produce a concise team-ready version that preserves every stated limit.",
-            "Turn the notes into a direct update while leaving unresolved points unresolved.",
+            f"Rewrite the {writing_label} source as a short update that keeps {owner}'s ownership and the day {day} timing without new commitments.",
+            f"Produce a team-ready {writing_label} version preserving {owner}, day {day}, and every unresolved limit in the source.",
+            f"Turn the {writing_label} notes into a direct update while retaining {owner}'s action, day {day}, and all unresolved points.",
         ),
     )
     faithful_cards = (
@@ -236,176 +316,37 @@ def _writing(row: dict[str, Any], variant: int) -> TaskHand:
 
 
 def _empathy(row: dict[str, Any], variant: int) -> TaskHand:
-    quotes = {
-        "work_stress": "I keep thinking about the unfinished work even when I try to rest.",
-        "relationship_tension": "I keep replaying our conversation and wondering what I should have said.",
-        "uncertain_change": "The change may be good, yet I am scared of losing what feels familiar.",
-        "social_mistake": "I made a mistake in front of everyone and cannot stop thinking about it.",
-        "achievement": "I am proud of finishing, but I also feel strangely empty now.",
-        "loss_disappointment": "I prepared for this outcome for months, and now I feel both sad and stuck.",
-        "caregiving_stress": "I care about helping them, but I am tired all the time and feel guilty whenever I need a break.",
-        "grief_update": "Some days I can talk about the loss, and other days an ordinary reminder makes everything feel immediate again.",
-        "creative_rejection": "I know one rejection does not define my work, but right now it makes the whole project feel pointless.",
-        "work_conflict": "I want to address what happened with my colleague, but I am worried the conversation will become defensive again.",
-    }
     rendered_domain = _render_domain(row)
-    quote = quotes[rendered_domain]
-    data, goal = _deal_task_frames(
+    variables = empathy_variable_by(
+        rendered_domain,
+        state=str(row.get("state", "")),
+    )
+    data = _compose_subcards(
         row,
         variant,
-        "empathy",
-        (
-            f'Person says: "{quote}"',
-            f'Conversation excerpt: "{quote}"',
-            f'Respond to this message without assuming more context: "{quote}"',
-        ),
-        (
-            "Respond with acknowledgment, preserve the person's agency, and ask at most one gentle question.",
-            "Acknowledge the experience without diagnosing it, leave the next choice with the person, and ask no more than one question.",
-            "Offer a grounded empathetic response that validates the feeling, avoids pressure, and opens one optional next step.",
-        ),
+        "empathy-data",
+        (EMPATHY_TEMPLATES["data"],),
+        pool_names=("source_message",),
+        variable_by=variables,
     )
-    acknowledgments = {
-        "work_stress": (
-            "It makes sense that unfinished work keeps pulling at your attention even while you are trying to rest.",
-            "That sounds exhausting: your body is off duty, but your mind is still tracking the unfinished work.",
-            "You are describing the strain of carrying work beyond the hours you meant to give it.",
-        ),
-        "relationship_tension": (
-            "Replaying a tense conversation can leave you searching for a perfect response that was not available in the moment.",
-            "It sounds as though the conversation ended, but the uncertainty around it did not.",
-            "Wondering what you should have said can be painful when the relationship matters to you.",
-        ),
-        "uncertain_change": (
-            "Hope and fear can sit together when a change offers something new and asks you to release what is familiar.",
-            "It makes sense to see possible good in the change while still grieving the certainty you have now.",
-            "You do not have to treat excitement and fear as evidence that one of them is false.",
-        ),
-        "social_mistake": (
-            "A public mistake can feel much larger from inside the moment than it looks to everyone else.",
-            "The embarrassment sounds vivid, and replaying it may be keeping the moment active.",
-            "It is understandable that being seen making a mistake would stay with you for a while.",
-        ),
-        "achievement": (
-            "Finishing something important can bring pride and a surprising sense of emptiness at the same time.",
-            "You reached the finish line, and it sounds as though the structure or purpose around the effort suddenly disappeared.",
-            "Pride does not cancel the flat feeling that can follow a long-awaited achievement.",
-        ),
-        "loss_disappointment": (
-            "After months of preparation, this outcome can carry both grief for the result and uncertainty about what comes next.",
-            "It makes sense to feel sad and stuck when so much effort was tied to a different outcome.",
-            "The disappointment sounds heavy precisely because the preparation mattered to you.",
-        ),
-        "caregiving_stress": (
-            "Caring deeply for someone and needing rest can both be true; exhaustion does not erase your care.",
-            "It sounds as though the caregiving matters to you while the constant demand is wearing down your energy.",
-            "The guilt you feel around taking a break may be adding another burden to an already tiring role.",
-        ),
-        "grief_update": (
-            "Grief can shift without following a steady schedule, and an ordinary reminder can make the loss feel newly present.",
-            "It makes sense that talking can feel possible one day while a small reminder feels overwhelming on another.",
-            "The return of an intense feeling does not mean that the days when grief felt quieter were false.",
-        ),
-        "creative_rejection": (
-            "A rejection can make the effort behind a project feel invisible even when it says nothing final about the work itself.",
-            "It sounds painful to have one response cast doubt over a project that has carried so much of your attention.",
-            "Knowing intellectually that rejection is limited does not make its immediate disappointment less real.",
-        ),
-        "work_conflict": (
-            "Wanting to repair the working relationship while fearing another defensive exchange is a difficult tension to hold.",
-            "It sounds as though you want a constructive conversation, not another round of the same conflict.",
-            "Your hesitation makes sense when the previous exchange left you unsure whether the issue could be discussed safely.",
-        ),
-    }
-    agency_cards = (
-        "You can give yourself time before deciding what the experience means.",
-        "There is no need to force an immediate solution or a more acceptable feeling.",
-        "You can choose whether you want reflection, company, or one small next step.",
-        "The pace and direction of the next conversation remain yours.",
-        "You can decide whether this moment calls for listening, distance, or a small action.",
-        "Nothing has to be resolved before you are ready to choose what would help.",
-        "You remain free to pause here or continue with only the part that feels manageable.",
-        "Any next step can stay proportionate to the energy and clarity you have right now.",
-    )
-    state_reflections = {
-        "The emotion is immediate and physically activating.": (
-            "You can slow the pace before trying to decide anything.",
-            "A brief pause may be more useful than pushing toward an answer.",
-            "The immediate task can simply be to make the moment less demanding.",
-            "You do not need to reason past a reaction that still feels physically intense.",
-        ),
-        "The person feels ready for a small constructive step.": (
-            "If you want to move, the next step can stay small and reversible.",
-            "Readiness does not require taking on the whole situation at once.",
-            "One modest action can be enough for now.",
-            "You can use that readiness without turning it into pressure to solve everything.",
-        ),
-        "The person holds two conflicting feelings at once.": (
-            "Both reactions can have room without forcing one to cancel the other.",
-            "You do not have to choose which of the two feelings is the valid one.",
-            "The tension may become clearer if both sides are allowed to remain present.",
-            "Mixed feelings can be acknowledged before any decision is made.",
-        ),
-        "The person is repeatedly replaying the event.": (
-            "The replay does not have to produce a perfect explanation tonight.",
-            "Noticing the same moment return is different from having to solve it each time.",
-            "You can interrupt the replay without deciding that the event did not matter.",
-            "The event can matter without requiring another full review of it right now.",
-        ),
-        "The speaker expresses several emotions without one clear request.": (
-            "You do not need to sort every feeling before naming what would help.",
-            "It is fine if the immediate need is clearer than the full explanation.",
-            "Several feelings can be present before one request takes shape.",
-            "The first useful step may be identifying the need rather than organizing every emotion.",
-        ),
-    }
-    question_cards = (
-        "What would feel most useful to name first?",
-        "Would you rather stay with the feeling for a moment or consider one gentle next step?",
-        "What part of this do you most want another person to understand?",
-        "Is there one part that feels especially present right now?",
-        "Would it help to describe what feels heaviest at this moment?",
-        "Which part would you like to give a little more space to?",
-        "Do you want to stay with what happened or look toward what comes next?",
-        "What kind of support would feel least demanding right now?",
-        "Is there a detail you would like to say without having to solve it?",
-        "Would naming the hardest part make this feel more manageable?",
-        "What would you like someone listening to understand before anything else?",
-        "Do you want reflection, quiet company, or help choosing one small step?",
-        "Which feeling seems most important to acknowledge right now?",
-        "Would you prefer to explore the reaction or simply have it heard?",
-        "Is there one need underneath this that you want to put into words?",
-        "What part of the experience keeps returning to your attention?",
-        "Would it be useful to separate what happened from what you need now?",
-        "What would make the next few minutes feel a little gentler?",
-        "Is there something you wish had been different that you want to name?",
-        "Would you like to focus on the feeling, the situation, or the next choice?",
-        "What feels safe enough to explore without pushing past your limit?",
-        "Is there one part you want to understand more clearly today?",
-        "Would a small practical step help, or would listening be more useful?",
-        "What would respecting your own pace look like in this moment?",
-        "Is there a question you want to leave open rather than answer now?",
-        "Which part deserves acknowledgment even if nothing is decided yet?",
+    goal = _compose_subcards(
+        row,
+        variant,
+        "empathy-goal",
+        (EMPATHY_TEMPLATES["goal"],),
+        pool_names=("response_goal",),
+        variable_by=variables,
     )
     answer = _compose_subcards(
         row,
         variant,
         "empathy-answer",
         (
-            acknowledgments[rendered_domain],
-            state_reflections.get(
-                str(row.get("state", "")),
-                ("You can take this one part at a time.",),
-            ),
-            agency_cards,
-            question_cards,
+            EMPATHY_TEMPLATES["answer_grounding"],
+            EMPATHY_TEMPLATES["answer_agency"],
         ),
-        pool_names=(
-            "acknowledgment",
-            "state_reflection",
-            "agency",
-            "optional_question",
-        ),
+        pool_names=("grounded_reflection", "agency_and_question"),
+        variable_by=variables,
     )
     return TaskHand(
         data,
@@ -413,113 +354,160 @@ def _empathy(row: dict[str, Any], variant: int) -> TaskHand:
         answer,
         ("acknowledgment", "state_reflection", "agency", "question"),
     )
-
-
 def _clarification(row: dict[str, Any], variant: int) -> TaskHand:
     code = _code(row)
+    weekday = _pick(
+        f"clarify-day:{code}", ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
+    )
+    report_id = _number(f"clarify-report:{code}", 100, 999)
+    word_limit = _number(f"clarify-wordlimit:{code}", 15, 60)
+    lead_event = _pick(
+        f"clarify-event:{code}", ("the review", "the meeting", "the call", "the demo")
+    )
+    project_name = _pick(
+        f"clarify-project:{code}",
+        (
+            "the onboarding project",
+            "the migration project",
+            "the redesign project",
+            "the launch project",
+        ),
+    )
+    doc_count = _number(f"clarify-doccount:{code}", 2, 6)
+    option_count = _number(f"clarify-optioncount:{code}", 3, 8)
+    dependency = _pick(
+        f"clarify-dependency:{code}",
+        (
+            "the next review",
+            "the design sign-off",
+            "the budget approval",
+            "the next release",
+        ),
+    )
+    update_topic = _pick(
+        f"clarify-topic:{code}",
+        (
+            "the pricing change",
+            "the outage postmortem",
+            "the roadmap update",
+            "the security patch",
+        ),
+    )
+    dashboard_name = _pick(
+        f"clarify-dashboard:{code}",
+        ("sales dashboard", "support dashboard", "analytics dashboard", "billing dashboard"),
+    )
+    destination = _pick(f"clarify-destination:{code}", ("Porto", "Lisbon", "Faro", "Braga"))
+    product = _pick(
+        f"clarify-product:{code}",
+        ("monitors", "laptops", "headsets", "keyboards", "docking stations"),
+    )
+    case_ref = _number(f"clarify-ref:{code}", 10_000, 99_999)
     cases = {
         "ambiguous_request": (
-            "Please move the review to Friday.",
-            "The review should move to Friday, but the affected item is not identified.",
-            "Do you mean reschedule the review meeting or change the document deadline to Friday?",
-            "leave both the meeting and document deadline unchanged",
+            f"Please move the review to {weekday}.",
+            f"The review should move to {weekday}, but the affected item is not identified.",
+            f"Do you mean reschedule the review meeting or change the document deadline to {weekday}?",
+            f"leave both the meeting and document deadline unchanged until the {weekday} ambiguity is resolved",
         ),
         "missing_reference": (
-            "Summarize the attached report.",
-            "A report summary is requested, but the report itself is missing.",
-            "Could you attach the report that should be summarized?",
+            f"Summarize the attached report {report_id}.",
+            f"A summary of report {report_id} is requested, but the report itself is missing.",
+            f"Could you attach report {report_id} so it can be summarized?",
             "do not draft a substitute summary",
         ),
         "conflicting_instruction": (
-            "Keep every detail, but make the answer no longer than one sentence.",
-            "The request requires both complete detail and a one-sentence limit.",
-            "Which takes priority: preserving every detail or limiting the answer to one sentence?",
+            f"Keep every detail, but make the answer no longer than {word_limit} words.",
+            f"The request requires both complete detail and a {word_limit}-word limit.",
+            f"Which takes priority: preserving every detail or limiting the answer to {word_limit} words?",
             "preserve the original text without rewriting it",
         ),
         "unclear_pronoun": (
-            "Send it to them after the review.",
-            "A send is requested after the review, but the item and recipient are unresolved.",
-            "What does 'it' refer to, and who should receive it?",
+            f"Send it to them after {lead_event}.",
+            f"A send is requested after {lead_event}, but the item and recipient are unresolved.",
+            f"What does 'it' refer to, and who should receive it after {lead_event}?",
             "send nothing",
         ),
         "incomplete_goal": (
-            "Help me organize the project.",
-            "Project organization is requested, but the required deliverable is unspecified.",
-            "What outcome should the organization produce: a schedule, a task list, or a file structure?",
+            f"Help me organize {project_name}.",
+            f"Organizing {project_name} is requested, but the required deliverable is unspecified.",
+            f"What outcome should organizing {project_name} produce: a schedule, a task list, or a file structure?",
             "make no structural change to the project",
         ),
         "scope_boundary": (
-            "Update the examples and anything else that needs work.",
-            "The examples should change, while the surrounding revision scope remains open.",
-            "Should I change only the examples, or also revise the surrounding explanation and tests?",
-            "prepare no edits beyond the examples",
+            f"Update the {doc_count} examples and anything else that needs work.",
+            f"The {doc_count} examples should change, while the surrounding revision scope remains open.",
+            f"Should I change only the {doc_count} examples, or also revise the surrounding explanation and tests?",
+            f"prepare no edits beyond the {doc_count} examples",
         ),
         "format_preference": (
-            "Give me the comparison results.",
-            "The comparison results are requested, but their presentation format is unspecified.",
-            "Would you like a short table, a prose summary, or both?",
-            "preserve the results without choosing a final presentation",
+            f"Give me the comparison results for the {option_count} options.",
+            f"The comparison results for {option_count} options are requested, but their presentation format is unspecified.",
+            f"Would you like a short table, a prose summary, or both for the {option_count} options?",
+            f"preserve all {option_count} results without choosing a final presentation",
         ),
         "timeline_ambiguity": (
-            "Finish this soon after the next review.",
-            "Completion should follow the next review, but no deadline is defined.",
-            "What calendar date or time limit should 'soon after' mean?",
+            f"Finish this soon after {dependency}.",
+            f"Completion should follow {dependency}, but no deadline is defined.",
+            f"What calendar date or time limit should 'soon after {dependency}' mean?",
             "set no completion deadline",
         ),
         "team_request": (
-            "Share the update with the team before the review.",
-            "An update should be shared before the review, but the team group and review time are not identified.",
-            "Which team group should receive the update, and when is the review scheduled?",
+            f"Share the {update_topic} update with the team before the review.",
+            f"An update about {update_topic} should be shared before the review, but the team group and review time are not identified.",
+            f"Which team group should receive the {update_topic} update, and when is the review scheduled?",
             "send no team update",
         ),
         "data_request": (
-            "Send me the recent records from the dashboard.",
-            "Recent dashboard records are requested, but the dataset and date range are not defined.",
-            "Which dataset and exact date range should the export contain?",
+            f"Send me the recent records from the {dashboard_name}.",
+            f"Recent {dashboard_name} records are requested, but the dataset and date range are not defined.",
+            f"Which dataset and exact date range should the {dashboard_name} export contain?",
             "export no records",
         ),
         "travel_request": (
-            "Plan the trip to Porto around the workshop.",
-            "Porto and the workshop are known, but the travel dates and departure city are unresolved.",
-            "What are the travel dates and departure city for the Porto trip?",
+            f"Plan the trip to {destination} around the workshop.",
+            f"{destination} and the workshop are known, but the travel dates and departure city are unresolved.",
+            f"What are the travel dates and departure city for the {destination} trip?",
             "make no booking or itinerary commitment",
         ),
         "purchasing_request": (
-            "Order new monitors for the design team.",
-            "The design team needs monitors, but the quantity and spending limit are unspecified.",
-            "How many monitors are needed, and what is the maximum budget per unit?",
+            f"Order new {product} for the design team.",
+            f"The design team needs {product}, but the quantity and spending limit are unspecified.",
+            f"How many {product} are needed, and what is the maximum budget per unit?",
             "place no order",
         ),
     }
     rendered_domain = _render_domain(row)
+    clarification_label = rendered_domain.replace("_", " ")
     ambiguous, restatement, question, reversible_default = cases[rendered_domain]
+    restatement = f"{restatement} (request #{case_ref})"
     situation_titles = {
         "ambiguous_request": "Ambiguous request — identify the affected item",
         "missing_reference": "Missing reference — request the absent report",
         "conflicting_instruction": "Conflicting instructions — choose the controlling requirement",
-        "unclear_pronoun": "Unclear references — identify the item and recipient",
+        "unclear_pronoun": f"Unclear references — identify the item and recipient for request {case_ref}",
         "incomplete_goal": "Incomplete goal — identify the required deliverable",
         "scope_boundary": "Open scope — bound the requested revision",
         "format_preference": "Unspecified format — choose the presentation",
         "timeline_ambiguity": "Unspecified timeline — define the deadline",
-        "team_request": "Incomplete team request — identify audience and timing",
-        "data_request": "Incomplete data request — identify dataset and range",
-        "travel_request": "Incomplete travel request — identify dates and origin",
-        "purchasing_request": "Incomplete purchase request — identify quantity and budget",
+        "team_request": f"Incomplete team request — identify audience and timing for request {case_ref}",
+        "data_request": f"Incomplete data request — identify dataset and range for request {case_ref}",
+        "travel_request": f"Incomplete travel request — identify dates and origin for request {case_ref}",
+        "purchasing_request": f"Incomplete purchase request — identify quantity and budget for request {case_ref}",
     }
     situation_cards = {
-        "ambiguous_request": "The requested Friday change could affect either a meeting or a document deadline.",
-        "missing_reference": "The requested summary cannot be grounded because the referenced report is absent.",
-        "conflicting_instruction": "The completeness requirement and the one-sentence limit cannot both be guaranteed.",
-        "unclear_pronoun": "The requested send cannot proceed until both the item and recipient are identified.",
-        "incomplete_goal": "The project may need a schedule, task list, or file structure, but no deliverable is selected.",
-        "scope_boundary": "The examples are in scope; changes to the explanation and tests are not yet authorized.",
-        "format_preference": "The comparison results are available, but the requested presentation format is open.",
-        "timeline_ambiguity": "The next review is a known dependency, but the completion deadline is undefined.",
-        "team_request": "The update exists, but the intended team audience and review time remain open.",
-        "data_request": "An export is requested, but neither the source dataset nor the requested interval is established.",
-        "travel_request": "The destination and workshop are known, while the travel dates and departure point remain open.",
-        "purchasing_request": "The product category and intended team are known, but quantity and budget are unresolved.",
+        "ambiguous_request": f"The requested {weekday} change could affect either a meeting or a document deadline.",
+        "missing_reference": f"The requested summary of report {report_id} cannot be grounded because the referenced report is absent.",
+        "conflicting_instruction": f"The completeness requirement and the {word_limit}-word limit cannot both be guaranteed.",
+        "unclear_pronoun": f"The requested send after {lead_event} cannot proceed until both the item and recipient are identified.",
+        "incomplete_goal": f"Organizing {project_name} may need a schedule, task list, or file structure, but no deliverable is selected.",
+        "scope_boundary": f"The {doc_count} examples are in scope; changes to the explanation and tests are not yet authorized.",
+        "format_preference": f"The comparison results for {option_count} options are available, but the requested presentation format is open.",
+        "timeline_ambiguity": f"{dependency.capitalize()} is a known dependency, but the completion deadline is undefined.",
+        "team_request": f"The {update_topic} update exists, but the intended team audience and review time remain open.",
+        "data_request": f"An export from the {dashboard_name} is requested, but neither the source dataset nor the requested interval is established.",
+        "travel_request": f"The destination, {destination}, and the workshop are known, while the travel dates and departure point remain open.",
+        "purchasing_request": f"The {product} category and intended team are known, but quantity and budget are unresolved.",
     }
     data, goal = _deal_task_frames(
         row,
@@ -531,9 +519,9 @@ def _clarification(row: dict[str, Any], variant: int) -> TaskHand:
             f'Unresolved request {code} — "{ambiguous}" Supported reading: {restatement}',
         ),
         (
-            "Restate what is understood, ask one decisive question, and give only a reversible provisional interpretation.",
-            "Identify the ambiguity, ask exactly one resolving question, and preserve a reversible default.",
-            "State the bounded interpretation, request the missing choice, and avoid irreversible action meanwhile.",
+            f"Restate the {clarification_label} request '{ambiguous}', ask '{question}', and preserve the reversible default: {reversible_default}.",
+            f"Identify what remains ambiguous in '{ambiguous}', ask exactly '{question}', and keep this default: {reversible_default}.",
+            f"Bound the {clarification_label} interpretation of '{ambiguous}', request the missing choice through '{question}', and meanwhile {reversible_default}.",
         ),
     )
     answer = _compose_subcards(

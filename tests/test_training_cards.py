@@ -178,12 +178,12 @@ def test_chat_and_instruct_use_different_dialogue_decks() -> None:
     assert instruct.isdisjoint(chat)
 
 
-def test_each_family_has_linkage_and_answer_development_card_reservoirs() -> None:
+def test_each_family_has_linkage_cards_and_no_generic_development_reservoir() -> None:
     assert dialogue_link_card_count() == 75
     assert set(natural_dialogue_deck()) == set(TASKS)
     for task in TASKS:
         assert family_dialogue_card_count(task) == 7
-    developed = {
+    previously_developed = {
         "context_clarification",
         "conversation_empathy",
         "critique_revision",
@@ -192,8 +192,8 @@ def test_each_family_has_linkage_and_answer_development_card_reservoirs() -> Non
         "reasoning_verification",
         "summarization_synthesis",
     }
-    for task in developed:
-        assert development_card_count(task) == 48
+    for task in previously_developed:
+        assert development_card_count(task) == 0
 
 
 def test_grounded_qa_deals_many_visible_response_structures() -> None:

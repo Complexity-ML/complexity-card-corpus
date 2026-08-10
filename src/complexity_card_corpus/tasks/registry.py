@@ -80,8 +80,11 @@ def validate_task_hand(family: str, hand: TaskHand) -> None:
             x in hand.answer for x in ("Choose", "Sequence:", "Fallback trigger:")
         ),
         "conversation_empathy": lambda: hand.answer.count("?") <= 1,
-        "safety_uncertainty": lambda: all(
-            x in hand.answer for x in ("Immediate action:", "Boundary:", "Escalate")
+        "safety_uncertainty": lambda: any(
+            topology.name == "safety-answer"
+            and topology.pool_names
+            == ("protective_action", "boundary", "escalation_channel")
+            for topology in hand.answer.deck_topologies
         ),
         "grounded_qa": lambda: ("unknown" in hand.answer.lower()),
         "summarization_synthesis": lambda: all(

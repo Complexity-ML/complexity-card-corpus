@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 import pyarrow.parquet as pq
+import pytest
 
 from complexity_card_corpus.english_morphology import (
     correct_indefinite_articles,
@@ -25,6 +26,7 @@ from complexity_card_corpus.posttrain.build import _parallel_conversation_rows
 from complexity_card_corpus.posttrain.metrics import _masked_response
 from complexity_card_corpus.posttrain.rendering import (
     _apply_vocabulary_placements,
+    _balance_conversation_families,
     _intent_for_subject,
 )
 from complexity_card_corpus.scenarios import (
@@ -104,6 +106,83 @@ def test_vocabulary_overflow_uses_compatible_capacity_without_dropping_words() -
     )
 
 
+def _balanced_row(
+    scenario_id: str,
+    mode: str,
+    *,
+    lexical_focus: str = "",
+) -> dict:
+    return {
+        "example_id": f"{scenario_id}:{mode}",
+        "task": "grounded_qa",
+        "mode": mode,
+        "answer_json": json.dumps(
+            {
+                "scenario_id": scenario_id,
+                "lexical_focus": lexical_focus,
+            }
+        ),
+    }
+
+
+def test_family_cap_preserves_complete_instruct_chat_scenarios() -> None:
+    rows = [
+        _balanced_row(scenario, mode)
+        for scenario in ("scenario:a", "scenario:b", "scenario:c")
+        for mode in ("instruct", "chat")
+    ]
+
+    kept, audit = _balance_conversation_families(
+        rows,
+        max_examples_per_family=4,
+    )
+
+    modes_by_scenario: dict[str, set[str]] = {}
+    for row in kept:
+        scenario = json.loads(row["answer_json"])["scenario_id"]
+        modes_by_scenario.setdefault(scenario, set()).add(row["mode"])
+    assert len(kept) == 4
+    assert all(modes == {"chat", "instruct"} for modes in modes_by_scenario.values())
+    assert audit["policy"] == "explicit_manual_cap_by_complete_scenario"
+
+
+def test_family_cap_rejects_limit_that_would_drop_lexical_coverage() -> None:
+    rows = [
+        _balanced_row("scenario:lexical", mode, lexical_focus="abundant")
+        for mode in ("instruct", "chat")
+    ] + [
+        _balanced_row("scenario:plain", mode)
+        for mode in ("instruct", "chat")
+    ]
+
+    with pytest.raises(ValueError, match="at least 2 rows are required"):
+        _balance_conversation_families(rows, max_examples_per_family=1)
+
+    kept, _audit = _balance_conversation_families(
+        rows,
+        max_examples_per_family=2,
+    )
+    assert {
+        json.loads(row["answer_json"])["lexical_focus"] for row in kept
+    } == {"abundant"}
+    assert {row["mode"] for row in kept} == {"chat", "instruct"}
+
+
+def test_post_training_rejects_one_variant_before_rendering_review_set(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(
+        ValueError,
+        match="at least 2.*one instruct and one chat projection",
+    ):
+        build_post_training_corpus(
+            tmp_path / "not-read.parquet",
+            tmp_path / "output",
+            variants_per_scenario=1,
+            review_scenarios=140,
+        )
+
+
 def test_parallel_rendering_is_byte_for_byte_deterministic() -> None:
     scenarios = compile_scenarios(
         load_scenario_registry(REGISTRY),
@@ -155,7 +234,7 @@ def _task_row(
 
 def test_task_cards_do_not_invent_missing_trial_outcomes() -> None:
     hand = deal_task_hand(_task_row("critique_revision", "argument"), 0)
-    assert "three of five" in hand.data.lower()
+    assert re.search(r"\d+ of \d+ testers", hand.data.lower())
     assert "unrecorded" not in hand.answer.lower()
     assert "does not establish" in hand.answer.lower()
 
@@ -192,8 +271,14 @@ def test_every_registered_domain_deals_a_valid_task_hand() -> None:
                 assert layer.deck_name
                 assert layer.deck_lineage[0] == layer.deck_name
                 assert layer.pool_names
+                assert layer.variable_by
+                assert set(layer.pool_names) <= set(layer.variable_by)
                 for topology in layer.deck_topologies:
                     assert len(topology.pool_sizes) == len(topology.pool_names)
+                    assert topology.variable_by[: len(topology.pool_names)] == (
+                        topology.pool_names
+                    )
+                    assert set(topology.pool_names) <= set(topology.variable_by)
                     assert all(size >= 1 for size in topology.pool_sizes)
                 assert len(layer.compatibility_links) == len(layer.pool_names) - 1
             if pair[0] != "extraction_classification":
@@ -299,7 +384,7 @@ def test_every_family_composes_task_hands_from_independent_card_decks() -> None:
 
 def test_email_critique_does_not_invent_revision_details() -> None:
     hand = deal_task_hand(_task_row("critique_revision", "email_draft"), 0)
-    assert "Please send the files" in hand.answer
+    assert re.search(r"Please send the \d+-page .+ and its \d+ attachments", hand.answer)
     assert "confirm the recipient, deadline, and file names" in hand.answer
     assert "16:00" not in hand.answer
     assert "project team" not in hand.answer
@@ -356,7 +441,7 @@ def test_grounded_qa_facts_vary_across_scenarios_without_changing_contract() -> 
         for i in range(24)
     }
     assert len(answers) >= 20
-    assert all("Meal service is unknown" in answer for answer in answers)
+    assert all("Meal service isn't specified" in answer for answer in answers)
 
 
 def test_safety_boundaries_match_the_risk_domain() -> None:
@@ -410,12 +495,13 @@ def test_safety_boundaries_materialize_scenario_state_and_constraint() -> None:
         )
     )
     assert "reversible" in first.answer
+    second_answer = second.answer.lower()
     assert any(
-        phrase in second.answer
+        phrase in second_answer
         for phrase in ("active risk", "protective action", "treat the risk as active")
     )
     assert any(
-        phrase in second.answer
+        phrase in second_answer
         for phrase in (
             "immediate harm reduction",
             "protective action",
@@ -481,15 +567,124 @@ def test_software_resilience_explains_why_backup_precedes_an_update() -> None:
 
 
 def test_work_allocation_calculates_people_and_rounds() -> None:
-    hand = deal_task_hand(
-        _task_row("reasoning_verification", "work_allocation"),
-        0,
+    equations = set()
+    for index in range(32):
+        hand = deal_task_hand(
+            _task_row(
+                "reasoning_verification",
+                "work_allocation",
+                scenario=f"{index:06x}abcdef",
+            ),
+            index % 8,
+        )
+        values = re.search(
+            r"distribute (?P<items>\d+) items equally among (?P<people>\d+) "
+            r"people, then divide each person's share equally across "
+            r"(?P<rounds>\d+) rounds",
+            hand.data,
+        )
+        assert values is not None, hand.data
+        items = int(values["items"])
+        people = int(values["people"])
+        rounds = int(values["rounds"])
+        assert items % (people * rounds) == 0
+        per_person = items // people
+        per_round = per_person // rounds
+        equation = (
+            f"{items} / {people} = {per_person}; "
+            f"{per_person} / {rounds} = {per_round}"
+        )
+        equations.add(equation)
+        assert equation in hand.answer
+        assert f"{per_person} items per person" in hand.answer
+        assert f"{per_round} items per person per round" in hand.answer
+        assert (
+            f"{people} people × {rounds} rounds × {per_round} items = {items} items"
+            in hand.answer
+        )
+        reasoning_topology = next(
+            topology
+            for topology in hand.answer.deck_topologies
+            if topology.name == "reasoning-answer"
+        )
+        assert {
+            "scenario[equation]",
+            "scenario[total]",
+            "scenario[check]",
+        } <= set(reasoning_topology.variable_by)
+    assert len(equations) >= 24
+
+
+def test_every_reasoning_domain_recomputes_and_avoids_equation_collisions() -> None:
+    domains = (
+        "shopping_arithmetic",
+        "schedule_math",
+        "unit_conversion",
+        "proportions",
+        "table_comparison",
+        "sequence_pattern",
+        "logical_constraints",
+        "simple_probability",
+        "work_allocation",
     )
-    assert "24" in hand.data
-    assert "3 people" in hand.data
-    assert "two rounds" in hand.data
-    assert "8 items per person" in hand.answer
-    assert "4 items per person per round" in hand.answer
+    equations_by_domain: dict[str, set[str]] = {domain: set() for domain in domains}
+
+    for domain in domains:
+        for index in range(64):
+            hand = deal_task_hand(
+                _task_row(
+                    "reasoning_verification",
+                    domain,
+                    scenario=f"{index:06x}calculation",
+                ),
+                index % 8,
+            )
+            numbers = tuple(map(int, re.findall(r"\d+", hand.data)))
+
+            if domain in {"shopping_arithmetic", "schedule_math"}:
+                units, each, extra = numbers[1:4]
+                equation = f"{units} × {each} + {extra} = {units * each + extra}"
+            elif domain == "unit_conversion":
+                units = numbers[1]
+                equation = f"{units} × 100 = {units * 100}"
+            elif domain == "proportions":
+                each, units = numbers[1:3]
+                equation = f"{units} × {each} = {units * each}"
+            elif domain == "table_comparison":
+                units, each, repeated_units, extra = numbers[1:5]
+                assert repeated_units == units
+                result = max(units * each, units * extra)
+                equation = f"max({units} × {each}, {units} × {extra}) = {result}"
+            elif domain == "sequence_pattern":
+                start, second, third = numbers[1:4]
+                difference = second - start
+                assert third - second == difference
+                equation = f"{start} + 3 × {difference} = {start + 3 * difference}"
+            elif domain == "logical_constraints":
+                b_slot, c_slot = numbers[1:3]
+                equation = f"({b_slot} - 1) + {c_slot} = {b_slot - 1 + c_slot}"
+            elif domain == "simple_probability":
+                blue, amber = numbers[1:3]
+                equation = f"{blue} / ({blue} + {amber}) = {blue}/{blue + amber}"
+            else:
+                item_count, people, rounds = numbers[1:4]
+                assert item_count % people == 0
+                per_person = item_count // people
+                assert per_person % rounds == 0
+                per_round = per_person // rounds
+                equation = (
+                    f"{item_count} / {people} = {per_person}; "
+                    f"{per_person} / {rounds} = {per_round}"
+                )
+
+            assert equation in hand.answer, (domain, hand.data, hand.answer)
+            equations_by_domain[domain].add(equation)
+
+    collisions = {
+        domain: 64 - len(equations)
+        for domain, equations in equations_by_domain.items()
+    }
+    assert all(len(equations) >= 55 for equations in equations_by_domain.values()), collisions
 
 
 def test_conflicting_service_reports_preserve_and_resolve_the_conflict() -> None:
@@ -601,9 +796,39 @@ def test_event_brainstorm_checks_every_hard_constraint() -> None:
         ),
         0,
     )
-    assert "two hours" in hand.answer
-    assert "three groups of eight" in hand.answer
+    brief = re.search(
+        r"(?P<minutes>\d+)-minute .* for (?P<people>\d+) people "
+        r"within \$(?P<budget>\d+)",
+        hand.data,
+    )
+    assert brief is not None, hand.data
+    assert f"{brief['minutes']} minutes" in hand.answer
+    assert f"{brief['people']} people" in hand.answer
+    assert f"${brief['budget']}" in hand.answer
+    assert re.search(r"\d+ groups of at most \d+", hand.answer)
     assert "registration nor personal records" in hand.answer
+    variable_by = next(
+        topology
+        for topology in hand.answer.deck_topologies
+        if topology.name == "brainstorm-answer"
+    )
+    assert variable_by.variable_by[:4] == (
+        "options",
+        "criteria",
+        "outcome",
+        "selection",
+    )
+    assert {
+        "audience[common_noun]",
+        "linker[measurement]",
+        "linker[duration]",
+        "unit[trial_round]",
+        "scenario[scale]",
+        "scenario[days]",
+        "scenario[rounds]",
+        "scenario[setting]",
+        "scenario[signal]",
+    } <= set(variable_by.variable_by)
 
 
 def test_troubleshooting_honors_missing_administrator_access() -> None:
@@ -813,9 +1038,17 @@ def test_post_training_corpus_groups_splits_and_builds_review_queue(
     for response in family_responses["brainstorming_creativity"]:
         assert all(label in response for label in ("1.", "2.", "3.", "Select"))
     for response in family_responses["safety_uncertainty"]:
-        assert all(
+        assert any(
             label in response
-            for label in ("Immediate action:", "Boundary:", "Escalate")
+            for label in ("Immediate action:", "Protective step:", "First safeguard:")
+        )
+        assert any(
+            label in response
+            for label in ("Boundary:", "Safety boundary:", "Verification limit:")
+        )
+        assert any(
+            label in response
+            for label in ("Escalation:", "Trusted channel:", "Next contact:")
         )
     assert result["audit"]["source_scenario_split_overlap"] == 0
     assert result["audit"]["semantic_group_split_overlap"] == 0

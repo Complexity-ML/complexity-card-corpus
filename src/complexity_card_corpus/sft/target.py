@@ -899,12 +899,15 @@ def _apply_semantic_resolution(
     metadata: dict[str, Any],
     example_id: str,
 ) -> str:
-    """Develop short discursive answers with linked, evidence-safe cards.
+    """Preserve an already-authored answer without generic padding.
 
-    Earlier releases appended one generic resolution paragraph to every task.
-    That taught repetition and occasionally contradicted a complete answer.
-    The replacement is selective: it only develops short discursive families,
-    uses a 40-card family-compatible reservoir, and adds no new case fact.
+    Earlier releases appended one generic resolution paragraph to every task
+    from a shared cross-family reservoir. That taught repetition: the same
+    closing phrases recurred across otherwise-diverse prompts because only
+    ``subject`` varied between draws. Short answers are now developed inside
+    the task-specific generators in ``tasks/knowledge.py``, ``tasks/reasoning.py``,
+    and ``tasks/communication.py``, where real per-scenario facts already live,
+    instead of here.
     """
 
     return develop_answer(

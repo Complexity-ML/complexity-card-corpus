@@ -621,8 +621,9 @@ def _answer_payload(
             ),
         }
         goal = (
-            "Identify missing required fields. Return JSON with record_id, record_type, "
-            "missing_fields, present_fields, present_sample, and next_action."
+            f"Identify missing required fields in record {code}. Return JSON with "
+            "record_id, record_type, missing_fields, present_fields, present_sample, "
+            "and next_action."
         )
         contract = ("json", "missing_fields", "next_action")
     elif intent == "standardize_records":
@@ -633,7 +634,7 @@ def _answer_payload(
             "conflicts": [],
         }
         goal = (
-            "Standardize the source into JSON with record_id, record_type, "
+            f"Standardize source record {code} into JSON with record_id, record_type, "
             "normalized_record, and conflicts. Preserve null values."
         )
         contract = ("json", "normalized_record", "conflicts")

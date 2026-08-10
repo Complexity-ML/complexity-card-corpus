@@ -95,3 +95,37 @@ def test_basic_format_checks_accept_compact_json_responses() -> None:
 
     assert audit["format_checks"]["malformed_count"] == 0
     assert audit["checks"]["no_basic_format_failures"]
+
+
+def test_response_only_audit_exposes_repetition_hidden_by_unique_prompts() -> None:
+    rows = [
+        {
+            "example_id": f"response-collapse:{index:03d}",
+            "task": "grounded_qa",
+            "split": "train",
+            "prompt": (
+                f"Unique source question {index} concerning record section "
+                f"{index * 17 + 3}."
+            ),
+            "response": (
+                "The supported takeaway is that documented value "
+                f"{index} remains available while the missing field stays open."
+            ),
+            "source_keys": [f"scenario:{index}"],
+        }
+        for index in range(48)
+    ]
+
+    audit = audit_rows_quality(
+        rows,
+        input_label="response-only repetition regression",
+        sample_size=48,
+        max_features=2_000,
+        cluster_count=8,
+        workers=1,
+    )
+
+    assert audit["response_only_repetition"]["near_duplicate_ratio"] > 0.05
+    assert not audit["checks"][
+        "response_near_duplicate_ratio_below_five_percent"
+    ]

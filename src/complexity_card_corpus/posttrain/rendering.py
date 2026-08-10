@@ -129,6 +129,7 @@ def _deck_topology(card: str) -> list[dict[str, Any]]:
         {
             "deck": topology.name,
             "pools": list(topology.pool_names),
+            "variable_by": list(topology.variable_by),
             "pool_sizes": list(topology.pool_sizes),
             "link_counts": list(topology.link_counts),
         }
@@ -264,7 +265,13 @@ def _deduplicate_conversation_rows(
 def _balance_conversation_families(
     rows: list[dict[str, Any]], *, max_examples_per_family: int | None = None
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Audit family counts and apply a cap only when explicitly requested."""
+    """Audit family counts and cap complete scenario bundles when requested.
+
+    A row-level cap can separate the instruct and chat projections of one
+    scenario or discard the only occurrence of an assigned vocabulary token.
+    Selection therefore operates on ``scenario_id`` bundles and treats every
+    lexical assignment as required coverage.
+    """
 
     if max_examples_per_family is not None and max_examples_per_family < 1:
         raise ValueError("max_examples_per_family must be positive")
@@ -285,23 +292,72 @@ def _balance_conversation_families(
 
     kept: list[dict[str, Any]] = []
     for task, items in sorted(buckets.items()):
-        ranked = sorted(
-            items,
-            key=lambda item: (
-                not bool(json.loads(item["answer_json"])["lexical_focus"]),
-                hashlib.sha256(
-                    f"post-training-balance:{task}:{item['example_id']}".encode()
-                ).digest(),
-            ),
+        bundles: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        lexical_scenarios: set[str] = set()
+        for item in items:
+            answer = json.loads(item["answer_json"])
+            scenario_id = str(answer["scenario_id"])
+            bundles[scenario_id].append(item)
+            if answer["lexical_focus"]:
+                lexical_scenarios.add(scenario_id)
+
+        complete: dict[str, list[dict[str, Any]]] = {}
+        for scenario_id, bundle in bundles.items():
+            modes = {str(item["mode"]) for item in bundle}
+            if modes == {"chat", "instruct"}:
+                complete[scenario_id] = sorted(
+                    bundle,
+                    key=lambda item: item["example_id"],
+                )
+
+        missing_lexical_pairs = sorted(lexical_scenarios - set(complete))
+        if missing_lexical_pairs:
+            raise ValueError(
+                "family cap cannot preserve lexical coverage because a placed "
+                "scenario lacks its instruct/chat pair: "
+                f"{task}:{missing_lexical_pairs[0]}"
+            )
+
+        required_rows = sum(
+            len(complete[scenario_id]) for scenario_id in lexical_scenarios
         )
-        kept.extend(ranked[:max_examples_per_family])
+        if required_rows > max_examples_per_family:
+            raise ValueError(
+                f"max_examples_per_family={max_examples_per_family} is too small "
+                f"for {task}: at least {required_rows} rows are required to "
+                "preserve lexical coverage and instruct/chat pairs"
+            )
+
+        selected: list[dict[str, Any]] = []
+        selected_scenarios: set[str] = set()
+        for scenario_id in sorted(
+            lexical_scenarios,
+            key=lambda value: hashlib.sha256(
+                f"post-training-balance-required:{task}:{value}".encode()
+            ).digest(),
+        ):
+            selected.extend(complete[scenario_id])
+            selected_scenarios.add(scenario_id)
+
+        remaining = sorted(
+            (scenario_id for scenario_id in complete if scenario_id not in selected_scenarios),
+            key=lambda value: hashlib.sha256(
+                f"post-training-balance:{task}:{value}".encode()
+            ).digest(),
+        )
+        for scenario_id in remaining:
+            bundle = complete[scenario_id]
+            if len(selected) + len(bundle) > max_examples_per_family:
+                continue
+            selected.extend(bundle)
+        kept.extend(selected)
     kept.sort(key=lambda item: item["example_id"])
     after = dict(sorted(Counter(row["task"] for row in kept).items()))
     return kept, {
         "before": before,
         "after": after,
         "maximum_examples_per_family": max_examples_per_family,
-        "policy": "explicit_manual_cap",
+        "policy": "explicit_manual_cap_by_complete_scenario",
         "dropped": len(rows) - len(kept),
     }
 

@@ -98,8 +98,8 @@ def parser() -> argparse.ArgumentParser:
         type=int,
         default=0,
         help=(
-            "optional recovery cap applied after exact deduplication; "
-            "0 preserves every valid row"
+            "optional recovery cap applied to complete instruct/chat scenario "
+            "bundles after exact deduplication; 0 preserves every valid row"
         ),
     )
     post_training.add_argument(

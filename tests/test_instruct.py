@@ -2111,7 +2111,7 @@ def test_semantic_projection_preserves_an_authored_non_card_answer() -> None:
     assert "scenario:" not in target
 
 
-def test_semantic_resolution_develops_short_grounded_answers_without_case_facts() -> None:
+def test_semantic_resolution_never_pads_a_direct_answer_with_meta_discourse() -> None:
     target = "Paris is the capital of France."
     developed = _apply_semantic_resolution(
         target,
@@ -2128,12 +2128,10 @@ def test_semantic_resolution_develops_short_grounded_answers_without_case_facts(
         },
         example_id="example:legacy",
     )
-    assert developed.startswith(target)
-    assert "France" in developed
-    assert "causal model" not in developed
+    assert developed == target
 
 
-def test_each_developed_family_has_at_least_twenty_realized_answer_forms() -> None:
+def test_generic_answer_development_is_disabled_for_every_family() -> None:
     tasks = (
         "context_clarification",
         "conversation_empathy",
@@ -2144,17 +2142,37 @@ def test_each_developed_family_has_at_least_twenty_realized_answer_forms() -> No
         "summarization_synthesis",
     )
     for task in tasks:
-        answers = {
-            develop_answer(
-                "The supplied result is bounded.",
-                task=task,
-                metadata={"subject": f"case {index}"},
-                example_id=f"development:{task}:{index}",
-            )
-            for index in range(256)
-        }
-        assert len(answers) >= 20, (task, len(answers))
-        assert all(len(answer.split()) > 8 for answer in answers)
+        answer = "Paris is the capital of France."
+        assert develop_answer(
+            answer,
+            task=task,
+            metadata={"subject": "France"},
+            example_id=f"development:{task}",
+        ) == answer
+
+
+@pytest.mark.parametrize(
+    "phrase",
+    (
+        "The supported takeaway is that the result is bounded.",
+        "The response can therefore stay specific: use the stated value.",
+        "The supplied numbers give 48.",
+        "The supplied material keeps the value open.",
+    ),
+)
+def test_projection_rejects_generic_meta_discourse_even_when_surface_varies(
+    phrase: str,
+) -> None:
+    with pytest.raises(ValueError, match="control rubric"):
+        _audit_sft_projection(
+            [
+                {
+                    "example_id": "meta-discourse:0",
+                    "task": "grounded_qa",
+                    "_projected_target": phrase,
+                }
+            ]
+        )
 
 
 def test_practical_surface_projection_removes_internal_control_colons() -> None:
