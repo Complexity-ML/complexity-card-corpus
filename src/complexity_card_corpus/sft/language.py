@@ -166,7 +166,14 @@ def _labelled_fields(text: str, labels: tuple[str, ...]) -> dict[str, str]:
     fields: dict[str, str] = {}
     for index, match in enumerate(matches):
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
-        fields[match.group(1)] = text[match.end() : end].strip().rstrip(" .")
+        value = text[match.end() : end].strip()
+        # Authored cards sometimes separate adjacent labelled fields with an
+        # em dash ("Equation: ... — Total: ...").  The dash is storage syntax,
+        # not part of either field.  Keeping it here makes _inline_sentence()
+        # append a period after the dash and later cleanup turns the junction
+        # into two periods.
+        value = re.sub(r"\s+—\s*$", "", value).strip().rstrip(" .")
+        fields[match.group(1)] = value
     return fields
 
 

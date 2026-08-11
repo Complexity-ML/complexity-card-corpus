@@ -45,8 +45,25 @@ _ERRORS = {
         "submission returns HTTP 422",
         "a required profile field was removed",
         (
-            "Duplicate the draft in {scope}. If the required field's previous value is "
-            "documented, restore it only in the duplicate; otherwise stop and request the value"
+            (
+                "Duplicate the draft in {scope}. If the required field's previous value is "
+                "documented, restore it only in the duplicate; otherwise stop and request the value"
+            ),
+            (
+                "Open a copy of the submission in {scope} and compare its required fields with "
+                "control {code}. Enter a missing value only when that control documents it; "
+                "otherwise preserve the copy and ask for the value"
+            ),
+            (
+                "Preserve the original draft and reproduce the HTTP 422 response from {scope}. "
+                "Use the last documented profile value only in that copy, or stop if no prior "
+                "value is recorded"
+            ),
+            (
+                "In {scope}, inspect which required field is absent without submitting the original. "
+                "Copy a value from control {code} only if it is explicitly recorded there; otherwise "
+                "request clarification"
+            ),
         ),
         "discard the duplicate draft and leave the original form unchanged",
     ),
@@ -148,4 +165,6 @@ _ERRORS = {
 def troubleshooting_cards(domain: str) -> tuple[str, str, str, tuple[str, ...], str]:
     """Return localized diagnostic cells for one troubleshooting domain."""
 
-    return _ERRORS[domain]
+    environment, error, change, diagnostic, rollback = _ERRORS[domain]
+    diagnostics = (diagnostic,) if isinstance(diagnostic, str) else diagnostic
+    return environment, error, change, diagnostics, rollback

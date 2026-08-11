@@ -562,11 +562,10 @@ def _brainstorm(row: dict[str, Any], variant: int) -> TaskHand:
         variant,
         "brainstorm-objective",
         (
-            BRAINSTORM_GOAL_TEMPLATES["generate"],
-            BRAINSTORM_GOAL_TEMPLATES["compare"],
-            BRAINSTORM_GOAL_TEMPLATES["select"],
+            BRAINSTORM_GOAL_TEMPLATES["request"],
+            BRAINSTORM_GOAL_TEMPLATES["decision"],
         ),
-        pool_names=("generation", "criteria", "selection"),
+        pool_names=("request", "decision"),
         variable_by=lexical_variables,
     )
     return TaskHand(data, goal, answer, ("three_options", "criteria", "selection"))

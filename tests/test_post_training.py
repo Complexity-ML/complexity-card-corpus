@@ -236,7 +236,10 @@ def test_task_cards_do_not_invent_missing_trial_outcomes() -> None:
     hand = deal_task_hand(_task_row("critique_revision", "argument"), 0)
     assert re.search(r"\d+ of \d+ testers", hand.data.lower())
     assert "unrecorded" not in hand.answer.lower()
-    assert "does not establish" in hand.answer.lower()
+    assert re.search(
+        r"(?:does not establish|not a universal|avoid claiming|cannot establish)",
+        hand.answer.lower(),
+    )
 
 
 def test_every_registered_domain_deals_a_valid_task_hand() -> None:
@@ -384,8 +387,12 @@ def test_every_family_composes_task_hands_from_independent_card_decks() -> None:
 
 def test_email_critique_does_not_invent_revision_details() -> None:
     hand = deal_task_hand(_task_row("critique_revision", "email_draft"), 0)
-    assert re.search(r"Please send the \d+-page .+ and its \d+ attachments", hand.answer)
-    assert "confirm the recipient, deadline, and file names" in hand.answer
+    assert re.search(r"\d+-page", hand.answer)
+    assert re.search(r"\d+ attachments", hand.answer)
+    assert all(
+        detail in hand.answer.lower()
+        for detail in ("recipient", "deadline", "file names")
+    )
     assert "16:00" not in hand.answer
     assert "project team" not in hand.answer
     assert "two review files" not in hand.answer
@@ -401,13 +408,23 @@ def test_every_critique_provides_a_faithful_two_sentence_revision() -> None:
         "summary",
         "claim_evidence",
         "interface_copy",
+        "status_update",
+        "survey_report",
+        "policy_notice",
+        "data_caption",
+        "release_note",
+        "support_macro",
+        "risk_assessment",
     )
     for domain in domains:
-        for variant in range(4):
+        revisions = set()
+        for variant in range(16):
             hand = deal_task_hand(_task_row("critique_revision", domain), variant)
             revision = hand.answer.split("Revision:", 1)[1].strip()
+            revisions.add(revision)
             sentences = re.findall(r"[^.!?]+[.!?](?:\s|$)", revision)
             assert len(sentences) == 2, (domain, variant, revision)
+        assert len(revisions) >= 4, (domain, revisions)
     combined = " ".join(
         deal_task_hand(_task_row("critique_revision", domain), 0).answer
         for domain in domains
@@ -486,13 +503,10 @@ def test_safety_boundaries_materialize_scenario_state_and_constraint() -> None:
     )
 
     assert first.answer != second.answer
+    first_answer = first.answer.lower()
     assert any(
-        phrase in first.answer
-        for phrase in (
-            "without establishing its urgency",
-            "do not fix its severity",
-            "supports caution",
-        )
+        phrase in first_answer
+        for phrase in ("urgenc", "severity", "caution", "possibility of harm")
     )
     assert "reversible" in first.answer
     second_answer = second.answer.lower()
@@ -508,6 +522,63 @@ def test_safety_boundaries_materialize_scenario_state_and_constraint() -> None:
             "immediate risk first",
         )
     )
+
+
+def test_safety_composition_keeps_sentences_out_of_noun_slots() -> None:
+    domains = (
+        "privacy_security",
+        "medical_information",
+        "financial_decision",
+        "physical_safety",
+    )
+    for domain in domains:
+        for index in range(48):
+            hand = deal_task_hand(
+                _task_row(
+                    "safety_uncertainty",
+                    domain,
+                    scenario=f"{index:06x}safetygrammar",
+                ),
+                index % 8,
+            )
+            assert not re.search(
+                r"\b(?:First|Directly|Specifically),\s+[A-Z]",
+                hand.answer,
+            ), hand.answer
+            assert not re.search(r"\bthe\s+(?:Tell|Report|Mention)\b", hand.goal)
+            assert not re.search(r"\.\s+channel\b", hand.goal, re.IGNORECASE)
+            assert ".." not in hand.goal
+
+
+def test_aliased_safety_domain_keeps_its_concrete_case() -> None:
+    hand = deal_task_hand(
+        _task_row(
+            "safety_uncertainty",
+            "animal_bite",
+            state="Critical safety context is missing.",
+            constraint="State material uncertainty instead of guessing.",
+        ),
+        0,
+    )
+    rendered = " ".join((hand.data, hand.goal, hand.answer)).lower()
+
+    assert "animal bite" in rendered
+    assert "chest pressure" not in rendered
+
+
+def test_brainstorm_goal_contains_no_internal_rubric_label() -> None:
+    forbidden = re.compile(
+        r"\b(?:candidate task|option set|idea generation|brief comparison|"
+        r"criteria review|fit check|pilot choice)\b",
+        re.IGNORECASE,
+    )
+    for domain in ("names", "event_plan", "feature_ideas", "workflow"):
+        for variant in range(6):
+            hand = deal_task_hand(
+                _task_row("brainstorming_creativity", domain),
+                variant,
+            )
+            assert forbidden.search(hand.goal) is None, hand.goal
 
 
 def test_empathy_answers_materialize_distinct_state_reflections() -> None:
@@ -552,6 +623,35 @@ def test_explanation_preserves_sentence_initial_acronyms() -> None:
         )
         assert "RAM holds" in hand.answer
         assert "rAM" not in hand.answer
+
+
+def test_physical_science_objects_receive_exactly_one_article() -> None:
+    observed_objects = set()
+    for index in range(64):
+        hand = deal_task_hand(
+            _task_row(
+                "explanation_learning",
+                "physical_science",
+                scenario=f"{index:06x}physicalgrammar",
+            ),
+            index % 8,
+        )
+        rendered = " ".join((hand.data, hand.goal, hand.answer))
+        assert not re.search(r"\b(?:the same|the)\s+(?:a|an)\s+", rendered, re.I)
+        match = re.search(r"same (\w+), weighing", hand.data, re.I)
+        assert match is not None, hand.data
+        observed_objects.add(match.group(1).lower())
+
+    assert observed_objects == {
+        "rock",
+        "backpack",
+        "bicycle",
+        "laptop",
+        "book",
+        "hammer",
+        "suitcase",
+        "chair",
+    }
 
 
 def test_software_resilience_explains_why_backup_precedes_an_update() -> None:
@@ -788,13 +888,21 @@ def test_extraction_value_reservoir_varies_domain_records() -> None:
 
 
 def test_event_brainstorm_checks_every_hard_constraint() -> None:
-    hand = deal_task_hand(
-        _task_row(
-            "brainstorming_creativity",
-            "event_plan",
-            scenario="000000000003",
-        ),
-        0,
+    hands = (
+        deal_task_hand(
+            _task_row(
+                "brainstorming_creativity",
+                "event_plan",
+                scenario=f"{index:012x}",
+            ),
+            0,
+        )
+        for index in range(128)
+    )
+    hand = next(
+        candidate
+        for candidate in hands
+        if "without collecting participant data" in candidate.data
     )
     brief = re.search(
         r"(?P<minutes>\d+)-minute .* for (?P<people>\d+) people "
@@ -875,11 +983,53 @@ def test_clarification_uses_the_hand_code_once() -> None:
     assert "For hand ABCDEF: For ABCDEF:" not in hand.answer
 
 
+def test_clarification_never_fabricates_a_request_number() -> None:
+    domains = (
+        "ambiguous_request",
+        "missing_reference",
+        "conflicting_instruction",
+        "unclear_pronoun",
+        "incomplete_goal",
+        "scope_boundary",
+        "format_preference",
+        "timeline_ambiguity",
+        "team_request",
+        "data_request",
+        "travel_request",
+        "purchasing_request",
+    )
+    for domain in domains:
+        for index in range(16):
+            hand = deal_task_hand(
+                _task_row(
+                    "context_clarification",
+                    domain,
+                    scenario=f"{index:06x}clarification",
+                ),
+                index % 8,
+            )
+            rendered = " ".join(
+                (
+                    hand.situation_title or "",
+                    str(hand.situation or ""),
+                    hand.data,
+                    hand.goal,
+                    hand.answer,
+                )
+            )
+            assert not re.search(r"\brequest\s+#\d+\b", rendered, re.I), rendered
+            assert not re.search(r"\bfor request\s+\d+\b", rendered, re.I), rendered
+            assert "the the" not in rendered.lower(), rendered
+
+
 def test_planning_card_states_the_failed_requirement_explicitly() -> None:
     hand = deal_task_hand(_task_row("planning_comparison", "learning_plan"), 0)
     assert "misses one non-negotiable requirement" in hand.data
-    assert "non-negotiable requirement" in hand.answer
-    assert "C fails" in hand.answer or "Reject C" in hand.answer
+    assert re.search(
+        r"C[^.]+(?:required condition|mandatory condition|non-negotiable requirement|unwaivable requirement)",
+        hand.answer,
+    )
+    assert re.search(r"(?:C fails|Reject C|C is .*misses|C .*violates)", hand.answer)
     assert "Availability of Option A has not yet been confirmed" in hand.data
     assert "confirm" in hand.answer.lower()
 
@@ -960,6 +1110,11 @@ def test_indefinite_articles_follow_common_english_sound_rules() -> None:
         "an account, an email, a useful option"
     )
     assert correct_indefinite_articles("an usable example") == "a usable example"
+    assert correct_indefinite_articles(
+        "A and B differ; A is valid; place A at 4; only A after screening; leave A alone."
+    ) == (
+        "A and B differ; A is valid; place A at 4; only A after screening; leave A alone."
+    )
 
 
 def test_intent_subject_composition_places_prepositional_complements_last() -> None:

@@ -1,20 +1,13 @@
 from __future__ import annotations
 
 BRAINSTORM_GOAL_TEMPLATES = {
-    "generate": (
-        "{label[generate]}: {goal[generate]}",
-        "{label[generate]} — {goal[generate]}",
-        "{goal[generate]} — {label[generate]}.",
+    "request": (
+        "{goal[generate]} {goal[compare]}",
+        "{goal[compare]} {goal[generate]}",
     ),
-    "compare": (
-        "{label[compare]}: {goal[compare]}",
-        "{label[compare]} — {goal[compare]}",
-        "{goal[compare]} — {label[compare]}.",
-    ),
-    "select": (
-        "{label[select]}: {goal[select]}",
-        "{label[select]} — {goal[select]}",
-        "{goal[select]} — {label[select]}.",
+    "decision": (
+        "{goal[select]} {constraint[explain]}",
+        "{constraint[explain]} {goal[select]}",
     ),
 }
 

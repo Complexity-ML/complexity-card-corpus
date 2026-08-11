@@ -132,6 +132,44 @@ def test_projected_difficulty_uses_realized_conversation_complexity() -> None:
     )
     assert projected_difficulty(hard, linked_messages) == "hard"
 
+    partial_but_direct = TrainingCards(
+        **{
+            **easy.as_dict(),
+            "evidence": "partial",
+            "uncertainty": "state_limits",
+        }
+    )
+    assert projected_difficulty(
+        partial_but_direct,
+        [{"role": "user", "content": "Answer only what the note supports."}],
+    ) == "easy"
+
+    seventy_nine_words = " ".join(["value"] * 79)
+    eighty_words = " ".join(["value"] * 80)
+    assert projected_difficulty(
+        partial_but_direct,
+        [{"role": "user", "content": seventy_nine_words}],
+    ) == "easy"
+    assert projected_difficulty(
+        partial_but_direct,
+        [{"role": "user", "content": eighty_words}],
+    ) == "medium"
+
+
+def test_single_role_response_tasks_are_not_given_fake_sibling_axes() -> None:
+    assert "troubleshooting" not in RESPONSE_STRUCTURE_SIBLING_TASKS
+    for task in RESPONSE_STRUCTURE_SIBLING_TASKS:
+        assert len(
+            {
+                deal_training_cards(
+                    task=task,
+                    mode="instruct",
+                    example_id=f"sibling-order:{index}",
+                ).response_order
+                for index in range(256)
+            }
+        ) >= 2
+
 
 def test_constraint_tension_is_not_mislabeled_as_conflicting_evidence() -> None:
     cards = deal_training_cards(

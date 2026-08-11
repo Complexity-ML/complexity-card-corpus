@@ -64,11 +64,6 @@ def brainstorming_variable_by(
     return VariableBy2D(
         {
             "domain": {"label": (domain.replace("_", " "),)},
-            "label": {
-                "generate": ("Option set", "Idea generation", "Candidate task"),
-                "compare": ("Criteria review", "Brief comparison", "Fit check"),
-                "select": ("Selection", "Recommendation", "Pilot choice"),
-            },
             "goal": {
                 "generate": (
                     "Generate three meaningfully different {domain[label]} options.",
@@ -84,6 +79,13 @@ def brainstorming_variable_by(
                     "Select the strongest {domain[label]} option.",
                     "Recommend one {domain[label]} option and explain the choice.",
                     "Choose the best bounded {domain[label]} proposal to test first.",
+                ),
+            },
+            "constraint": {
+                "explain": (
+                    "Explain the choice using the stated limits.",
+                    "Tie the recommendation to the supplied criteria.",
+                    "Give the concrete reason for the final choice.",
                 ),
             },
             "audience": {
@@ -163,7 +165,7 @@ def critique_variable_by(
     code: str,
     *,
     weakness: str | None = None,
-    revision: str | None = None,
+    revision: str | tuple[str, ...] | None = None,
     consequences: tuple[str, ...] = (),
 ) -> VariableBy2D:
     """Return nested language cells for one critique instruction."""

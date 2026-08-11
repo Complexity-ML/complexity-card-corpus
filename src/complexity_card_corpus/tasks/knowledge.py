@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..variable_by.reservoirs import GroundedQAFacts, grounded_qa_variable_by
+from ..variable_by.reservoirs import (
+    GroundedQAFacts,
+    grounded_qa_variable_by,
+    meeting_summary_cards,
+)
 from ..variable_by.templates import GROUNDED_QA_TEMPLATES
 from .core import (
     TaskHand,
@@ -229,7 +233,18 @@ def _summary(row: dict[str, Any], variant: int) -> TaskHand:
             f"the exact point where the rule, tested on {example_count} examples, stops applying",
         ),
     }
-    decision, action, open_point = cases[_render_domain(row)]
+    summary_domain = _render_domain(row)
+    decision, action, open_point = cases[summary_domain]
+    decision_cards = (decision,)
+    open_point_cards = (open_point,)
+    if summary_domain == "meeting_transcript":
+        decision_cards, open_point_cards = meeting_summary_cards(
+            contrast_ratio,
+            default_decision=decision,
+            default_open_point=open_point,
+        )
+    decision = _pick(f"summary-decision:{code}:{variant}", decision_cards)
+    open_point = _pick(f"summary-open-point:{code}:{variant}", open_point_cards)
     source = (
         f"The recorded decision is to {decision}. {owner} will {action} by day {day}. "
         f"The source leaves {open_point} unresolved."

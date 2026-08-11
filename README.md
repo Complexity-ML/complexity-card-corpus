@@ -549,8 +549,8 @@ within-family dispersion:
 ```bash
 uv sync --extra semantic-audit
 uv run card-corpus audit-embeddings \
-  --conversations build/post-training-o200k/projected.parquet \
-  --output build/post-training-o200k/embedding-audit.json
+  --conversations build/post-training-32k/projected.parquet \
+  --output build/post-training-32k/embedding-audit.json
 ```
 
 Run response-level audits on `projected.parquet`, not on the authored card
@@ -682,14 +682,15 @@ uv run card-corpus tokenize-instruct \
   --instructions build/post-training/conversations.parquet \
   --supplement build/conversation-surface-10k/conversations.parquet \
   --supplement build/casual-conversation-v13/conversations.parquet \
-  --tokenizer /path/to/tokenizer-o200k \
+  --tokenizer /path/to/tokenizer-32k \
   --heldout-evaluation data/evaluation/generalist-heldout-v2.json \
   --workers 8 \
-  --output build/post-training-o200k
+  --output build/post-training-32k
 ```
 
-Document token streams use little-endian `uint32`, because o200k token IDs do
-not fit in `uint16`. Causal-SFT labels use `-100` for user prefixes and padding;
+Document token streams use little-endian `uint32`, which also supports the
+configured 32k tokenizer without coupling the file format to one vocabulary.
+Causal-SFT labels use `-100` for user prefixes and padding;
 only assistant tokens and the terminating EOS token contribute to the loss.
 The tokenized release also carries `chat_template.json`. Its
 `complexity-chat-v1` contract serializes the fixed system instruction, natural

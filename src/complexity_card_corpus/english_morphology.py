@@ -107,6 +107,7 @@ _ARTICLE_PATTERN = re.compile(
     r"(?<![A-Za-z0-9-])(?P<article>a|an)\s+(?P<word>[A-Za-z][A-Za-z0-9'-]*)",
     re.IGNORECASE,
 )
+_OPTION_A_FOLLOWERS = frozenset({"after", "alone", "and", "at", "is"})
 
 
 def indefinite_article(value: str) -> str:
@@ -130,6 +131,15 @@ def correct_indefinite_articles(value: str) -> str:
     """Correct explicit a/an pairs without otherwise paraphrasing text."""
 
     def replace(match: re.Match[str]) -> str:
+        # A capital single-letter option/variable is not an indefinite
+        # article: "A and B", "A is valid", "A at slot 4", etc.  These
+        # predicate/function-word followers cannot begin an article noun
+        # phrase, so preserving A is unambiguous.
+        if (
+            match.group("article") == "A"
+            and match.group("word").casefold() in _OPTION_A_FOLLOWERS
+        ):
+            return match.group(0)
         expected = indefinite_article(match.group("word"))
         if match.group("article")[0].isupper():
             expected = expected.capitalize()

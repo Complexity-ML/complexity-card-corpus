@@ -153,7 +153,7 @@ def _naturalize_assistant_target(
             idea = idea.strip().rstrip(" .")
             example = fields["Example"].strip().rstrip(" .")
             example = re.sub(
-                r"\s+(?:This applies the distinction directly|This turns the definition into a checkable case|The example makes the mechanism visible)\.?$",
+                r"\s+(?:This applies the distinction directly|This turns the definition into a checkable case|The example makes the mechanism visible)\.?",
                 "",
                 example,
                 flags=re.IGNORECASE,
@@ -208,21 +208,41 @@ def _naturalize_assistant_target(
         if set(fields) == {"Equation", "Total", "Check"}:
             equation = _clean_prefix(
                 fields["Equation"],
-                r"^(?:using the supplied values,\s*|the direct calculation is\s+|represent the required operation as\s+|evaluating the quantities gives\s+|the numerical relation is\s+)",
+                r"^(?:using the supplied values,\s*|the direct calculation is\s+|represent the required operation as\s+|evaluating the quantities gives\s+|the numerical relation is\s+|mapping each supplied quantity to its role gives\s+|following the stated order of operations yields\s+|the quantities combine in this form:\s*|a direct numerical model of the prompt is\s+)",
             )
             total = _clean_prefix(
                 fields["Total"],
-                r"^(?:this gives\s+|the result is\s+|the computed value is\s+|therefore,\s*|the supplied values produce\s+)",
+                r"^(?:this gives\s+|the result is\s+|the computed value is\s+|therefore,\s*|the supplied values produce\s+|completing those operations produces\s+|after applying every stated quantity, the answer is\s+|the resulting quantity is\s+|the final evaluated amount is\s+)",
             )
             check = _clean_prefix(
                 fields["Check"],
-                r"^(?:independently,\s*|inspect the supplied values, then note that\s*|use a second view of the values;\s*|a second view confirms that\s*|verify the result by noting that\s*)",
+                r"^(?:independently,\s*|inspect the supplied values, then note that\s*|use a second view of the values;\s*|a second view confirms that\s*|verify the result by noting that\s*|reversing or decomposing the operation shows that\s*|an independent reconstruction confirms that\s*|the quantities remain consistent because\s*|a separate numerical route establishes that\s*)",
             )
             check = re.sub(
                 r"\bA occupies slot (\d+), immediately before B at slot (\d+)",
                 r"slot \1 is occupied by A, immediately before B at slot \2",
                 check,
             )
+            if cards.response_bridge in {"compact", "plain"}:
+                # These two response cards intentionally provide the direct
+                # length band. Keep the three required semantic roles while
+                # omitting optional explanatory tails after the first sentence
+                # or authored em-dash expansion.
+                concise_equation = re.split(r"(?<=[.!?])\s+", equation, 1)[0]
+                concise_total = re.split(r"(?<=[.!?])\s+", total, 1)[0]
+                concise_check = re.split(r"\s+—\s+", check, 1)[0]
+                concise_check = re.split(
+                    r"(?<=[.!?])\s+", concise_check, 1
+                )[0]
+                concise_clauses = {
+                    "equation": _sentence(concise_equation),
+                    "total": _sentence(concise_total),
+                    "check": _sentence(concise_check),
+                }
+                return render_response_card_hand(
+                    concise_clauses,
+                    cards=cards,
+                )
             clauses = {
                 "equation": _response_phrase(
                     cards,
@@ -324,6 +344,15 @@ def _naturalize_assistant_target(
             )
     elif task == "grounded_qa":
         direct = response
+        direct = re.sub(
+            r"\s*[-—]\s*(?:Evidence scope|Grounding|Source basis|"
+            r"Documented answer|Supported finding|Known result|Corroborating fact|"
+            r"Additional evidence|Related fact|Unknown boundary|Evidence limit|"
+            r"Unsupported field)\.(?=\s|$)",
+            " ",
+            direct,
+            flags=re.IGNORECASE,
+        ).strip()
         wrapper = re.compile(
             r"^(?:Based on Source [A-Za-z0-9]+:|Source [A-Za-z0-9]+ supports this answer:|According to Source [A-Za-z0-9]+:|The supplied record establishes this:|Supported facts:|The documented answer is:)\s*",
             flags=re.IGNORECASE,
@@ -403,13 +432,16 @@ def _naturalize_assistant_target(
             )
     elif task == "safety_uncertainty":
         match = re.fullmatch(
-            r"Immediate action:\s*(.*?)\s+Boundary:\s*(.*?)\s+(Escalate\b.*)",
+            r"(?:Immediate action|Protective step|First safeguard)\s*(?::|—)\s*(.*?)\s+"
+            r"(?:Boundary|Safety boundary|Verification limit)\s*(?::|—)\s*(.*?)\s+"
+            r"(?:(?:Escalation|Trusted channel|Next contact)\s*(?::|—)\s*(.*)"
+            r"|(Escalate\b.*))",
             response,
         )
         if match is not None:
             action = match.group(1).strip().rstrip(" .")
             boundary = match.group(2).strip().rstrip(" .")
-            escalation = match.group(3).strip().rstrip(" .")
+            escalation = (match.group(3) or match.group(4)).strip().rstrip(" .")
             clauses = {
                 "action": _response_phrase(
                     cards,
@@ -487,7 +519,7 @@ def _naturalize_assistant_target(
                     cards,
                     (
                         _sentence(owner),
-                        f"Responsibility stays explicit. {_sentence(owner)}",
+                        f"Ownership is assigned directly: {_inline_sentence(owner)}",
                         f"For ownership, {_inline_sentence(owner)}",
                     ),
                     offset=52,
@@ -628,7 +660,12 @@ def _naturalize_assistant_target(
         # response-card ordering placed them later in the answer.
         direct = re.sub(
             r"(?:^|\s+)(?:Each description states|"
-            r"The three retained ideas remain feasible)[^.!?]*(?:[.!?]|$)",
+            r"The three retained(?: [A-Za-z][A-Za-z0-9_-]*){0,4} "
+            r"ideas remain feasible|"
+            r"(?:The )?[^.!?]*options remain bounded by the explicit brief|"
+            r"Each retained option satisfies the stated criteria|"
+            r"The selected [^.!?]*option is concrete enough to test first)"
+            r"[^.!?]*(?:[.!?]|$)",
             " ",
             response,
             flags=re.IGNORECASE,

@@ -50,6 +50,21 @@ from .surface_variation import SurfaceVariationBalancer
 
 
 TRAIN_QUALITY_MAX_RESPONSE_CARD_HAND_SHARE = 0.05
+SOURCE_READ_BATCH_SIZE = 10_000
+SURFACE_REWRITE_BATCH_SIZE = 10_000
+_INSTRUCTION_COLUMNS = (
+    "example_id",
+    "task",
+    "mode",
+    "domain",
+    "language",
+    "split",
+    "messages",
+    "answer_json",
+    "source",
+    "license",
+    "version",
+)
 # A 5% domain ceiling forces all twenty-domain families into an exact uniform
 # distribution and discards otherwise diverse, unique supervision as soon as
 # one domain loses more rows during exact/structural deduplication.  Ten percent
@@ -124,7 +139,15 @@ def _load_instruction_sources(
     sources: list[dict[str, Any]] = []
     for index, path in enumerate(paths):
         digest = file_sha256(path)
-        source_rows = pq.read_table(path).to_pylist()
+        parquet = pq.ParquetFile(path)
+        source_rows = [
+            row
+            for batch in parquet.iter_batches(
+                batch_size=SOURCE_READ_BATCH_SIZE,
+                columns=list(_INSTRUCTION_COLUMNS),
+            )
+            for row in batch.to_pylist()
+        ]
         aliases: Counter[str] = Counter()
         if index:
             for row in source_rows:
@@ -271,6 +294,11 @@ def tokenize_instruction_dataset(
         projector=_project_surface,
         workers=workers,
     )
+    for row in projected_rows:
+        row["_source_representation"] = (
+            "card_hand" if _card_sections(row["messages"]) is not None else "conversation"
+        )
+        del row["messages"]
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in projected_rows:
         partition = {
@@ -357,21 +385,23 @@ def tokenize_instruction_dataset(
     # trained. Applying this earlier lets later deduplication skew a balanced
     # reservoir back above its ceiling.
     phrase_balancer = SurfaceVariationBalancer()
-    rewritten_train: list[dict[str, Any]] = []
-    for row in sorted(grouped.get("train", []), key=lambda item: item["example_id"]):
-        messages = phrase_balancer.rewrite_messages(
-            row["_projected_messages"],
-            task=row["task"],
-            example_id=row["example_id"],
-        )
-        rewritten = dict(row)
-        rewritten["_projected_messages"] = messages
-        rewritten["_projected_prompt"] = _render_messages(messages[:-1])
-        rewritten["_projected_target"] = messages[-1]["content"]
-        rewritten["_structure_signature"] = _normalized_structure(
-            rewritten["_projected_target"]
-        )
-        rewritten_train.append(rewritten)
+    rewritten_train = grouped.get("train", [])
+    for batch_start in range(0, len(rewritten_train), SURFACE_REWRITE_BATCH_SIZE):
+        batch = rewritten_train[
+            batch_start : batch_start + SURFACE_REWRITE_BATCH_SIZE
+        ]
+        for row in batch:
+            messages = phrase_balancer.rewrite_messages(
+                row["_projected_messages"],
+                task=row["task"],
+                example_id=row["example_id"],
+            )
+            row["_projected_messages"] = messages
+            row["_projected_prompt"] = _render_messages(messages[:-1])
+            row["_projected_target"] = messages[-1]["content"]
+            row["_structure_signature"] = _normalized_structure(
+                row["_projected_target"]
+            )
     rewritten_train, post_variation_response_deduplication = (
         _deduplicate_exact_responses(rewritten_train)
     )
@@ -445,9 +475,7 @@ def tokenize_instruction_dataset(
                 "_conditioning_cards"
             ].response_structure_signature,
             "source_representation": (
-                "card_hand"
-                if _card_sections(row["messages"]) is not None
-                else "conversation"
+                row["_source_representation"]
             ),
             "source": row["source"],
             "license": row["license"],
@@ -481,9 +509,9 @@ def tokenize_instruction_dataset(
             examples_path.open("w", encoding="utf-8") as examples_handle,
         ):
             for row in partition_rows:
-                has_card_hand = _card_sections(row["messages"]) is not None
+                has_card_hand = row["_source_representation"] == "card_hand"
                 input_ids, labels, conditioning_cards = _encode_messages(
-                    row["messages"],
+                    [],
                     row["example_id"],
                     row["task"],
                     row["answer_json"],

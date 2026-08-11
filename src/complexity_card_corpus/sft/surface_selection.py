@@ -76,15 +76,11 @@ def select_balanced_sft_surfaces(
 
     for row in passthrough:
         messages, cards = projector(row, row["example_id"])
-        selected.append(
-            {
-                **row,
-                "_projected_messages": messages,
-                "_projected_prompt": _render_messages(messages[:-1]),
-                "_projected_target": messages[-1]["content"],
-                "_conditioning_cards": cards,
-            }
-        )
+        row["_projected_messages"] = messages
+        row["_projected_prompt"] = _render_messages(messages[:-1])
+        row["_projected_target"] = messages[-1]["content"]
+        row["_conditioning_cards"] = cards
+        selected.append(row)
     selected.sort(key=lambda row: row["example_id"])
     return selected, {
         "method": "least_used_response_hand_and_sibling_neighbourhood",
@@ -146,15 +142,11 @@ def _select_task_surfaces(
                 cards.response_structure_sibling_signatures.items()
             ):
                 sibling_counts[dimension][signature] += 1
-        selected.append(
-            {
-                **row,
-                "_projected_messages": messages,
-                "_projected_prompt": _render_messages(messages[:-1]),
-                "_projected_target": messages[-1]["content"],
-                "_conditioning_cards": cards,
-            }
-        )
+        row["_projected_messages"] = messages
+        row["_projected_prompt"] = _render_messages(messages[:-1])
+        row["_projected_target"] = messages[-1]["content"]
+        row["_conditioning_cards"] = cards
+        selected.append(row)
     return selected, {
         task: {
             "examples": len(task_rows),

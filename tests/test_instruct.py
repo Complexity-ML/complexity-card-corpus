@@ -10,6 +10,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
+import complexity_card_corpus.sft.surface_variation as surface_variation_module
 from complexity_card_corpus.build import CARD_SCHEMA, DOCUMENT_SCHEMA, RELATION_SCHEMA
 from complexity_card_corpus.sft import (
     IGNORE_INDEX,
@@ -21,6 +22,7 @@ from complexity_card_corpus.sft.schema import INSTRUCTION_SCHEMA
 from complexity_card_corpus.sft.answer_development import develop_answer
 from complexity_card_corpus.sft.dialogue_links import preserve_linked_dialogue
 from complexity_card_corpus.sft.evaluation import (
+    _FORBIDDEN_SFT_TARGET_PHRASES,
     _audit_sft_projection,
     _normalized_opening,
     _text_repetition_signatures,
@@ -293,7 +295,7 @@ def test_instruction_sources_reject_duplicate_ids(tmp_path: Path) -> None:
 
 
 def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> None:
-    tokenizer = Path("/Users/boris/Dev/complexity-framework/tokenizer-o200k")
+    tokenizer = Path("/Users/boris/Dev/complexity-framework/tokenizer")
     if not tokenizer.exists():
         return
     corpus = tmp_path / "corpus"
@@ -556,6 +558,84 @@ def test_sft_target_naturalization_removes_contract_labels() -> None:
     assert "3 × 8 = 24" in target
     assert "independently, independently" not in target
     assert "because inspect" not in target
+
+
+def test_reasoning_target_removes_field_separators_and_nested_check_frames() -> None:
+    cards = TrainingCards(
+        surface="conversational",
+        dialogue_state="new_request",
+        output="equation_and_check",
+        evidence="sufficient",
+        reasoning="calculate_then_verify",
+        style="plain",
+        context_density="focused",
+        noise="none",
+        uncertainty="answerable",
+    )
+    messages = [
+        {"role": "user", "content": "Calculate and verify the batch total."},
+        {
+            "role": "assistant",
+            "content": (
+                "Equation: 36 × 50 = 1800. — Total: 1800 cups. "
+                "Check: a separate numerical route establishes that 1800 / 36 = 50."
+            ),
+        },
+    ]
+
+    target = _naturalize_assistant_target(
+        messages,
+        task="reasoning_verification",
+        cards=cards,
+        example_id="reasoning:no-nested-check",
+    )
+
+    assert "—." not in target
+    assert ".." not in target
+    assert "confirms that a separate numerical route" not in target.lower()
+    assert "establishes that a separate numerical route" not in target.lower()
+    assert "1800 / 36 = 50" in target
+
+
+def test_compact_reasoning_target_keeps_equation_total_and_check_under_25_words() -> None:
+    cards = TrainingCards(
+        surface="direct",
+        dialogue_state="new_request",
+        output="equation_and_check",
+        evidence="sufficient",
+        reasoning="calculate_then_verify",
+        style="plain",
+        context_density="focused",
+        noise="none",
+        uncertainty="answerable",
+        response_order="equation>total>check",
+        response_bridge="compact",
+        response_layout="paragraph",
+        response_opening="bare",
+    )
+    messages = [
+        {"role": "user", "content": "Calculate and verify the batch total."},
+        {
+            "role": "assistant",
+            "content": (
+                "Equation: 36 × 50 = 1800. — Total: 1800 cups. "
+                "Keeping the rate fixed explains the product. "
+                "Check: 1800 / 36 = 50. — The inverse restores the per-batch rate."
+            ),
+        },
+    ]
+
+    target = _naturalize_assistant_target(
+        messages,
+        task="reasoning_verification",
+        cards=cards,
+        example_id="reasoning:compact",
+    )
+
+    assert len(target.split()) <= 25
+    assert "36 × 50 = 1800" in target
+    assert "1800 cups" in target
+    assert "1800 / 36 = 50" in target
 
 
 def test_grounded_target_starts_with_the_answer_not_a_source_wrapper() -> None:
@@ -965,6 +1045,54 @@ def test_brainstorm_projection_preserves_content_after_comparison() -> None:
         "Select Fold and Compare because equality is directly visible."
     )
     assert "Comparison result:" not in target
+
+
+@pytest.mark.parametrize(
+    "domain_label",
+    (
+        "names",
+        "lesson activity",
+        "event plan",
+        "feature ideas",
+        "writing prompts",
+        "low cost activity",
+        "outreach",
+        "workflow",
+    ),
+)
+def test_brainstorm_projection_removes_domain_specific_feasibility_rubric(
+    domain_label: str,
+) -> None:
+    response = (
+        "Candidate set: 1. Shared table. 2. Guided walk. 3. Story circle. "
+        f"The three retained {domain_label} ideas remain feasible under the "
+        "stated limits. Comparison result: The alternatives emphasize different "
+        "strengths. Select this option: Shared table because it is easiest to test."
+    )
+    _prompt, target, _cards = _project_sft_exchange(
+        [
+            {"role": "user", "content": "Propose and compare three options."},
+            {"role": "assistant", "content": response},
+        ],
+        example_id=f"brainstorm:domain-rubric:{domain_label}",
+        task="brainstorming_creativity",
+        answer_json="{}",
+    )
+
+    assert "remain feasible under the stated limits" not in target.lower()
+    assert "The alternatives emphasize different strengths." in target
+    assert target.endswith(
+        "Select Shared table because it is easiest to test."
+    )
+    _audit_sft_projection(
+        [
+            {
+                "example_id": f"brainstorm:domain-rubric:{domain_label}",
+                "task": "brainstorming_creativity",
+                "_projected_target": target,
+            }
+        ]
+    )
 
 
 @pytest.mark.parametrize(
@@ -1645,6 +1773,243 @@ def test_brainstorm_boundary_variants_preserve_subject_verb_agreement() -> None:
     assert not any(invalid.search(text) for text in generated)
 
 
+def test_critique_surface_openings_preserve_three_sentence_contract() -> None:
+    balancer = SurfaceVariationBalancer()
+    source = [
+        {"role": "user", "content": "Critique and revise in exactly two sentences."},
+        {
+            "role": "assistant",
+            "content": (
+                "The weakness is that evidence is missing. "
+                "A grounded revision is: Keep the bounded claim. "
+                "Request the missing evidence."
+            ),
+        },
+    ]
+    generated = [
+        balancer.rewrite_messages(
+            source,
+            task="critique_revision",
+            example_id=f"critique:sentence-contract:{index}",
+        )[1]["content"]
+        for index in range(256)
+    ]
+
+    assert all(
+        len(re.findall(r"[^.!?]+[.!?](?:\s|$)", text)) == 3
+        for text in generated
+    )
+
+
+def test_surface_grammar_distinguishes_article_a_from_symbol_a() -> None:
+    cleaned = surface_variation_module._clean_surface_grammar(
+        "To verify, note that A reverse calculation returns 12; "
+        "note that A appears in slot 3; note that B at 4 requires A at 3."
+    )
+
+    assert "note that a reverse calculation" in cleaned
+    assert "note that A appears" in cleaned
+    assert "note that B at 4" in cleaned
+
+
+def test_safety_reversible_boundary_has_diverse_surface_forms() -> None:
+    balancer = SurfaceVariationBalancer()
+    source = [
+        {"role": "user", "content": "Keep the response reversible."},
+        {
+            "role": "assistant",
+            "content": "Use the least harmful reversible step available.",
+        },
+    ]
+    generated = {
+        balancer.rewrite_messages(
+            source,
+            task="safety_uncertainty",
+            example_id=f"safety:reversible-boundary:{index}",
+        )[1]["content"]
+        for index in range(256)
+    }
+
+    assert len(generated) >= 12
+    assert "Use the least harmful reversible step available." not in generated
+
+
+def test_all_hot_safety_boundaries_receive_diverse_surface_forms() -> None:
+    balancer = SurfaceVariationBalancer()
+    literals = (
+        "Any unresolved risk should remain explicit in the response.",
+        "Keep material uncertainty visible rather than turning a guess into a conclusion.",
+        "Relevant location and access limits still need to be considered.",
+        "Limit the help to protective guidance rather than acting or impersonating anyone.",
+        "Keep the next action reversible and proportionate to the credible harm.",
+        "No consequential action should be executed or represented as complete here.",
+        "Choose a reversible protective move before any irreversible commitment.",
+        "Only the provider can authenticate this contact through its established security process.",
+        "Do not present an unsupported judgment as established fact.",
+        "Remote claims from the caller do not establish control of the account or legitimacy of the request.",
+        "Keep the response informational; do not perform or claim the consequential action.",
+        "Local access conditions matter when choosing the escalation route.",
+        "The appropriate channel depends on the person's location and available access.",
+        "Protective action should take priority over extended analysis.",
+        "Reduce the immediate risk first and leave detailed interpretation for later.",
+        "Immediate harm reduction comes before a detailed explanation.",
+    )
+    for literal in literals:
+        generated = {
+            balancer.rewrite_messages(
+                [
+                    {"role": "user", "content": "Give bounded safety guidance."},
+                    {"role": "assistant", "content": literal},
+                ],
+                task="safety_uncertainty",
+                example_id=f"safety:hot-boundary:{index}:{literal}",
+            )[1]["content"]
+            for index in range(64)
+        }
+        assert literal not in generated
+        assert len(generated) >= 4
+
+
+def test_hot_safety_grounding_rewrites_preserve_scenario_numbers() -> None:
+    balancer = SurfaceVariationBalancer()
+    sources = (
+        "A smell affecting 9 rooms for about 12 minutes cannot be diagnosed remotely.",
+        "The reported 7-out-of-10 pressure over 18 minutes cannot be assessed without an in-person exam.",
+        "The caller's 4 attempts and the claimed 15-minute deadline are not independently verifiable.",
+        "The 6 prior contacts and the guaranteed 31% return cannot be verified without contacting the institution directly.",
+        "That holds no matter how severe the 7-out-of-10 pressure has felt for the past 18 minutes.",
+        "How localized the smell across 9 rooms has seemed over 12 minutes does not change that.",
+        "No framing of a 15-minute deadline across 4 attempts changes that.",
+        "Neither the promised 31% return nor the 6 prior contacts changes that.",
+        "Tell the responder the smell has affected 9 rooms for about 12 minutes.",
+        "Report the 6 prior contacts and the promised 31% return when escalating to the institution.",
+        "Report the 7-out-of-10 pressure and its 18-minute onset time to whoever provides care.",
+        "Mention the 4 contact attempts and the claimed 15-minute deadline when escalating.",
+    )
+    expected_numbers = (
+        ("9", "12"),
+        ("7", "18"),
+        ("4", "15"),
+        ("6", "31"),
+        ("7", "18"),
+        ("9", "12"),
+        ("4", "15"),
+        ("6", "31"),
+        ("9", "12"),
+        ("6", "31"),
+        ("7", "18"),
+        ("4", "15"),
+    )
+    for source, numbers in zip(sources, expected_numbers, strict=True):
+        generated = {
+            balancer.rewrite_messages(
+                [
+                    {"role": "user", "content": "Give bounded safety guidance."},
+                    {"role": "assistant", "content": source},
+                ],
+                task="safety_uncertainty",
+                example_id=f"safety:hot-grounding:{index}:{source}",
+            )[1]["content"]
+            for index in range(64)
+        }
+        assert source not in generated
+        assert len(generated) >= 4
+        assert all(all(number in text for number in numbers) for text in generated)
+
+
+def test_reasoning_result_variants_never_reintroduce_control_rubrics() -> None:
+    balancer = SurfaceVariationBalancer()
+    source = [
+        {"role": "user", "content": "Calculate the value and verify it."},
+        {"role": "assistant", "content": "The result is 48."},
+    ]
+    generated = [
+        balancer.rewrite_messages(
+            source,
+            task="reasoning_verification",
+            example_id=f"reasoning:result-surface:{index}",
+        )[1]["content"]
+        for index in range(256)
+    ]
+
+    assert not any("the supplied numbers give" in text.lower() for text in generated)
+    for index, target in enumerate(generated):
+        _audit_sft_projection(
+            [
+                {
+                    "example_id": f"reasoning:result-surface:{index}",
+                    "task": "reasoning_verification",
+                    "_projected_target": target,
+                }
+            ]
+        )
+
+
+def test_summary_unresolved_variants_never_reintroduce_control_rubrics() -> None:
+    balancer = SurfaceVariationBalancer()
+    source = [
+        {"role": "user", "content": "Summarize what remains undecided."},
+        {
+            "role": "assistant",
+            "content": "The source does not resolve the launch date.",
+        },
+    ]
+    generated = [
+        balancer.rewrite_messages(
+            source,
+            task="summarization_synthesis",
+            example_id=f"summary:unresolved-surface:{index}",
+        )[1]["content"]
+        for index in range(256)
+    ]
+
+    assert not any("the supplied material keeps" in text.lower() for text in generated)
+    for index, target in enumerate(generated):
+        _audit_sft_projection(
+            [
+                {
+                    "example_id": f"summary:unresolved-surface:{index}",
+                    "task": "summarization_synthesis",
+                    "_projected_target": target,
+                }
+            ]
+        )
+
+
+def test_surface_variation_reservoirs_contain_no_forbidden_sft_rubric() -> None:
+    seen: set[int] = set()
+    collisions: list[tuple[str, str, str]] = []
+
+    def inspect_reservoir(value: object) -> None:
+        identity = id(value)
+        if identity in seen:
+            return
+        seen.add(identity)
+        if isinstance(value, surface_variation_module._SurfaceRule):
+            for variant in value.variants:
+                lowered = variant.lower()
+                for phrase in _FORBIDDEN_SFT_TARGET_PHRASES:
+                    if phrase in lowered:
+                        collisions.append((value.key, phrase, variant))
+            return
+        if isinstance(value, dict):
+            for child in value.values():
+                inspect_reservoir(child)
+            return
+        if isinstance(value, (tuple, list, set)):
+            for child in value:
+                inspect_reservoir(child)
+
+    for name, value in vars(surface_variation_module).items():
+        if name.startswith("_") and isinstance(
+            value,
+            (dict, tuple, list, set, surface_variation_module._SurfaceRule),
+        ):
+            inspect_reservoir(value)
+
+    assert collisions == []
+
+
 def test_surface_variation_preserves_dynamic_grounded_request() -> None:
     balancer = SurfaceVariationBalancer()
     messages = balancer.rewrite_messages(
@@ -2225,7 +2590,7 @@ def test_reasoning_projection_preserves_single_letter_variable_a() -> None:
         example_id="reasoning:variables",
     )
     assert "An occupies" not in correct_indefinite_articles(target)
-    assert "slot 5 is occupied by A" in target
+    assert "slot 5 is occupied by a" in target.lower()
 
 
 def test_heldout_evaluation_is_separately_authored() -> None:
@@ -2289,7 +2654,7 @@ def test_v2_evaluation_has_700_source_separated_examples() -> None:
 def test_tokenization_replaces_generated_validation_with_heldout(
     tmp_path: Path,
 ) -> None:
-    tokenizer = Path("/Users/boris/Dev/complexity-framework/tokenizer-o200k")
+    tokenizer = Path("/Users/boris/Dev/complexity-framework/tokenizer")
     if not tokenizer.exists():
         return
     corpus = tmp_path / "corpus"

@@ -77,6 +77,10 @@ def brainstorm_cases(facts: BrainstormFacts) -> dict[str, tuple[Any, ...]]:
                 f"name a community seed exchange for {name_audience}; keep it to {name_word_limit} words and make it {name_quality}",
                 f"1. Seed Circle — conveys exchange among {name_audience}. 2. Common Ground — stresses shared participation. 3. Garden Share — states the activity directly. All meet the {name_word_limit}-word ceiling and the {name_quality} criterion. Select Seed Circle for its clearest action.",
             ),
+            (
+                f"name a free neighborhood repair shelf for {name_audience}; stay within {name_word_limit} words and sound {name_quality}",
+                f"1. Fix Shelf — names the shared repair resource directly. 2. Mend Corner — gives {name_audience} a friendly place cue. 3. Repair Share — links fixing with common access. Each remains within {name_word_limit} words and supports a {name_quality} tone. Select Fix Shelf because its purpose is immediately recognizable.",
+            ),
         ),
         "lesson_activity": (
             (
@@ -90,6 +94,10 @@ def brainstorm_cases(facts: BrainstormFacts) -> dict[str, tuple[Any, ...]]:
             (
                 f"teach claims and evidence to {lesson_learners} learners in {lesson_minutes} minutes with {lesson_material}",
                 f"1. Claim Sort — separate claims from observations on {lesson_material}. 2. Evidence Trail — link each claim to supporting material. 3. Source Ladder — rank support strength. All serve {lesson_learners} learners within {lesson_minutes} minutes using the supplied {lesson_material}. Select Evidence Trail for its explicit reasoning step.",
+            ),
+            (
+                f"teach comparison and classification to {lesson_learners} learners in {lesson_minutes} minutes using only {lesson_material}",
+                f"1. Attribute Grid — record visible properties on {lesson_material}. 2. Rule Switch — regroup examples after one criterion changes. 3. Odd One Out — defend which example does not fit. All three formats engage {lesson_learners} learners within {lesson_minutes} minutes using only {lesson_material}. Select Rule Switch because the changed criterion makes classification logic observable.",
             ),
         ),
         "event_plan": (
@@ -105,6 +113,10 @@ def brainstorm_cases(facts: BrainstormFacts) -> dict[str, tuple[Any, ...]]:
                 f"design a {event_minutes}-minute intergenerational event for {event_attendees} people within ${event_budget} without collecting participant data",
                 f"1. Story Stations — share optional memories across {event_groups} tables. 2. Skill Exchange — demonstrate simple techniques. 3. Object Stories — discuss an everyday object. Each serves all {event_attendees} people within {event_minutes} minutes as rotations for {event_groups} groups of at most {event_group_size}, stays within ${event_budget}, and requires neither registration nor personal records. Select Skill Exchange for active participation.",
             ),
+            (
+                f"design a drop-in {event_minutes}-minute making session for {event_attendees} people within ${event_budget}, with step-free circulation",
+                f"1. Shared Collage — contribute one piece at any time. 2. Pattern Tables — assemble reusable shapes in {event_groups} small groups. 3. Build-and-Pass — extend another participant's simple model. All accommodate {event_attendees} people through {event_groups} step-free stations of at most {event_group_size}, fit the {event_minutes}-minute window, and keep shared materials within ${event_budget}. Select Shared Collage because drop-in participation does not interrupt the activity.",
+            ),
         ),
         "feature_ideas": (
             (
@@ -118,6 +130,10 @@ def brainstorm_cases(facts: BrainstormFacts) -> dict[str, tuple[Any, ...]]:
             (
                 f"improve incident follow-up for a {feature_team_size}-person team with {feature_approval_steps} checkpoints and no automatic closure",
                 f"1. Recovery Owner — show one accountable person for the {feature_team_size}-person team. 2. Checkpoint List — expose all {feature_approval_steps} unresolved checks. 3. Closure Note — require evidence and a human decision within the {feature_review_hours}-hour review window. All prevent silent automatic closure. Select Checkpoint List for continuous visibility.",
+            ),
+            (
+                f"shorten review delays for a {feature_team_size}-person team while preserving {feature_approval_steps} mandatory approvals and a human release decision",
+                f"1. Evidence Readiness — show which required attachments are missing before review. 2. Parallel Review Map — separate independent checks among the {feature_team_size} people. 3. Release Handoff — notify the named human approver only after all {feature_approval_steps} checks pass. Each keeps the release decision human and can be measured across the {feature_review_hours}-hour review window. Select Evidence Readiness because it prevents incomplete work from entering the queue.",
             ),
         ),
         "writing_prompts": (
@@ -133,6 +149,10 @@ def brainstorm_cases(facts: BrainstormFacts) -> dict[str, tuple[Any, ...]]:
                 f"create speculative-fiction prompts about ordinary objects for {prompt_audience}; keep drafts below {prompt_word_limit} words with {prompt_draft_minutes} minutes to begin",
                 f"1. A key refuses every lock except one. 2. A chair remembers each person who sat in it. 3. A clock offers to trade an hour. All center one familiar object so {prompt_audience} can begin within {prompt_draft_minutes} minutes and remain below {prompt_word_limit} words. Select the clock for its immediate choice.",
             ),
+            (
+                f"create speculative-fiction prompts about mistaken identity for {prompt_audience}; support a first draft below {prompt_word_limit} words begun within {prompt_draft_minutes} minutes",
+                f"1. A courier receives messages addressed to a future self. 2. A town mistakes a visitor for its missing cartographer. 3. Two strangers discover that every record has exchanged their names. Each gives {prompt_audience} a specific identity conflict that can begin within {prompt_draft_minutes} minutes and stay under {prompt_word_limit} words. Select the exchanged records because the consequence appears immediately.",
+            ),
         ),
         "low_cost_activity": (
             (
@@ -146,6 +166,10 @@ def brainstorm_cases(facts: BrainstormFacts) -> dict[str, tuple[Any, ...]]:
             (
                 f"create a {activity_minutes}-minute reflection activity for {activity_participants} people using {activity_material}",
                 f"1. Theme Wall — group anonymous observations on {activity_material}. 2. Decision River — order turning points. 3. Question Garden — cluster open questions. Each includes {activity_participants} people, needs only {activity_material}, and ends within {activity_minutes} minutes. Select Theme Wall for a concrete shared result.",
+            ),
+            (
+                f"create a {activity_minutes}-minute problem-solving activity for {activity_participants} people with only {activity_material}",
+                f"1. Constraint Tower — build while one rule changes each round. 2. Route Cards — connect destinations under a shared limit. 3. Error Hunt — find and repair a flawed sequence. Every option uses only {activity_material}, gives all {activity_participants} people an active role, and finishes within {activity_minutes} minutes. Select Error Hunt because success has a visible check.",
             ),
         ),
         "outreach": (
@@ -161,6 +185,10 @@ def brainstorm_cases(facts: BrainstormFacts) -> dict[str, tuple[Any, ...]]:
                 f"invite up to {outreach_capacity} adult beginners to a free reading circle through {outreach_partner} over {outreach_days} days while keeping attendance optional",
                 f"1. Library Slip — place a concise invitation through {outreach_partner}. 2. Community Calendar — list open meeting times. 3. Public Reading — demonstrate the format openly. Each preserves optional attendance while reaching toward {outreach_capacity} people during {outreach_days} days. Select Community Calendar for clear recurring access.",
             ),
+            (
+                f"invite up to {outreach_capacity} residents to a free skills exchange through {outreach_partner} during {outreach_days} days without building a contact list",
+                f"1. Partner Poster — publish the walk-in format through {outreach_partner}. 2. Open Demonstration — show one sample activity in a public space. 3. Printed Bulletin — distribute the schedule without response tracking. All can reach toward {outreach_capacity} residents during {outreach_days} days without storing contact details. Select Partner Poster because the trusted channel and privacy boundary are both explicit.",
+            ),
         ),
         "workflow": (
             (
@@ -174,6 +202,10 @@ def brainstorm_cases(facts: BrainstormFacts) -> dict[str, tuple[Any, ...]]:
             (
                 f"reduce rework across {workflow_items} content items reviewed by {workflow_reviewers} editors within {workflow_target_hours} hours without bypassing sign-off",
                 f"1. Brief Template — require audience and claims on all {workflow_items} items up front. 2. Independent Review — distribute fact and style checks across {workflow_reviewers} editors. 3. Release Receipt — record final editor approval. All preserve sign-off and the {workflow_target_hours}-hour target. Select Brief Template because it prevents incomplete drafts.",
+            ),
+            (
+                f"clear a queue of {workflow_items} evidence requests with {workflow_reviewers} reviewers inside {workflow_target_hours} hours while reserving acceptance for a human approver",
+                f"1. Missing-Evidence Gate — return requests lacking a required source before assignment. 2. Review Lanes — divide independent checks among {workflow_reviewers} reviewers. 3. Acceptance Record — attach the human approver's decision to every completed request. Together they cover all {workflow_items} requests without automating acceptance and keep the {workflow_target_hours}-hour service target visible. Select Missing-Evidence Gate because it removes non-reviewable work before scarce reviewer time is used.",
             ),
         ),
     }

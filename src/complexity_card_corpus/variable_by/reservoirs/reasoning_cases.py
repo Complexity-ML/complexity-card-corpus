@@ -52,6 +52,9 @@ def reasoning_case(
             f"Each of the {units} whole metres converts to exactly 100 centimetres, since 1 metre always equals 100 centimetres exactly, with no rounding needed.",
             f"The fixed conversion factor of 100 centimetres per metre applies uniformly across all {units} whole metres, with no rounding involved at any step.",
             f"This conversion is exact for any whole number of metres, including these {units}, since the 100:1 ratio never changes.",
+            f"Multiplying {units} metres by the exact factor of 100 yields centimetres without an estimate or rounding step.",
+            f"The unit identity 1 metre = 100 centimetres fixes the result for all {units} metres exactly.",
+            f"Because the conversion factor is defined exactly, the {units}-metre quantity scales directly by 100.",
         )
     elif domain == "proportions":
         result = units * each
@@ -65,6 +68,9 @@ def reasoning_case(
             f"Each of the {units} batches uses the exact same {each}-cup ratio as the original single batch, entirely unscaled and unchanged.",
             f"The {each}-cup ratio per batch stays exactly fixed across all {units} separate batches, without any adjustment to the original recipe.",
             f"Scaling to {units} batches multiplies the count of batches, not the {each}-cup ratio within each one.",
+            f"Keeping {each} cups in every batch makes the total the product of that fixed amount and {units} batches.",
+            f"The per-batch quantity remains {each} cups, so only the number of batches changes in the calculation.",
+            f"Multiplication preserves the original {each}-cup proportion across each of the {units} identical batches.",
         )
     elif domain == "table_comparison":
         result = max(units * each, units * extra)
@@ -101,6 +107,9 @@ def reasoning_case(
             f"A's slot follows only from B's fixed position at slot {each}; C's slot {units} is independent of that constraint.",
             f"A's slot is fixed relative to B first, and only then added to C's separately given slot {units}.",
             f"The constraint linking A to B at slot {each} says nothing about C, whose slot {units} is given separately.",
+            f"Placing A one position before B fixes A at {each - 1}; the stated slot {units} for C remains a separate input.",
+            f"First derive A from B's slot {each}, then combine that derived position with C's independent slot {units}.",
+            f"Only A depends on B's position: C already has slot {units} and enters the final addition unchanged.",
         )
     elif domain == "work_allocation":
         people = number(f"allocation-people:{code}", 3, 9)

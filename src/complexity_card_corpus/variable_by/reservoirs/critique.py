@@ -7,7 +7,7 @@ def critique_reservoir(
     code: str,
     *,
     weakness: str | None = None,
-    revision: str | None = None,
+    revision: str | tuple[str, ...] | None = None,
     consequences: tuple[str, ...] = (),
 ) -> Mapping[str, Mapping[str, tuple[str, ...]]]:
     """Build nested critique instructions for one candidate."""
@@ -35,18 +35,23 @@ def critique_reservoir(
         },
     }
     if weakness is not None and revision is not None and consequences:
+        consequence_clauses = tuple(
+            consequence.strip().rstrip(".!?")[:1].lower()
+            + consequence.strip().rstrip(".!?")[1:]
+            for consequence in consequences
+        )
         table["scenario"].update(
             {
                 "weakness": (weakness,),
-                "revision": (revision,),
+                "revision": (revision,) if isinstance(revision, str) else revision,
             }
         )
         table["critique"].update(
             {
                 "weakness": (
-                    "Weakness: {scenario[weakness]}.",
-                    "Weakness: {scenario[weakness]}; the wording exceeds the evidence.",
-                    "Weakness: {scenario[weakness]}, making verification difficult.",
+                    "Weakness: {scenario[weakness]}; {consequence[effect_clause]}.",
+                    "Weakness: {consequence[effect_clause]}; this follows because {scenario[weakness]}.",
+                    "Weakness: {consequence[effect_clause]}; the underlying problem is that {scenario[weakness]}.",
                 ),
                 "revised_text": (
                     "Revision: {scenario[revision]}",
@@ -55,5 +60,5 @@ def critique_reservoir(
                 ),
             }
         )
-        table["consequence"] = {"effect": consequences}
+        table["consequence"] = {"effect_clause": consequence_clauses}
     return table

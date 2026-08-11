@@ -3,7 +3,11 @@ from __future__ import annotations
 from typing import Any
 
 from ..variable_by import empathy_variable_by
-from ..variable_by.reservoirs import ExplanationFacts, explanation_reservoir
+from ..variable_by.reservoirs import (
+    ExplanationFacts,
+    explanation_reservoir,
+    writing_cards,
+)
 from ..variable_by.templates import EMPATHY_TEMPLATES
 from .core import (
     TaskHand,
@@ -31,8 +35,8 @@ def _explanation(row: dict[str, Any], variant: int) -> TaskHand:
     object_name = _pick(
         f"explain-object:{code}",
         (
-            "a rock", "a backpack", "a bicycle", "a laptop",
-            "a book", "a hammer", "a suitcase", "a chair",
+            "rock", "backpack", "bicycle", "laptop",
+            "book", "hammer", "suitcase", "chair",
         ),
     )
     cell_pair = _pick(
@@ -221,57 +225,13 @@ def _writing(row: dict[str, Any], variant: int) -> TaskHand:
     writing_label = writing_domain.replace("_", " ")
     owner = _pick(f"owner:{code}", ("Maya", "Jon", "Ari", "Lea", "Noah", "Iris"))
     day = _number(f"write-day:{code}", 10, 28)
-    content_cards = {
-        "email": (
-            f"notes {code}: send team; review complete; two figures need captions; {owner} owns them; target day {day}; release waits",
-            f"Subject: Review {code} next steps\n\nThe review is complete. Two figures still need captions, which {owner} owns for day {day}. The release decision remains pending.",
-        ),
-        "project_update": (
-            f"update {code}: review complete; captions missing on two figures; owner {owner}; target day {day}; release decision blocked",
-            f"Project update {code}: Review is complete. Remaining work: {owner} adds captions to two figures, with completion expected day {day}. Blocker: the release decision remains pending.",
-        ),
-        "support_reply": (
-            f"case {code}: issue reviewed; two screenshots need labels; {owner} will add them by day {day}; resolution waits for review",
-            f"Support reply {code}: We have completed the issue review. {owner} will label the two remaining screenshots ahead of day {day}. We will confirm resolution after that review.",
-        ),
-        "meeting_notes": (
-            f"meeting {code}: review complete; two captions outstanding; {owner}; day {day}; no release decision yet",
-            f"Meeting {code} — Decision: review complete. Action: {owner} adds two captions, day {day} at the latest. Open item: no release decision has been made.",
-        ),
-        "technical_explanation": (
-            f"draft {code}: validation complete; two diagrams lack captions; {owner} adds them by day {day}; publication waits",
-            f"Technical note {code}: Validation is complete, but two diagrams still lack captions. {owner} will add them, deadline day {day}; publication timing remains undecided until they are reviewed.",
-        ),
-        "public_notice": (
-            f"notice {code}: east entrance closed day {day}; inspection; use west entrance; {owner} posts signs; reopening not confirmed",
-            f"Public notice {code}: The east entrance will be closed for inspection starting day {day}. Please use the west entrance. {owner} will post directions; the reopening time is not yet confirmed.",
-        ),
-        "handover_note": (
-            f"handover {code}: source review done; two tables pending; {owner} owns checks day {day}; export not started",
-            f"Handover {code}: Source review is complete. {owner} will check the two pending tables, cutting off at day {day}. The export has not started.",
-        ),
-        "schedule_change": (
-            f"schedule {code}: review moved from day {day - 1} to day {day}; room unchanged; {owner} confirms attendees; reason not provided",
-            f"Schedule change {code}: The review has moved from day {day - 1} to day {day}; the room is unchanged. {owner} will confirm attendance. No reason for the change was provided.",
-        ),
-        "feedback_message": (
-            f"feedback {code}: summary accurate; main decision appears after background; ask {owner} to move it first by day {day}; no content change",
-            f"Feedback {code}: The summary is accurate, but the main decision appears after the background. {owner}, please move the decision to the opening, aiming for day {day}, without changing the content.",
-        ),
-        "procedure_summary": (
-            f"procedure {code}: preserve original; duplicate file; {owner} validates copy day {day}; publish only after match; fallback unspecified",
-            f"Procedure {code}: Preserve the original, duplicate the file, and have {owner} validate the copy, day {day} being the last acceptable date. Publish only after both versions match; no fallback is specified.",
-        ),
-        "event_invitation": (
-            f"invite {code}: open review session; team audience; room {day}; 15:00 day {day}; reply to {owner} by day {day - 2}; agenda pending",
-            f"Invitation {code}: Join the team review session in Room {day} at 15:00 on day {day}. Please reply to {owner} by day {day - 2}. The agenda is still pending.",
-        ),
-        "progress_brief": (
-            f"brief {code}: 8 of 10 records checked; two awaiting sources; {owner} requests them day {day}; final count pending",
-            f"Progress brief {code}: Eight of ten records are checked. Two still await source documents, which {owner} will request, with day {day} marking the deadline. The final count remains pending.",
-        ),
-    }
-    source, content = content_cards[writing_domain]
+    source, content_variants = writing_cards(
+        writing_domain,
+        code=code,
+        owner=owner,
+        day=day,
+    )
+    content = _pick(f"writing-content:{code}:{variant}", content_variants)
     data, goal = _deal_task_frames(
         row,
         variant,
@@ -356,6 +316,30 @@ def _empathy(row: dict[str, Any], variant: int) -> TaskHand:
     )
 def _clarification(row: dict[str, Any], variant: int) -> TaskHand:
     code = _code(row)
+    requester = _pick(
+        f"clarify-requester:{code}",
+        ("Maya", "Jon", "Ari", "Lea", "Noah", "Iris", "Nia", "Omar", "Sora", "Theo", "Priya", "Kofi"),
+    )
+    stakeholder_group = _pick(
+        f"clarify-group:{code}",
+        (
+            "the design team", "the support team", "the research group",
+            "the operations team", "the accessibility group", "the release team",
+            "the finance group", "the training team", "the regional office",
+            "the product team", "the service desk", "the review committee",
+        ),
+    )
+    work_context = _pick(
+        f"clarify-context:{code}",
+        (
+            "during quarterly planning", "before the accessibility review",
+            "for the regional launch", "within the migration workstream",
+            "ahead of the budget checkpoint", "during the support handoff",
+            "before the release review", "for the training rollout",
+            "during the policy update", "ahead of the service transition",
+            "within the research cycle", "before the operations review",
+        ),
+    )
     weekday = _pick(
         f"clarify-day:{code}", ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
     )
@@ -387,10 +371,10 @@ def _clarification(row: dict[str, Any], variant: int) -> TaskHand:
     update_topic = _pick(
         f"clarify-topic:{code}",
         (
-            "the pricing change",
-            "the outage postmortem",
-            "the roadmap update",
-            "the security patch",
+            "pricing change",
+            "outage postmortem",
+            "roadmap",
+            "security patch",
         ),
     )
     dashboard_name = _pick(
@@ -402,7 +386,6 @@ def _clarification(row: dict[str, Any], variant: int) -> TaskHand:
         f"clarify-product:{code}",
         ("monitors", "laptops", "headsets", "keyboards", "docking stations"),
     )
-    case_ref = _number(f"clarify-ref:{code}", 10_000, 99_999)
     cases = {
         "ambiguous_request": (
             f"Please move the review to {weekday}.",
@@ -454,7 +437,7 @@ def _clarification(row: dict[str, Any], variant: int) -> TaskHand:
         ),
         "team_request": (
             f"Share the {update_topic} update with the team before the review.",
-            f"An update about {update_topic} should be shared before the review, but the team group and review time are not identified.",
+            f"An update about the {update_topic} should be shared before the review, but the team group and review time are not identified.",
             f"Which team group should receive the {update_topic} update, and when is the review scheduled?",
             "send no team update",
         ),
@@ -480,21 +463,25 @@ def _clarification(row: dict[str, Any], variant: int) -> TaskHand:
     rendered_domain = _render_domain(row)
     clarification_label = rendered_domain.replace("_", " ")
     ambiguous, restatement, question, reversible_default = cases[rendered_domain]
-    restatement = f"{restatement} (request #{case_ref})"
-    situation_titles = {
-        "ambiguous_request": "Ambiguous request — identify the affected item",
-        "missing_reference": "Missing reference — request the absent report",
-        "conflicting_instruction": "Conflicting instructions — choose the controlling requirement",
-        "unclear_pronoun": f"Unclear references — identify the item and recipient for request {case_ref}",
-        "incomplete_goal": "Incomplete goal — identify the required deliverable",
-        "scope_boundary": "Open scope — bound the requested revision",
-        "format_preference": "Unspecified format — choose the presentation",
-        "timeline_ambiguity": "Unspecified timeline — define the deadline",
-        "team_request": f"Incomplete team request — identify audience and timing for request {case_ref}",
-        "data_request": f"Incomplete data request — identify dataset and range for request {case_ref}",
-        "travel_request": f"Incomplete travel request — identify dates and origin for request {case_ref}",
-        "purchasing_request": f"Incomplete purchase request — identify quantity and budget for request {case_ref}",
+    restatement = (
+        f"Context for {requester} and {stakeholder_group} {work_context}: "
+        f"{_lower_sentence_initial(restatement)}"
+    )
+    situation_title_parts = {
+        "ambiguous_request": ("Ambiguous request", "identify the affected item"),
+        "missing_reference": ("Missing reference", "request the absent report"),
+        "conflicting_instruction": ("Conflicting instructions", "choose the controlling requirement"),
+        "unclear_pronoun": ("Unclear references", "identify the item and recipient"),
+        "incomplete_goal": ("Incomplete goal", "identify the required deliverable"),
+        "scope_boundary": ("Open scope", "bound the requested revision"),
+        "format_preference": ("Unspecified format", "choose the presentation"),
+        "timeline_ambiguity": ("Unspecified timeline", "define the deadline"),
+        "team_request": ("Incomplete team request", "identify audience and timing"),
+        "data_request": ("Incomplete data request", "identify dataset and range"),
+        "travel_request": ("Incomplete travel request", "identify dates and origin"),
+        "purchasing_request": ("Incomplete purchase request", "identify quantity and budget"),
     }
+    title_issue, title_action = situation_title_parts[rendered_domain]
     situation_cards = {
         "ambiguous_request": f"The requested {weekday} change could affect either a meeting or a document deadline.",
         "missing_reference": f"The requested summary of report {report_id} cannot be grounded because the referenced report is absent.",
@@ -514,9 +501,9 @@ def _clarification(row: dict[str, Any], variant: int) -> TaskHand:
         variant,
         "clarification",
         (
-            f'Request {code}: "{ambiguous}" {restatement}',
-            f'Clarification case {code}: "{ambiguous}" Known so far: {restatement}',
-            f'Unresolved request {code} — "{ambiguous}" Supported reading: {restatement}',
+            f'Request to clarify: "{ambiguous}" {restatement}',
+            f'Clarification case: "{ambiguous}" Known so far: {restatement}',
+            f'Unresolved request — "{ambiguous}" Supported reading: {restatement}',
         ),
         (
             f"Restate the {clarification_label} request '{ambiguous}', ask '{question}', and preserve the reversible default: {reversible_default}.",
@@ -558,6 +545,6 @@ def _clarification(row: dict[str, Any], variant: int) -> TaskHand:
         goal,
         answer,
         ("restatement", "one_question", "reversible_default"),
-        situation_title=situation_titles[rendered_domain],
+        situation_title=f"{title_issue} — {title_action}",
         situation=situation_cards[rendered_domain],
     )

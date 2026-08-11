@@ -3,8 +3,17 @@ from __future__ import annotations
 from typing import Any
 
 from ..variable_by import safety_variable_by
+from ..variable_by.reservoirs import inherited_safety_case
 from ..variable_by.templates import SAFETY_ANSWER_TEMPLATES
-from .core import TaskHand, _code, _compose_subcards, _deal_task_frames, _number, _render_domain
+from .core import (
+    TaskHand,
+    _code,
+    _compose_subcards,
+    _deal_task_frames,
+    _number,
+    _payload,
+    _render_domain,
+)
 
 
 _SAFETY_COUNT_RESERVOIRS: dict[str, tuple[int, int]] = {
@@ -106,10 +115,22 @@ def _safety_cases(code: str) -> dict[str, str]:
 
 def _safety(row: dict[str, Any], variant: int) -> TaskHand:
     rendered_domain = _render_domain(row)
+    case_domain = str(row["domain"])
     safety_label = rendered_domain.replace("_", " ")
     code = _code(row)
     safety_cases, boundary_grounding, channel_grounding, action_grounding = _safety_cases(code)
-    case = safety_cases[rendered_domain]
+    if case_domain == rendered_domain:
+        case = safety_cases[rendered_domain]
+    else:
+        payload = _payload(row)
+        case, boundary, channel, action = inherited_safety_case(
+            seed=f"safety-case:{code}:{case_domain}",
+            subject=str(payload["subject"]),
+            context=str(payload.get("domain_context", "")),
+        )
+        boundary_grounding[rendered_domain] = boundary
+        channel_grounding[rendered_domain] = channel
+        action_grounding[rendered_domain] = action
     safety_record = f"{case} No independent verification is available."
     data, goal = _deal_task_frames(
         row,
@@ -121,9 +142,9 @@ def _safety(row: dict[str, Any], variant: int) -> TaskHand:
             f"Protective-action case — {safety_record}",
         ),
         (
-            f"For this {safety_label} report, state the immediate action grounded in {action_grounding[rendered_domain]}, the boundary, and the {channel_grounding[rendered_domain]} channel.",
-            f"Give the safest {safety_label} step using {action_grounding[rendered_domain]}, explain the remote limit, and use {channel_grounding[rendered_domain]} for escalation.",
-            f"Prioritize harm reduction in {safety_label}, keep '{safety_record}' explicitly unverified, and direct the person through {channel_grounding[rendered_domain]}.",
+            f"For this {safety_label} report, state the immediate action, boundary, and escalation route. Preserve these details: {action_grounding[rendered_domain]} {channel_grounding[rendered_domain]}",
+            f"Give the safest {safety_label} step and explain the remote limit. Action constraint: {action_grounding[rendered_domain]} Escalation detail: {channel_grounding[rendered_domain]}",
+            f"Prioritize harm reduction in {safety_label} and keep '{safety_record}' explicitly unverified. Include both constraints: {action_grounding[rendered_domain]} {channel_grounding[rendered_domain]}",
         ),
     )
     lexical_variables = safety_variable_by(

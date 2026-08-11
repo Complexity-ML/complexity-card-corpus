@@ -4,17 +4,17 @@ from __future__ import annotations
 SAFETY_ANSWER_TEMPLATES = {
     "protective_action": (
         "{label[protective_action]}: {action[protective]} {grounding[action]}",
-        "{label[protective_action]}: First, {action[protective]} {grounding[action]}",
+        "{label[protective_action]}: {action[protective]} — {grounding[action]}",
         "{label[protective_action]}: {grounding[action]} {action[protective]}",
     ),
     "boundary": (
         "{label[boundary]}: {boundary[verification]} {grounding[boundary]}",
-        "{label[boundary]}: Specifically, {boundary[verification]} {grounding[boundary]}",
+        "{label[boundary]}: {boundary[verification]} — {grounding[boundary]}",
         "{label[boundary]}: {grounding[boundary]} {boundary[verification]}",
     ),
     "escalation_channel": (
         "{label[escalation]}: {channel[trusted]} {grounding[channel]}",
-        "{label[escalation]}: Directly, {channel[trusted]} {grounding[channel]}",
+        "{label[escalation]}: {channel[trusted]} — {grounding[channel]}",
         "{label[escalation]}: {grounding[channel]} {channel[trusted]}",
     ),
 }
@@ -71,9 +71,9 @@ CRITIQUE_TEMPLATES = {
         "{constraint[evidence]} {critique[diagnosis]} {critique[revision]}",
     ),
     "answer": (
-        "{critique[weakness]} {consequence[effect]} {critique[revised_text]}",
-        "{consequence[effect]} {critique[weakness]} {critique[revised_text]}",
-        "{critique[weakness]} — {consequence[effect]} {critique[revised_text]}",
+        "{critique[weakness]} {critique[revised_text]}",
+        "{critique[weakness]}\n{critique[revised_text]}",
+        "{critique[weakness]}\n\n{critique[revised_text]}",
     ),
 }
 

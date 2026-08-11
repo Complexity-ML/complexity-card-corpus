@@ -21,7 +21,6 @@ RESPONSE_STRUCTURE_SIBLING_TASKS = frozenset(
         "reasoning_verification",
         "safety_uncertainty",
         "summarization_synthesis",
-        "troubleshooting",
     }
 )
 
@@ -499,7 +498,11 @@ def projected_difficulty(
     score = 0
     if len(user_messages) > 1:
         score += 1
-    if user_words >= 60:
+    # Card-projected requests commonly reach 60-79 words while remaining one
+    # focused operation. Treat length as an additional complexity signal only
+    # from 80 words; the separate 140-word threshold still captures genuinely
+    # long contexts.
+    if user_words >= 80:
         score += 1
     if user_words >= 140:
         score += 1
@@ -511,10 +514,15 @@ def projected_difficulty(
         score += 1
     elif cards.evidence == "conflicting":
         score += 2
-    if cards.uncertainty != "answerable":
+    # state_limits and preserve_conflict are derived directly from partial and
+    # conflicting evidence, respectively. Counting both the evidence and its
+    # derived handling policy mislabeled otherwise simple requests as medium.
+    # Safety/risk verification is an independent source of complexity.
+    if cards.uncertainty in {"safety_boundary", "verify_before_action"}:
         score += 1
-    if cards.natural_depth == "linked":
-        score += 1
+    # A realized linked exchange already contributes through its additional
+    # user turn above. natural_depth is the card that produced that observable
+    # shape, so counting both would score one conversational feature twice.
 
     if score >= 5:
         return "hard"

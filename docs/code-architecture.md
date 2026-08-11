@@ -9,7 +9,7 @@ flowchart LR
     Cards["tasks: semantic card contracts"] --> Scenarios["scenarios: valid combinations"]
     Scenarios --> Posttrain["posttrain: readable conversations"]
     Posttrain --> SFT["sft: model-facing projection"]
-    SFT --> Tokens["o200k token and label shards"]
+    SFT --> Tokens["32k token and label shards"]
     Sources["private aggregate source statistics"] --> Vocabulary["vocabulary: lexical statistics"]
     Vocabulary --> Scenarios
     Blueprints["conversation blueprints"] --> Surfaces["surfaces: original dialogue realization"]

@@ -114,6 +114,7 @@ class _SurfaceRule:
     key: str
     pattern: re.Pattern[str]
     variants: tuple[str, ...]
+    literal_sources: tuple[str, ...] = ()
 
 
 def _literal_rule(
@@ -128,6 +129,7 @@ def _literal_rule(
             flags=re.IGNORECASE,
         ),
         variants=variants,
+        literal_sources=tuple(source.casefold() for source in sources),
     )
 
 
@@ -818,18 +820,18 @@ _GLOBAL_RULES: tuple[_SurfaceRule, ...] = (
                 (
                     "Also preserve",
                     "Additionally respect",
-                    "One more limit is",
-                    "The updated boundary is",
-                    "Keep this added",
-                    "Apply this further",
-                    "A final constraint is",
-                    "The remaining limit is",
+                    "Keep",
+                    "Apply",
+                    "Observe",
+                    "Follow",
+                    "Maintain",
+                    "Honor",
                 ),
                 (
                     "the following condition",
                     "this stated requirement",
                     "the added restriction",
-                    "this extra boundary",
+                    "this extra limit",
                 ),
             )
         ),
@@ -1035,7 +1037,7 @@ _GLOBAL_RULES: tuple[_SurfaceRule, ...] = (
                 "Please offer guidance as I",
                 "Would you help me think through how to",
                 "I am asking for help to",
-                "Could you provide a hand as I",
+                "Could you work alongside me as I",
                 "Please support me while I",
                 "Would you help me decide how to",
                 "Some guidance would help me",
@@ -2072,7 +2074,7 @@ _COMMON_RULES: dict[str, tuple[_SurfaceRule, ...]] = {
             "critique-grounded-opening",
             ("A grounded revision is:",),
             tuple(
-                f"{verb} {noun}."
+                f"{verb} {noun}:"
                 for verb, noun in product(
                     (
                         "Use",
@@ -2122,7 +2124,7 @@ _COMMON_RULES: dict[str, tuple[_SurfaceRule, ...]] = {
             "critique-other-revision-opening",
             ("Use this narrower wording:", "The corrected version reads:"),
             _cross(
-                "{} {}.",
+                "{} {}:",
                 (
                     "Use",
                     "Adopt",
@@ -3600,10 +3602,10 @@ _COMMON_RULES: dict[str, tuple[_SurfaceRule, ...]] = {
                 for lead, verb in product(
                     (
                         "Using the stated values",
-                        "From the supplied numbers",
+                        "Calculating with the stated figures",
                         "The direct calculation",
                         "Substituting the quantities",
-                        "With the given inputs",
+                        "With the given inputs, the calculation",
                         "Applying the operation",
                         "The numerical setup",
                         "Computing from the record",
@@ -11001,6 +11003,180 @@ _AUDIT_CLOSURE_RULES: dict[str, tuple[_SurfaceRule, ...]] = {
 }
 
 
+_FINAL_SAFETY_DIVERSITY_RULES: dict[str, tuple[_SurfaceRule, ...]] = {
+    "safety_uncertainty": (
+        _SurfaceRule(
+            "final-safety-smell-assessment-boundary",
+            re.compile(
+                r"A smell affecting (?P<rooms>[0-9]+) rooms for about "
+                r"(?P<minutes>[0-9]+) minutes cannot be diagnosed remotely",
+                flags=re.IGNORECASE,
+            ),
+            (
+                "A remote report spanning {rooms} rooms and about {minutes} minutes cannot identify the substance",
+                "Neither the {rooms}-room spread nor the {minutes}-minute duration permits remote hazard identification",
+                "The reported odor across {rooms} rooms for roughly {minutes} minutes still requires qualified local assessment",
+                "Remote guidance cannot determine the source from a smell reported in {rooms} rooms over {minutes} minutes",
+            ),
+        ),
+        _SurfaceRule(
+            "final-safety-pressure-assessment-boundary",
+            re.compile(
+                r"The reported (?P<scale>[0-9]+)-out-of-10 pressure over "
+                r"(?P<minutes>[0-9]+) minutes cannot be assessed without an in-person exam",
+                flags=re.IGNORECASE,
+            ),
+            (
+                "Pressure rated {scale} out of 10 for {minutes} minutes needs direct clinical assessment",
+                "A {scale}-out-of-10 symptom lasting {minutes} minutes cannot be evaluated conclusively through text",
+                "The reported intensity of {scale} over {minutes} minutes requires qualified in-person evaluation",
+                "Remote information is insufficient to assess {scale}-out-of-10 pressure continuing for {minutes} minutes",
+            ),
+        ),
+        _SurfaceRule(
+            "final-safety-caller-deadline-verification",
+            re.compile(
+                r"The caller's (?P<attempts>[0-9]+) attempts and the claimed "
+                r"(?P<minutes>[0-9]+)-minute deadline are not independently verifiable",
+                flags=re.IGNORECASE,
+            ),
+            (
+                "Neither the caller's {attempts} attempts nor the {minutes}-minute deadline has independent verification",
+                "The claimed deadline of {minutes} minutes and {attempts} contact attempts remain unverified",
+                "An official channel must verify both the {attempts} attempts and the stated {minutes}-minute limit",
+                "Nothing independent confirms the caller's {attempts} attempts or asserted {minutes}-minute deadline",
+            ),
+        ),
+        _SurfaceRule(
+            "final-safety-return-verification",
+            re.compile(
+                r"The (?P<contacts>[0-9]+) prior contacts and the guaranteed "
+                r"(?P<return>[0-9]+)% return cannot be verified without contacting the institution directly",
+                flags=re.IGNORECASE,
+            ),
+            (
+                "Verify the claimed {return}% return and {contacts} prior contacts directly with the institution",
+                "Neither the {contacts} contacts nor the promised {return}% return is established outside the message",
+                "Independent institutional confirmation is required for both the {return}% promise and {contacts}-contact history",
+                "The record of {contacts} contacts and the guaranteed {return}% return remain unverified until the institution confirms them",
+            ),
+        ),
+        _SurfaceRule(
+            "final-safety-pressure-does-not-change-boundary",
+            re.compile(
+                r"That holds no matter how severe the (?P<scale>[0-9]+)-out-of-10 "
+                r"pressure has felt for the past (?P<minutes>[0-9]+) minutes",
+                flags=re.IGNORECASE,
+            ),
+            (
+                "The same boundary applies despite pressure rated {scale} out of 10 for {minutes} minutes",
+                "Neither the {scale}-out-of-10 intensity nor its {minutes}-minute duration changes that limit",
+                "That safety boundary remains in place for pressure reported at {scale} over {minutes} minutes",
+                "The reported severity of {scale} for {minutes} minutes does not remove this boundary",
+            ),
+        ),
+        _SurfaceRule(
+            "final-safety-smell-does-not-change-boundary",
+            re.compile(
+                r"How localized the smell across (?P<rooms>[0-9]+) rooms has seemed "
+                r"over (?P<minutes>[0-9]+) minutes does not change that",
+                flags=re.IGNORECASE,
+            ),
+            (
+                "That boundary still applies to a smell reported across {rooms} rooms for {minutes} minutes",
+                "The odor's spread through {rooms} rooms over {minutes} minutes does not remove this limit",
+                "Neither the {rooms}-room extent nor the {minutes}-minute duration changes the safety boundary",
+                "Keep the same limit despite the smell appearing localized across {rooms} rooms for {minutes} minutes",
+            ),
+        ),
+        _SurfaceRule(
+            "final-safety-deadline-does-not-change-boundary",
+            re.compile(
+                r"No framing of a (?P<minutes>[0-9]+)-minute deadline across "
+                r"(?P<attempts>[0-9]+) attempts changes that",
+                flags=re.IGNORECASE,
+            ),
+            (
+                "The same boundary applies despite {attempts} attempts and a claimed {minutes}-minute deadline",
+                "Neither the {minutes}-minute limit nor the {attempts} contact attempts changes this safeguard",
+                "Keep that boundary even when the message cites {attempts} attempts and {minutes} minutes",
+                "A claimed {minutes}-minute deadline across {attempts} attempts does not remove the limit",
+            ),
+        ),
+        _SurfaceRule(
+            "final-safety-return-does-not-change-boundary",
+            re.compile(
+                r"Neither the promised (?P<return>[0-9]+)% return nor the "
+                r"(?P<contacts>[0-9]+) prior contacts changes that",
+                flags=re.IGNORECASE,
+            ),
+            (
+                "That boundary remains despite a promised {return}% return and {contacts} prior contacts",
+                "Neither {contacts} earlier contacts nor the {return}% promise removes this safeguard",
+                "Keep the same limit regardless of the claimed {return}% return or {contacts}-contact history",
+                "The {return}% promise and {contacts} prior contacts do not change the protective boundary",
+            ),
+        ),
+        _SurfaceRule(
+            "final-safety-smell-escalation-grounding",
+            re.compile(
+                r"Tell the responder the smell has affected (?P<rooms>[0-9]+) rooms "
+                r"for about (?P<minutes>[0-9]+) minutes",
+                flags=re.IGNORECASE,
+            ),
+            (
+                "Report the odor's spread across {rooms} rooms and its roughly {minutes}-minute duration",
+                "Give responders the observed extent of {rooms} rooms over about {minutes} minutes",
+                "When escalating, state that the smell reached {rooms} rooms for approximately {minutes} minutes",
+                "Share the {rooms}-room extent and {minutes}-minute observation window with the responder",
+            ),
+        ),
+        _SurfaceRule(
+            "final-safety-return-escalation-grounding",
+            re.compile(
+                r"Report the (?P<contacts>[0-9]+) prior contacts and the promised "
+                r"(?P<return>[0-9]+)% return when escalating to the institution",
+                flags=re.IGNORECASE,
+            ),
+            (
+                "Give the institution the history of {contacts} contacts and the claimed {return}% return",
+                "When escalating, include both the {return}% promise and the {contacts} earlier contacts",
+                "Tell the institution that the message followed {contacts} contacts and advertised a {return}% return",
+                "Provide the verified channel with the {contacts}-contact history and the promised {return}% figure",
+            ),
+        ),
+        _SurfaceRule(
+            "final-safety-pressure-escalation-grounding",
+            re.compile(
+                r"Report the (?P<scale>[0-9]+)-out-of-10 pressure and its "
+                r"(?P<minutes>[0-9]+)-minute onset time to whoever provides care",
+                flags=re.IGNORECASE,
+            ),
+            (
+                "Tell the care provider the pressure is rated {scale} out of 10 and began {minutes} minutes ago",
+                "Give qualified care both the {scale}-out-of-10 intensity and the {minutes}-minute timing",
+                "When seeking care, state the reported level of {scale} and its onset {minutes} minutes earlier",
+                "Share the symptom rating of {scale} out of 10 together with the {minutes}-minute duration",
+            ),
+        ),
+        _SurfaceRule(
+            "final-safety-deadline-escalation-grounding",
+            re.compile(
+                r"Mention the (?P<attempts>[0-9]+) contact attempts and the claimed "
+                r"(?P<minutes>[0-9]+)-minute deadline when escalating",
+                flags=re.IGNORECASE,
+            ),
+            (
+                "Include the {attempts} contact attempts and asserted {minutes}-minute deadline in the report",
+                "When escalating, provide both the {attempts}-attempt history and the {minutes}-minute limit",
+                "Tell the official channel about the claimed {minutes}-minute deadline across {attempts} attempts",
+                "Report that the contact made {attempts} attempts while asserting a {minutes}-minute deadline",
+            ),
+        ),
+    ),
+}
+
+
 _GRAMMAR_LITERAL_REPLACEMENTS = (
     (re.compile(r"\bFirst,\s*First\b"), "First"),
     (re.compile(r"\bthe\s+the\b", flags=re.IGNORECASE), "the"),
@@ -11079,6 +11255,31 @@ def _clean_surface_grammar(text: str) -> str:
         text,
     )
     text = _GRAMMAR_AN_WORD.sub(lambda match: f"an {match.group('word')}", text)
+    text = re.sub(r" {2,}", " ", text)
+    text = re.sub(r"(?<=[a-z0-9'\"])\.(?=[A-Z])", ". ", text)
+    text = re.sub(
+        r"\bnote that (?P<word>A(?= second\b)|[A-Z][a-z]+)",
+        lambda match: "note that " + match.group("word").lower(),
+        text,
+    )
+    text = re.sub(
+        r"\bnote that A (?P<noun>reverse|division|backward)\b",
+        lambda match: "note that a " + match.group("noun"),
+        text,
+    )
+    text = re.sub(
+        r"\b(?:the|a|an) (?P<article>the|a|an)\b",
+        lambda match: match.group("article"),
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(r"\s+[—-]\s*\.", ".", text)
+    text = re.sub(r"(?<!\.)\.\.(?!\.)", ".", text)
+    text = re.sub(
+        r"(?<=[.!?]) (?P<letter>[a-z])",
+        lambda match: " " + match.group("letter").upper(),
+        text,
+    )
     return text
 
 
@@ -11356,7 +11557,7 @@ _REPETITION_PATTERN_RULES: dict[str, tuple[_SurfaceRule, ...]] = {
                 "The resulting quantity is {value}",
                 "Evaluation produces {value}",
                 "The final value equals {value}",
-                "The supplied numbers give {value}",
+                "Applying the stated values gives {value}",
                 "The operation returns {value}",
                 "The verified total is {value}",
                 "The numerical outcome is {value}",
@@ -11884,7 +12085,7 @@ _HIGH_FREQUENCY_PATTERN_RULES: dict[str, tuple[_SurfaceRule, ...]] = {
                 "The record leaves unresolved",
                 "The notes do not settle",
                 "No source conclusion is available for",
-                "The supplied material keeps open",
+                "The available material leaves unresolved",
                 "The evidence provides no resolution for",
                 "An unresolved point remains about",
                 "The source is inconclusive regarding",
@@ -12018,6 +12219,13 @@ class SurfaceVariationBalancer:
                 or groups.get("structure_fields")
                 or "the requested fields"
             )
+        elif rule.key == "ceiling-planning-eliminate-b-and-c":
+            groups["cause"] = re.sub(
+                r"^(?:which\s+|because\s+it\s+)",
+                "",
+                groups["cause"],
+                flags=re.IGNORECASE,
+            )
         replacement = rule.variants[selected].format(**groups)
         return text[: match.start()] + replacement + text[match.end() :]
 
@@ -12031,6 +12239,7 @@ class SurfaceVariationBalancer:
         rewritten: list[dict[str, str]] = []
         for turn_index, message in enumerate(messages):
             text = message["content"]
+            folded_text = text.casefold()
             rules = [
                 *_GLOBAL_RULES,
                 *_COMMON_RULES.get(task, ()),
@@ -12062,17 +12271,30 @@ class SurfaceVariationBalancer:
                 *_COMPLETE_CEILING_REPAIR_RULES.get(task, ()),
                 *_ABSOLUTE_COMPLETE_REPAIR_RULES.get(task, ()),
                 *_AUDIT_CLOSURE_RULES.get(task, ()),
+                *_FINAL_SAFETY_DIVERSITY_RULES.get(task, ()),
             ]
             if message["role"] == "user" and task in _TASK_DIRECTIVES:
                 rules.insert(0, _TASK_DIRECTIVES[task])
             for rule in rules:
-                text = self._apply_rule(
+                # Most repetition rules match one or more fixed sentences. A
+                # cheap substring guard avoids compiling a full regex search
+                # path for literals that cannot occur in this message. Rules
+                # with captures or other dynamic patterns retain the exact
+                # regex-only behavior.
+                if rule.literal_sources and not any(
+                    source in folded_text for source in rule.literal_sources
+                ):
+                    continue
+                updated = self._apply_rule(
                     text,
                     task=task,
                     role=message["role"],
                     rule=rule,
                     example_id=f"{example_id}:turn:{turn_index}",
                 )
+                if updated != text:
+                    text = updated
+                    folded_text = text.casefold()
             text = _clean_surface_grammar(text)
             rewritten.append({"role": message["role"], "content": text})
         return rewritten
