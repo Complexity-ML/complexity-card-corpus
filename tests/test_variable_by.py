@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from collections import Counter
 from pathlib import Path
@@ -14,6 +15,7 @@ from complexity_card_corpus.variable_by import (
     analyze_static_text_progress,
     analyze_template_density,
     brainstorming_variable_by,
+    casual_variable_by,
 )
 from complexity_card_corpus.variable_by.templates import (
     CRITIQUE_TEMPLATES,
@@ -161,6 +163,31 @@ def test_variable_by_resolves_variables_inside_variables() -> None:
         "scenario[count]",
         "scenario[total]",
     )
+
+
+def test_casual_variable_by_nests_surface_topic_and_context_cells() -> None:
+    registry = json.loads(
+        (
+            Path(__file__).parents[1]
+            / "data/conversation/original/casual-conversation-decks-v1.json"
+        ).read_text()
+    )
+    matrix = casual_variable_by(
+        registry["topic_cards"][0],
+        registry["context_cards"][0],
+        registry["surface_decks"],
+    )
+    dealt = matrix.deal("casual-variable-by-test")
+
+    assert matrix.dependency_graph()["surface[user_opening]"] == (
+        "topic[opening]",
+        "context[opening]",
+    )
+    assert "topic[reply_lower]" in matrix.expand_dependencies(
+        ("surface[assistant_follow_up]",)
+    )
+    assert "{" not in dealt["surface"]["user_opening"]
+    assert "}" not in dealt["surface"]["assistant_closing"]
 
 
 def test_variable_by_rejects_unknown_and_cyclic_nested_variables() -> None:

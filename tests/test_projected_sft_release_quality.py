@@ -9,7 +9,8 @@ import pyarrow.parquet as pq
 import pytest
 
 
-PROJECTED_SFT = Path("build/post-training-32k/projected.parquet")
+PROJECTED_SFT = Path("build/post-training-v16/projected.parquet")
+CASUAL_SOURCE = Path("build/casual-conversation-v16/conversations.parquet")
 MAX_NORMALIZED_SENTENCE_SHARE = 0.05
 
 
@@ -22,6 +23,45 @@ def test_projected_sft_manifest_passes_every_release_quality_gate() -> None:
 
     assert release_quality["ready"] is True
     assert all(release_quality["checks"].values())
+
+
+def test_projected_sft_includes_audited_casual_conversation() -> None:
+    manifest_path = PROJECTED_SFT.parent / "manifest.json"
+    if not manifest_path.exists():
+        pytest.skip("build the projected SFT release before running release-quality tests")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    quality = manifest["casual_conversation_quality"]
+
+    assert manifest["release_quality"]["train_family_counts"][
+        "casual_conversation"
+    ] == 400
+    assert quality["present"] is True
+    assert quality["passed"] is True
+    assert quality["violations"] == []
+    assert set(quality["final_sentence_counts"]) <= {"1", "2", "3"}
+
+
+def test_projected_sft_preserves_original_casual_turns_verbatim() -> None:
+    if not PROJECTED_SFT.exists() or not CASUAL_SOURCE.exists():
+        pytest.skip("build the V16 SFT and casual releases before testing projection")
+    source_rows = {
+        row["example_id"]: row["messages"]
+        for row in pq.read_table(
+            CASUAL_SOURCE,
+            columns=["example_id", "split", "messages"],
+        ).to_pylist()
+        if row["split"] == "train"
+    }
+    projected_rows = {
+        row["example_id"]: row["messages"]
+        for row in pq.read_table(
+            PROJECTED_SFT,
+            columns=["example_id", "task", "messages"],
+        ).to_pylist()
+        if row["task"] == "casual_conversation"
+    }
+
+    assert projected_rows == source_rows
 
 
 @pytest.fixture(scope="module")

@@ -4,6 +4,7 @@ from .action import practical_answer_cards, practical_cards
 from .brainstorm import brainstorm_pilot_cards
 from .brainstorm_cases import BrainstormFacts, brainstorm_cases
 from .brainstorm_checks import brainstorm_checks
+from .casual import casual_reservoir
 from .critique import critique_reservoir
 from .critique_cases import CritiqueFacts, critique_cases
 from .safety_cases import inherited_safety_case
@@ -25,6 +26,7 @@ __all__ = (
     "brainstorm_cases",
     "BrainstormFacts",
     "brainstorm_checks",
+    "casual_reservoir",
     "critique_cases",
     "CritiqueFacts",
     "inherited_safety_case",

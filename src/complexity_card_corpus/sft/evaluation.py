@@ -126,6 +126,7 @@ _GENERALIST_POST_TRAINING_TASKS = {
     "critique_revision",
     "brainstorming_creativity",
     "context_clarification",
+    "casual_conversation",
 }
 
 MAXIMUM_SFT_OPENING_SHARE = 0.05

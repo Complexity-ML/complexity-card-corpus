@@ -20,6 +20,7 @@ from ..chat_template import (
     render_system_prefix,
     render_user_turn,
 )
+from ..conversation_quality import audit_casual_conversation_quality
 from ..tokenize import directory_sha256, load_encoding
 from ..training_cards import (
     RESPONSE_STRUCTURE_SIBLING_TASKS,
@@ -243,6 +244,7 @@ def tokenize_instruction_dataset(
     max_response_card_hand_share: float | None = None,
     target_training_examples: int | None = None,
     target_supervised_tokens: int | None = None,
+    require_casual_conversation: bool = True,
 ) -> dict[str, Any]:
     """Project and tokenize SFT data without hidden scale-dependent truncation.
 
@@ -391,6 +393,12 @@ def tokenize_instruction_dataset(
             batch_start : batch_start + SURFACE_REWRITE_BATCH_SIZE
         ]
         for row in batch:
+            # Independently authored conversations are already model-facing
+            # prose. Phrase balancing is for generated card hands; applying it
+            # here can corrupt natural turns (for example, rewriting "I want"
+            # to "My immediate goal" after a comma).
+            if row["_source_representation"] == "conversation":
+                continue
             messages = phrase_balancer.rewrite_messages(
                 row["_projected_messages"],
                 task=row["task"],
@@ -484,6 +492,7 @@ def tokenize_instruction_dataset(
         for partition, partition_rows in sorted(grouped.items())
         for row in partition_rows
     ]
+    casual_conversation_quality = audit_casual_conversation_quality(projected_records)
     projected_path = temporary / "projected.parquet"
     pq.write_table(
         pa.Table.from_pylist(projected_records, schema=PROJECTED_SFT_SCHEMA),
@@ -607,6 +616,7 @@ def tokenize_instruction_dataset(
         "projection_audit": projection_audit,
         "surface_selection": surface_selection,
         "statistical_quality_audit": statistical_quality_audit,
+        "casual_conversation_quality": casual_conversation_quality,
         "exact_response_deduplication": exact_deduplication,
         "exact_prompt_deduplication": exact_prompt_deduplication,
         "family_balance": family_balance,
@@ -652,6 +662,16 @@ def tokenize_instruction_dataset(
     family_shares = {
         task: round(count / train_count, 6) if train_count else 0.0
         for task, count in train_family_counts.items()
+    }
+    core_family_counts = {
+        task: count
+        for task, count in train_family_counts.items()
+        if task != "casual_conversation"
+    }
+    core_train_count = sum(core_family_counts.values())
+    core_family_shares = {
+        task: count / core_train_count if core_train_count else 0.0
+        for task, count in core_family_counts.items()
     }
     exact_train_responses = len({row["response"] for row in train_records})
     exact_train_prompts = len({row["prompt"] for row in train_records})
@@ -735,7 +755,7 @@ def tokenize_instruction_dataset(
         )
         <= 0.15,
         "minimum_family_share_at_least_2_percent": min(
-            family_shares.values(), default=0.0
+            core_family_shares.values(), default=0.0
         )
         >= 0.02,
         "has_easy_medium_and_hard_examples": set(difficulty_counts)
@@ -772,6 +792,13 @@ def tokenize_instruction_dataset(
         <= manifests.get("diagnostic", {}).get("examples", 0)
         <= 1_000,
     }
+    if require_casual_conversation:
+        quality_checks["casual_conversation_is_present"] = (
+            train_family_counts.get("casual_conversation", 0) > 0
+        )
+        quality_checks["casual_conversation_quality_passed"] = (
+            casual_conversation_quality["passed"]
+        )
     if target_training_examples is not None:
         quality_checks["training_examples_reach_requested_target"] = (
             train_count >= target_training_examples
@@ -786,6 +813,11 @@ def tokenize_instruction_dataset(
         "checks": quality_checks,
         "train_family_counts": train_family_counts,
         "train_family_shares": family_shares,
+        "core_train_family_shares": {
+            task: round(share, 6)
+            for task, share in sorted(core_family_shares.items())
+        },
+        "required_casual_conversation": require_casual_conversation,
         "difficulty_counts": difficulty_counts,
         "response_length_bands": dict(response_length_bands),
         "distinct_train_structures": distinct_train_structures,

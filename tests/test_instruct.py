@@ -305,6 +305,7 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
         tmp_path / "instructions/instructions.parquet",
         tokenizer,
         tmp_path / "tokenized",
+        require_casual_conversation=False,
     )
     assert manifest["total_examples"] > 0
     assert manifest["chat_template_id"] == CHAT_TEMPLATE_ID
@@ -2666,6 +2667,12 @@ def test_tokenization_replaces_generated_validation_with_heldout(
         tmp_path / "tokenized",
         heldout_evaluation_path=Path("data/evaluation/generalist-heldout-v2.json"),
     )
+    assert manifest["release_quality"]["required_casual_conversation"] is True
+    assert (
+        manifest["release_quality"]["checks"]["casual_conversation_is_present"]
+        is False
+    )
+    assert manifest["casual_conversation_quality"]["present"] is False
     assert manifest["partitions"]["eval"]["examples"] == 28
     assert manifest["train_eval_structure_overlap"] == 0
     assert manifest["heldout_evaluation"]["method"] == (

@@ -13,10 +13,12 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from ..build import file_sha256
+from ..conversation_quality import audit_casual_conversation_quality
 from ..sft.schema import INSTRUCTION_SCHEMA
+from ..variable_by import casual_variable_by
 
 
-_DATASET_ID = "complexity-casual-conversation-v1"
+_DATASET_ID = "complexity-casual-conversation-v16"
 _WORD = re.compile(r"[a-z0-9']+")
 _PLACEHOLDER = re.compile(r"\{[^{}]+\}")
 _REQUIRED_SUBCARDS = {
@@ -35,7 +37,6 @@ _STAGES = (
     "user_follow_up",
     "assistant_follow_up",
     "user_shift",
-    "assistant_closing_bridge",
     "assistant_closing",
 )
 
@@ -50,13 +51,6 @@ def _stable_index(value: str, size: int) -> int:
     return int.from_bytes(_digest(value)[:8], "big") % size
 
 
-def _lower_first(value: str) -> str:
-    value = value.strip()
-    if value.startswith(("I ", "I'm ", "I've ", "I'd ")):
-        return value
-    return value[:1].lower() + value[1:] if value else value
-
-
 def _sentence(value: str) -> str:
     value = " ".join(value.strip().split())
     if not value:
@@ -64,24 +58,44 @@ def _sentence(value: str) -> str:
     return value if value[-1] in ".?!" else f"{value}."
 
 
-def _render(template: str, values: dict[str, str]) -> str:
-    expanded = {
-        **values,
-        **{f"{key}_lower": _lower_first(value) for key, value in values.items()},
-    }
-    return _sentence(template.format(**expanded))
-
-
 def _join(*parts: str) -> str:
     return " ".join(_sentence(part) for part in parts if part.strip()).strip()
 
 
-def _split(source_pair_id: str, validation_percent: int) -> str:
-    return (
-        "validation"
-        if _stable_index(f"split:{source_pair_id}", 100) < validation_percent
-        else "train"
+def _validation_source_pairs(
+    pairs: list[tuple[dict[str, Any], dict[str, Any]]],
+    validation_percent: int,
+) -> set[str]:
+    """Select validation pairs evenly across context cards.
+
+    Repetition gates are evaluated on training rows. A purely global hash can
+    remove no example from one context and make a phrase occurring once per
+    topic exceed five percent after the split. Round-robin selection gives each
+    context the same held-out support before any context receives a second row.
+    """
+
+    by_context: dict[str, list[tuple[dict[str, Any], dict[str, Any]]]] = {}
+    for topic, context in pairs:
+        by_context.setdefault(context["context_id"], []).append((topic, context))
+    rounds = max(
+        1,
+        round(
+            max(len(context_pairs) for context_pairs in by_context.values())
+            * validation_percent
+            / 100
+        ),
     )
+    selected: set[str] = set()
+    for context_id, context_pairs in sorted(by_context.items()):
+        ranked = sorted(
+            context_pairs,
+            key=lambda pair: _digest(
+                f"validation:{pair[0]['topic_id']}:{pair[1]['context_id']}"
+            ),
+        )
+        for topic, context in ranked[:rounds]:
+            selected.add(f"{topic['topic_id']}:context:{context['context_id']}")
+    return selected
 
 
 def _validate_registry(registry: dict[str, Any]) -> None:
@@ -113,56 +127,24 @@ def _messages(
     decks: dict[str, list[str]],
     variant: int,
     pair_index: int,
-) -> tuple[list[dict[str, str]], dict[str, int], int]:
-    subcards = topic["subcards"]
-    values = {
-        **subcards,
-        "context_opening": context["opening_addition"],
-        "context_detail": context["detail_addition"],
-        "context_shift": context["shift_addition"],
-        "context_closing": context["closing_addition"],
-    }
+) -> tuple[list[dict[str, str]], dict[str, int], int, tuple[str, ...]]:
     pair_key = f"{topic['topic_id']}:{context['context_id']}"
-    # Walk the full Cartesian surface space without replacement inside each
-    # semantic topic/context pair. Response-bearing stages are the least
-    # significant digits, so every retained variant receives a distinct final
-    # target long before the larger surface space can cycle.
-    digit_order = (
-        "assistant_closing",
-        "assistant_closing_bridge",
-        "assistant_follow_up",
-        "user_opening",
-        "assistant_entry",
-        "user_follow_up",
-        "user_shift",
-    )
-    surface_capacity = 1
-    for stage in digit_order:
-        surface_capacity *= len(decks[stage])
-    ordinal = (
-        variant
-        + _stable_index(f"surface-offset:{pair_key}:{pair_index}", surface_capacity)
-    ) % surface_capacity
-    indexes: dict[str, int] = {}
-    for stage in digit_order:
-        indexes[stage] = ordinal % len(decks[stage])
-        ordinal //= len(decks[stage])
+    matrix = casual_variable_by(topic, context, decks)
+    deal_seed = f"casual:{pair_key}:{variant}:{pair_index}"
+    dealt = matrix.deal(deal_seed)
+    indexes = {
+        stage: _stable_index(
+            f"{deal_seed}:surface:{stage}",
+            len(matrix.cards("surface", stage)),
+        )
+        for stage in _STAGES
+    }
     turn_count = 4 if _stable_index(f"turns:{topic['topic_id']}:{context['context_id']}:{variant}", 5) < 2 else 6
-    opening = _render(decks["user_opening"][indexes["user_opening"]], values)
-    entry = _render(decks["assistant_entry"][indexes["assistant_entry"]], values)
-    follow_up = _render(
-        decks["user_follow_up"][indexes["user_follow_up"]], values
-    )
-    assistant_reply = _render(
-        decks["assistant_follow_up"][indexes["assistant_follow_up"]], values
-    )
-    closing = _join(
-        _render(
-            decks["assistant_closing_bridge"][indexes["assistant_closing_bridge"]],
-            values,
-        ),
-        _render(decks["assistant_closing"][indexes["assistant_closing"]], values),
-    )
+    opening = _sentence(dealt["surface"]["user_opening"])
+    entry = _sentence(dealt["surface"]["assistant_entry"])
+    follow_up = _sentence(dealt["surface"]["user_follow_up"])
+    assistant_reply = _sentence(dealt["surface"]["assistant_follow_up"])
+    closing = _sentence(dealt["surface"]["assistant_closing"])
     if turn_count == 4:
         messages = [
             {"role": "user", "content": opening},
@@ -171,8 +153,11 @@ def _messages(
             {"role": "assistant", "content": _join(assistant_reply, closing)},
         ]
     else:
-        assistant_reply = _join(assistant_reply, subcards["follow_up_question"])
-        shift = _render(decks["user_shift"][indexes["user_shift"]], values)
+        assistant_reply = _join(
+            assistant_reply,
+            dealt["topic"]["follow_up_question"],
+        )
+        shift = _sentence(dealt["surface"]["user_shift"])
         messages = [
             {"role": "user", "content": opening},
             {"role": "assistant", "content": entry},
@@ -181,7 +166,17 @@ def _messages(
             {"role": "user", "content": shift},
             {"role": "assistant", "content": closing},
         ]
-    return messages, indexes, turn_count
+    if len(_sentences(messages[-1]["content"])) > 3:
+        raise ValueError("casual final response exceeds three sentences")
+    return messages, indexes, turn_count, matrix.field_names()
+
+
+def _sentences(text: str) -> tuple[str, ...]:
+    return tuple(
+        part.strip()
+        for part in re.split(r"(?<=[.!?])\s+", text.strip())
+        if part.strip()
+    )
 
 
 def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -224,6 +219,12 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
     overlap = train_pairs & validation_pairs
     if overlap:
         raise ValueError("conversation source pairs leak across splits")
+    conversation_quality = audit_casual_conversation_quality(rows)
+    if not conversation_quality["passed"]:
+        raise ValueError(
+            "casual conversation quality gate failed: "
+            + "; ".join(conversation_quality["violations"])
+        )
     return {
         "rows": len(rows),
         "unique_conversation_ratio": len(set(rendered)) / len(rows),
@@ -234,6 +235,7 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "source_pair_split_overlap": len(overlap),
         "largest_source_pair_variant_count": max(source_pairs.values(), default=0),
         "turn_counts": dict(sorted(Counter(len(row["messages"]) for row in rows).items())),
+        "conversation_quality": conversation_quality,
     }
 
 
@@ -260,23 +262,22 @@ def build_casual_conversation_surface(
         for context in contexts
     ]
     pairs.sort(key=lambda pair: _digest(f"{seed}:{pair[0]['topic_id']}:{pair[1]['context_id']}"))
+    validation_source_pairs = _validation_source_pairs(pairs, validation_percent)
     if examples is None:
         examples = len(pairs)
     if examples < 100:
         raise ValueError("casual conversation build needs at least 100 examples")
     capacity = len(pairs)
-    for stage in _STAGES:
-        capacity *= len(decks[stage])
     if examples > capacity:
         raise ValueError(f"requested {examples} rows exceeds card capacity {capacity}")
 
     rows: list[dict[str, Any]] = []
     for ordinal in range(examples):
         pair_index = ordinal % len(pairs)
-        variant = ordinal // len(pairs)
+        variant = 0
         topic, context = pairs[pair_index]
         source_pair_id = f"{topic['topic_id']}:context:{context['context_id']}"
-        messages, indexes, turn_count = _messages(
+        messages, indexes, turn_count, variable_by_fields = _messages(
             topic=topic,
             context=context,
             decks=decks,
@@ -293,7 +294,6 @@ def build_casual_conversation_surface(
                 f"turns={turn_count}",
                 f"entry={indexes['assistant_entry']}",
                 f"follow={indexes['assistant_follow_up']}",
-                f"bridge={indexes['assistant_closing_bridge']}",
                 f"closing={indexes['assistant_closing']}",
             )
         )
@@ -306,7 +306,9 @@ def build_casual_conversation_surface(
                 "dataset_id": _DATASET_ID,
                 "domain": topic["domain"],
                 "language": "en",
-                "split": _split(source_pair_id, validation_percent),
+                "split": (
+                    "validation" if source_pair_id in validation_source_pairs else "train"
+                ),
                 "messages": messages,
                 "prompt": messages[0]["content"],
                 "response": messages[-1]["content"],
@@ -327,6 +329,7 @@ def build_casual_conversation_surface(
                                 f"{_STAGES[index]}->{_STAGES[index + 1]}"
                                 for index in range(len(_STAGES) - 1)
                             ],
+                            "variable_by": list(variable_by_fields),
                         },
                     },
                     sort_keys=True,
@@ -357,7 +360,7 @@ def build_casual_conversation_surface(
     audit_path = temporary / "audit.json"
     audit_path.write_text(json.dumps(audit, indent=2, sort_keys=True) + "\n")
     manifest = {
-        "format": "casual-conversation-surface-v1",
+        "format": "casual-conversation-surface-v16",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "purpose": "additive natural conversation supplement",
         "seed": seed,

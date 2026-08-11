@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pyarrow.parquet as pq
+import pytest
 
 from complexity_card_corpus.conversational import build_casual_conversation_surface
 from complexity_card_corpus.sft.projection import _project_sft_conversation
@@ -27,7 +28,6 @@ def test_casual_registry_has_decks_subcards_and_large_capacity() -> None:
         "user_follow_up",
         "assistant_follow_up",
         "user_shift",
-        "assistant_closing_bridge",
         "assistant_closing",
     }
     assert all(
@@ -50,11 +50,7 @@ def test_casual_registry_has_decks_subcards_and_large_capacity() -> None:
     semantic_pairs = len(registry["topic_cards"]) * len(
         registry["context_cards"]
     )
-    surface_capacity = 1
-    for deck in registry["surface_decks"].values():
-        surface_capacity *= len(deck)
     assert semantic_pairs >= 400
-    assert semantic_pairs * surface_capacity >= 1_000_000
 
 
 def test_casual_surface_is_additive_natural_and_below_five_percent(
@@ -63,26 +59,30 @@ def test_casual_surface_is_additive_natural_and_below_five_percent(
     result = build_casual_conversation_surface(
         REGISTRY,
         tmp_path / "casual",
-        examples=2_000,
         seed=42,
     )
     repeated = build_casual_conversation_surface(
         REGISTRY,
         tmp_path / "repeat",
-        examples=2_000,
         seed=42,
     )
 
     assert result["files"]["conversations.parquet"]["sha256"] == repeated[
         "files"
     ]["conversations.parquet"]["sha256"]
-    assert result["counts"]["examples"] == 2_000
-    assert result["counts"]["by_task"] == {"casual_conversation": 2_000}
+    assert result["counts"]["examples"] == 420
+    assert result["counts"]["by_task"] == {"casual_conversation": 420}
+    assert result["counts"]["by_split"] == {"train": 400, "validation": 20}
     assert result["audit"]["largest_surface_hand_share"] <= 0.05
     assert result["audit"]["largest_response_structure_share"] <= 0.05
     assert result["audit"]["unique_conversation_ratio"] == 1.0
     assert result["audit"]["unique_final_response_ratio"] == 1.0
     assert result["audit"]["source_pair_split_overlap"] == 0
+    assert result["audit"]["conversation_quality"]["passed"] is True
+    assert result["audit"]["conversation_quality"]["final_sentence_counts"] == {
+        2: 253,
+        3: 167,
+    }
 
     rows = pq.read_table(tmp_path / "casual/conversations.parquet").to_pylist()
     assert {row["task"] for row in rows} == {"casual_conversation"}
@@ -91,11 +91,22 @@ def test_casual_surface_is_additive_natural_and_below_five_percent(
     assert all(row["messages"][0]["role"] == "user" for row in rows)
     assert all(row["messages"][-1]["role"] == "assistant" for row in rows)
     assert all(
+        1 <= len(row["messages"][-1]["content"].split(". ")) <= 3
+        for row in rows
+    )
+    assert all(
         " card" not in f" {message['content'].lower()}"
         and " deck" not in f" {message['content'].lower()}"
         and "hand " not in message["content"].lower()
         for row in rows
         for message in row["messages"]
+    )
+    metadata = [json.loads(row["answer_json"]) for row in rows]
+    assert all(
+        "surface[user_opening]" in item["deck_topology"]["variable_by"]
+        and "topic[reply_lower]" in item["deck_topology"]["variable_by"]
+        and "context[closing]" in item["deck_topology"]["variable_by"]
+        for item in metadata
     )
 
 
@@ -128,17 +139,13 @@ def test_sft_projection_preserves_casual_dialogue_turns(tmp_path: Path) -> None:
         assert projected == row["messages"]
 
 
-def test_casual_surface_hydrates_to_thirty_thousand_without_recycling(
+def test_casual_surface_rejects_semantic_pair_recycling(
     tmp_path: Path,
 ) -> None:
-    result = build_casual_conversation_surface(
-        REGISTRY,
-        tmp_path / "casual-30k",
-        examples=30_000,
-        seed=42,
-    )
-
-    assert result["counts"]["examples"] == 30_000
-    assert result["audit"]["unique_conversation_ratio"] == 1.0
-    assert result["audit"]["unique_final_response_ratio"] == 1.0
-    assert result["audit"]["largest_four_gram_share_per_message"] <= 0.05
+    with pytest.raises(ValueError, match="exceeds card capacity 420"):
+        build_casual_conversation_surface(
+            REGISTRY,
+            tmp_path / "casual-recycled",
+            examples=421,
+            seed=42,
+        )

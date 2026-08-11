@@ -2,11 +2,22 @@ from __future__ import annotations
 
 from .matrix import VariableBy2D
 from .reservoirs import (
+    casual_reservoir,
     critique_reservoir,
     empathy_reservoir,
     reasoning_reservoir,
     safety_reservoir,
 )
+
+
+def casual_variable_by(
+    topic: dict,
+    context: dict,
+    decks: dict[str, list[str]],
+) -> VariableBy2D:
+    """Build nested variables for one casual topic × context conversation."""
+
+    return VariableBy2D(casual_reservoir(topic, context, decks))
 
 
 _AUDIENCE_SENSE_BY_BRAINSTORM_DOMAIN = {

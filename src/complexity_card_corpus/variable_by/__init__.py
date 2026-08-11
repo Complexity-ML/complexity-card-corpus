@@ -2,6 +2,7 @@
 
 from .catalog import (
     brainstorming_variable_by,
+    casual_variable_by,
     critique_variable_by,
     empathy_variable_by,
     reasoning_variable_by,
@@ -26,6 +27,7 @@ __all__ = (
     "analyze_static_text_progress",
     "analyze_template_density",
     "brainstorming_variable_by",
+    "casual_variable_by",
     "critique_variable_by",
     "empathy_variable_by",
     "reasoning_variable_by",

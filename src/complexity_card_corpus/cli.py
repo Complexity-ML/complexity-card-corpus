@@ -243,6 +243,23 @@ def parser() -> argparse.ArgumentParser:
         default=[],
         help=("additional original instruction/conversation Parquet; may be repeated"),
     )
+    tokenize_instruct.add_argument(
+        "--casual-registry",
+        type=Path,
+        default=Path("data/conversation/original/casual-conversation-decks-v1.json"),
+        help="original casual card registry built and included automatically",
+    )
+    tokenize_instruct.add_argument(
+        "--casual-output",
+        type=Path,
+        default=Path("build/casual-conversation-v16"),
+        help="deterministic V16 casual build directory",
+    )
+    tokenize_instruct.add_argument(
+        "--without-casual-conversation",
+        action="store_true",
+        help="opt out only for isolated tests or diagnostics",
+    )
     tokenize_instruct.add_argument("--tokenizer", type=Path, required=True)
     tokenize_instruct.add_argument("--output", type=Path, required=True)
     tokenize_instruct.add_argument(
@@ -656,12 +673,24 @@ def main() -> None:
             )
         )
     elif args.command == "tokenize-instruct":
+        supplements = list(args.supplement)
+        require_casual_conversation = not args.without_casual_conversation
+        if require_casual_conversation:
+            build_casual_conversation_surface(
+                args.casual_registry,
+                args.casual_output,
+                seed=42,
+                validation_percent=5,
+            )
+            casual_path = args.casual_output / "conversations.parquet"
+            if casual_path.resolve() not in {path.resolve() for path in supplements}:
+                supplements.append(casual_path)
         result = tokenize_instruction_dataset(
             args.instructions,
             args.tokenizer,
             args.output,
             heldout_evaluation_path=args.heldout_evaluation,
-            supplementary_instruction_paths=args.supplement,
+            supplementary_instruction_paths=supplements,
             workers=args.workers,
             max_examples_per_family=(args.max_examples_per_family or None),
             max_per_structure=(args.max_per_structure or None),
@@ -669,6 +698,7 @@ def main() -> None:
             max_response_card_hand_share=(args.max_response_card_hand_share or None),
             target_training_examples=(args.target_training_examples or None),
             target_supervised_tokens=(args.target_supervised_tokens or None),
+            require_casual_conversation=require_casual_conversation,
         )
         print(
             json.dumps(

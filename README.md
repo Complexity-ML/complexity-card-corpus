@@ -249,35 +249,33 @@ source anchors remain visible in unmasked statistics; subjects, intents,
 states, constraints, outcomes, fallbacks, IDs, dates, amounts, times and numeric
 slots are masked only when measuring response-template repetition.
 
-### Casual conversation supplement
+### Casual conversation V16
 
-V13 adds an independent casual-conversation source instead of converting task
+V16 adds an original casual-conversation source instead of converting task
 instructions into artificial chat. Twenty original topic cards and twenty
 context cards are connected to stage-specific subcard decks for openings,
-acknowledgements, follow-ups, topic shifts, closing bridges and conclusions.
+acknowledgements, follow-ups, topic shifts and context-aware conclusions.
+The dealer uses the shared `VariableBy2D` API: surface-function cells resolve
+nested `topic[...]` and `context[...]` cells, and every used cell is recorded in
+the model-invisible deck topology.
 The supplement is additive: none of the V12 task families or card hands is
 removed.
 
 ```bash
 uv run card-corpus build-casual-conversation \
   --registry data/conversation/original/casual-conversation-decks-v1.json \
-  --output build/casual-conversation-v13 \
+  --output build/casual-conversation-v16 \
   --seed 42
 ```
 
 The current training build contains one four- or six-turn English conversation
 for each of the 420 topic/context pairs. Exact conversation and final-response
 uniqueness are both 100%, topic/context groups do not cross the
-train/validation split, and the most frequent four-word phrase remains below
-5% of messages. At cosine 0.98, MiniLM reports semantic-neighbor ratios of
-3.10% / 0% / 0% for prompts, responses and combined conversations; Mixedbread
-reports 0.5% for each view.
-
-A 30,000-row surface stress build remains exact-text unique but is rejected as
-training data: its 75 renderings per semantic pair produce response-neighbor
-ratios of 15.3% with MiniLM and 35.36% with Mixedbread. Scaling therefore means
-authoring more topic and context cards, not dealing more surfaces from the same
-400 semantic pairs. Embedding results are diagnostics, not correctness proofs.
+train/validation split, and every final response contains two or three coherent
+sentences. Repetition is gated independently by role, exact sentence, phrase,
+and conversational function. The builder refuses requests above the 420
+semantic pairs: scaling requires new topic or context cards, never repeated
+surface renderings of the same conversation.
 
 For natural dialogue adaptation, the training framework selects this source at
 runtime. Its 568-row conversation profile retains the 398 casual
@@ -681,12 +679,18 @@ uv run card-corpus tokenize \
 uv run card-corpus tokenize-instruct \
   --instructions build/post-training/conversations.parquet \
   --supplement build/conversation-surface-10k/conversations.parquet \
-  --supplement build/casual-conversation-v13/conversations.parquet \
   --tokenizer /path/to/tokenizer-32k \
   --heldout-evaluation data/evaluation/generalist-heldout-v2.json \
   --workers 8 \
   --output build/post-training-32k
 ```
+
+`tokenize-instruct` deterministically rebuilds
+`build/casual-conversation-v16/conversations.parquet`, includes it as an
+instruction source, runs its role/function repetition audit inside the global
+SFT audit, and requires at least one retained `casual_conversation` training
+row. `--without-casual-conversation` exists only for isolated tests and
+diagnostics; such a build is not the official V16 release path.
 
 Document token streams use little-endian `uint32`, which also supports the
 configured 32k tokenizer without coupling the file format to one vocabulary.
