@@ -19,7 +19,13 @@ from .surfaces import (
     build_conversation_surface_pilot,
 )
 from .forge import write_forged_dataset
-from .sft import build_instruction_dataset, tokenize_instruction_dataset
+from .sft import (
+    audit_projected_instruction_dataset,
+    build_instruction_dataset,
+    project_instruction_dataset,
+    tokenize_instruction_dataset,
+    tokenize_projected_instruction_dataset,
+)
 from .vocabulary import (
     audit_source_overlap,
     build_lexical_mine,
@@ -298,9 +304,58 @@ def parser() -> argparse.ArgumentParser:
         "--reasoning-envelope-version",
         choices=("v18",),
         help=(
-            "emit audited VariableBy2D <think>/<final> targets for "
-            "reasoning families"
+            "emit audited VariableBy2D <think>/<final> targets for reasoning families"
         ),
+    )
+
+    project_instruct = commands.add_parser(
+        "project-instruct",
+        help="phase 1: render and persist model-facing SFT without audits",
+    )
+    project_instruct.add_argument("--instructions", type=Path, required=True)
+    project_instruct.add_argument(
+        "--supplement", type=Path, action="append", default=[]
+    )
+    project_instruct.add_argument(
+        "--casual-registry",
+        type=Path,
+        default=Path("data/conversation/original/casual-conversation-decks-v1.json"),
+    )
+    project_instruct.add_argument("--without-casual-conversation", action="store_true")
+    project_instruct.add_argument("--output", type=Path, required=True)
+    project_instruct.add_argument(
+        "--workers", type=int, default=max(1, min(8, os.cpu_count() or 1))
+    )
+    project_instruct.add_argument("--max-examples-per-family", type=int, default=0)
+    project_instruct.add_argument("--max-per-structure", type=int, default=0)
+    project_instruct.add_argument("--max-domain-share", type=float, default=0)
+    project_instruct.add_argument(
+        "--max-response-card-hand-share", type=float, default=0
+    )
+    project_instruct.add_argument("--target-training-examples", type=int, default=0)
+    project_instruct.add_argument("--target-supervised-tokens", type=int, default=0)
+    project_instruct.add_argument("--heldout-evaluation", type=Path)
+    project_instruct.add_argument("--reasoning-envelope-version", choices=("v18",))
+
+    audit_projected = commands.add_parser(
+        "audit-projected-sft",
+        help="phase 2: run quality gates on an existing projected Parquet",
+    )
+    audit_projected.add_argument("--artifact", type=Path, required=True)
+    audit_projected.add_argument(
+        "--workers", type=int, default=max(1, min(8, os.cpu_count() or 1))
+    )
+
+    tokenize_projected = commands.add_parser(
+        "tokenize-projected-sft",
+        help="phase 3: tokenize an existing audited projection without rerunning tests",
+    )
+    tokenize_projected.add_argument("--artifact", type=Path, required=True)
+    tokenize_projected.add_argument("--tokenizer", type=Path, required=True)
+    tokenize_projected.add_argument(
+        "--allow-failed-audit",
+        action="store_true",
+        help="diagnostic override; release manifest remains not ready",
     )
 
     package_instruct = commands.add_parser("package-instruct-hf")
@@ -645,6 +700,60 @@ def main() -> None:
                 {"counts": result["counts"], "audit": result["audit"]},
                 indent=2,
                 sort_keys=True,
+            )
+        )
+    elif args.command == "project-instruct":
+        require_casual_conversation = not args.without_casual_conversation
+        result = project_instruction_dataset(
+            args.instructions,
+            args.output,
+            heldout_evaluation_path=args.heldout_evaluation,
+            supplementary_instruction_paths=list(args.supplement),
+            casual_registry_path=(
+                args.casual_registry if require_casual_conversation else None
+            ),
+            workers=args.workers,
+            max_examples_per_family=(args.max_examples_per_family or None),
+            max_per_structure=(args.max_per_structure or None),
+            max_domain_share=(args.max_domain_share or None),
+            max_response_card_hand_share=(args.max_response_card_hand_share or None),
+            target_training_examples=(args.target_training_examples or None),
+            target_supervised_tokens=(args.target_supervised_tokens or None),
+            require_casual_conversation=require_casual_conversation,
+            reasoning_envelope_version=args.reasoning_envelope_version,
+        )
+        print(json.dumps(result, indent=2, sort_keys=True))
+    elif args.command == "audit-projected-sft":
+        result = audit_projected_instruction_dataset(
+            args.artifact,
+            workers=args.workers,
+        )
+        print(
+            json.dumps(
+                {
+                    "phase_status": result["phase_status"],
+                    "quality_status": result["quality_status"],
+                    "ready": result["release_quality"]["ready"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    elif args.command == "tokenize-projected-sft":
+        result = tokenize_projected_instruction_dataset(
+            args.artifact,
+            args.tokenizer,
+            require_audit_passed=not args.allow_failed_audit,
+        )
+        print(
+            json.dumps(
+                {
+                    "examples": result["total_examples"],
+                    "tokens": result["total_tokens"],
+                    "supervised_tokens": result["total_supervised_tokens"],
+                    "quality_status": result["quality_status"],
+                },
+                indent=2,
             )
         )
     elif args.command == "tokenize-instruct":

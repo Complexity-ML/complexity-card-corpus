@@ -177,6 +177,9 @@ _STATE_BOUNDARIES = {
         "Risk is plausible here even though the available facts do not fix its severity.",
         "Caution is warranted while the timing and severity remain uncertain.",
         "The possibility of harm is supported, but the report does not establish how urgent it is.",
+        "The information warrants care without showing how quickly the risk may develop.",
+        "A hazard remains plausible, although the report cannot establish its immediacy.",
+        "Protective caution is justified while the urgency remains unresolved.",
     ),
     "The request is ambiguous but could create meaningful harm.": (
         "The ambiguity does not remove the possibility of meaningful harm.",
@@ -326,7 +329,11 @@ def safety_reservoir(
             )
         },
         "label": {
-            "protective_action": ("Immediate action", "Protective step", "First safeguard"),
+            "protective_action": (
+                "Immediate action",
+                "Protective step",
+                "First safeguard",
+            ),
             "boundary": ("Boundary", "Safety boundary", "Verification limit"),
             "escalation": ("Escalation", "Trusted channel", "Next contact"),
         },

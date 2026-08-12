@@ -178,8 +178,7 @@ def _audit_model_facing_style(records: list[dict[str, Any]]) -> dict[str, Any]:
         ):
             prefix_failures.append(task)
         stem_shares = {
-            stem: count / total if total else 0.0
-            for stem, count in stems.items()
+            stem: count / total if total else 0.0 for stem, count in stems.items()
         }
         if any(
             share > TRAIN_QUALITY_MAX_STYLE_PREFIX_SHARE
@@ -194,8 +193,7 @@ def _audit_model_facing_style(records: list[dict[str, Any]]) -> dict[str, Any]:
             "structured_prose_exempt": structured_prose_exempt,
             "forbidden_meta_stem_counts": dict(sorted(stems.items())),
             "forbidden_meta_stem_shares": {
-                stem: round(share, 6)
-                for stem, share in sorted(stem_shares.items())
+                stem: round(share, 6) for stem, share in sorted(stem_shares.items())
             },
         }
     checks = {
@@ -349,9 +347,49 @@ def _encode_messages(
     return full_ids[:-1], target_labels[1:], cards
 
 
+def _projected_records(
+    grouped: dict[str, list[dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    """Materialize the durable boundary between projection and later phases."""
+
+    return [
+        {
+            "example_id": row["example_id"],
+            "task": row["task"],
+            "mode": row["mode"],
+            "difficulty": projected_difficulty(
+                row["_conditioning_cards"],
+                row["_projected_messages"],
+            ),
+            "domain": row["domain"],
+            "language": row["language"],
+            "split": "validation" if partition == "eval" else partition,
+            "messages": row["_projected_messages"],
+            "prompt": row["_projected_prompt"],
+            "response": row["_projected_target"],
+            **_reasoning_projection_fields(row),
+            "structure_signature": row["_structure_signature"],
+            "response_card_hand": (
+                row["_conditioning_cards"].response_structure_signature
+            ),
+            "conditioning_cards_json": json.dumps(
+                row["_conditioning_cards"].as_dict(),
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            "source_representation": row["_source_representation"],
+            "source": row["source"],
+            "license": row["license"],
+            "version": row["version"],
+        }
+        for partition, partition_rows in sorted(grouped.items())
+        for row in partition_rows
+    ]
+
+
 def tokenize_instruction_dataset(
     instructions_path: Path,
-    tokenizer_root: Path,
+    tokenizer_root: Path | None,
     output_root: Path,
     heldout_evaluation_path: Path | None = None,
     supplementary_instruction_paths: list[Path] | None = None,
@@ -365,6 +403,7 @@ def tokenize_instruction_dataset(
     target_supervised_tokens: int | None = None,
     require_casual_conversation: bool = True,
     reasoning_envelope_version: str | None = None,
+    projection_only: bool = False,
 ) -> dict[str, Any]:
     """Project and tokenize SFT data without hidden scale-dependent truncation.
 
@@ -380,14 +419,20 @@ def tokenize_instruction_dataset(
         raise ValueError(
             f"unsupported reasoning envelope version: {reasoning_envelope_version}"
         )
-    encoding, tokenizer_config = load_encoding(tokenizer_root)
-    eos_token = tokenizer_config.get("eos_token", "<|endoftext|>")
-    try:
-        eos_id = encoding.encode_single_token(eos_token)
-    except KeyError:
-        eos_id = encoding.eot_token
     chat_template = chat_template_contract()
-    chat_template["eos_token"] = eos_token
+    encoding = None
+    tokenizer_config = None
+    eos_id = None
+    if not projection_only:
+        if tokenizer_root is None:
+            raise ValueError("tokenizer_root is required for tokenization")
+        encoding, tokenizer_config = load_encoding(tokenizer_root)
+        eos_token = tokenizer_config.get("eos_token", "<|endoftext|>")
+        try:
+            eos_id = encoding.encode_single_token(eos_token)
+        except KeyError:
+            eos_id = encoding.eot_token
+        chat_template["eos_token"] = eos_token
     source_rows, instruction_sources, instruction_sources_sha256 = (
         _load_instruction_sources(
             instructions_path,
@@ -405,13 +450,10 @@ def tokenize_instruction_dataset(
             validation_percent=5,
         )
         existing_ids = {row["example_id"] for row in source_rows}
-        duplicate_ids = existing_ids & {
-            row["example_id"] for row in casual_rows
-        }
+        duplicate_ids = existing_ids & {row["example_id"] for row in casual_rows}
         if duplicate_ids:
             raise ValueError(
-                "native casual family duplicates instruction id: "
-                + min(duplicate_ids)
+                "native casual family duplicates instruction id: " + min(duplicate_ids)
             )
         source_rows.extend(casual_rows)
         source_rows.sort(key=lambda row: row["example_id"])
@@ -461,7 +503,9 @@ def tokenize_instruction_dataset(
     )
     for row in projected_rows:
         row["_source_representation"] = (
-            "card_hand" if _card_sections(row["messages"]) is not None else "conversation"
+            "card_hand"
+            if _card_sections(row["messages"]) is not None
+            else "conversation"
         )
         del row["messages"]
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -552,9 +596,7 @@ def tokenize_instruction_dataset(
     phrase_balancer = SurfaceVariationBalancer()
     rewritten_train = grouped.get("train", [])
     for batch_start in range(0, len(rewritten_train), SURFACE_REWRITE_BATCH_SIZE):
-        batch = rewritten_train[
-            batch_start : batch_start + SURFACE_REWRITE_BATCH_SIZE
-        ]
+        batch = rewritten_train[batch_start : batch_start + SURFACE_REWRITE_BATCH_SIZE]
         for row in batch:
             # Independently authored conversations are already model-facing
             # prose. Phrase balancing is for generated card hands; applying it
@@ -597,8 +639,8 @@ def tokenize_instruction_dataset(
     rewritten_train, post_variation_response_deduplication = (
         _deduplicate_exact_responses(rewritten_train)
     )
-    rewritten_train, post_variation_prompt_deduplication = (
-        _deduplicate_exact_prompts(rewritten_train)
+    rewritten_train, post_variation_prompt_deduplication = _deduplicate_exact_prompts(
+        rewritten_train
     )
     grouped["train"] = rewritten_train
     surface_selection["phrase_variation"] = phrase_balancer.audit()
@@ -608,6 +650,79 @@ def tokenize_instruction_dataset(
     surface_selection["post_variation_exact_prompt_deduplication"] = (
         post_variation_prompt_deduplication
     )
+
+    if projection_only:
+        temporary = output_root.with_name(f"{output_root.name}.partial")
+        if temporary.exists():
+            shutil.rmtree(temporary)
+        temporary.mkdir(parents=True)
+        chat_template_path = temporary / "chat_template.json"
+        chat_template_path.write_text(
+            json.dumps(chat_template, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        projected_records = _projected_records(grouped)
+        projected_path = temporary / "projected.parquet"
+        pq.write_table(
+            pa.Table.from_pylist(projected_records, schema=PROJECTED_SFT_SCHEMA),
+            projected_path,
+            compression="zstd",
+            use_dictionary=True,
+            write_statistics=True,
+        )
+        projection_manifest = {
+            "format": "complexity-sft-projection-v1",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "phase": "projection",
+            "phase_status": "passed",
+            "quality_status": "not_run",
+            "chat_template_id": CHAT_TEMPLATE_ID,
+            "chat_template_sha256": file_sha256(chat_template_path),
+            "instruction_sources": instruction_sources,
+            "instruction_sources_sha256": instruction_sources_sha256,
+            "surface_selection": surface_selection,
+            "exact_response_deduplication": exact_deduplication,
+            "exact_prompt_deduplication": exact_prompt_deduplication,
+            "family_balance": family_balance,
+            "domain_balance": domain_balance,
+            "response_card_balance": response_card_balance,
+            "structural_deduplication": deduplication,
+            "heldout_evaluation": (
+                {
+                    "path": str(heldout_evaluation_path),
+                    "sha256": evaluation_sha256,
+                    "method": (
+                        "separately_authored_gold_with_diagnostic_companion"
+                        if "source_separated_diagnostic" in evaluation_provenance
+                        else next(iter(evaluation_provenance))
+                    ),
+                    "provenance_counts": evaluation_provenance,
+                }
+                if heldout_evaluation_path is not None
+                else None
+            ),
+            "require_casual_conversation": require_casual_conversation,
+            "reasoning_envelope_version": reasoning_envelope_version,
+            "target_training_examples": target_training_examples,
+            "target_supervised_tokens": target_supervised_tokens,
+            "projected_parquet": {
+                "path": projected_path.name,
+                "examples": len(projected_records),
+                "bytes": projected_path.stat().st_size,
+                "sha256": file_sha256(projected_path),
+                "splits": dict(
+                    sorted(Counter(row["split"] for row in projected_records).items())
+                ),
+            },
+        }
+        (temporary / "projection-manifest.json").write_text(
+            json.dumps(projection_manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        if output_root.exists():
+            shutil.rmtree(output_root)
+        temporary.replace(output_root)
+        return projection_manifest
 
     projection_audit = _audit_sft_projection(
         [row for rows in grouped.values() for row in rows]
@@ -664,36 +779,7 @@ def tokenize_instruction_dataset(
         encoding="utf-8",
     )
 
-    projected_records = [
-        {
-            "example_id": row["example_id"],
-            "task": row["task"],
-            "mode": row["mode"],
-            "difficulty": projected_difficulty(
-                row["_conditioning_cards"],
-                row["_projected_messages"],
-            ),
-            "domain": row["domain"],
-            "language": row["language"],
-            "split": "validation" if partition == "eval" else partition,
-            "messages": row["_projected_messages"],
-            "prompt": row["_projected_prompt"],
-            "response": row["_projected_target"],
-            **_reasoning_projection_fields(row),
-            "structure_signature": row["_structure_signature"],
-            "response_card_hand": row[
-                "_conditioning_cards"
-            ].response_structure_signature,
-            "source_representation": (
-                row["_source_representation"]
-            ),
-            "source": row["source"],
-            "license": row["license"],
-            "version": row["version"],
-        }
-        for partition, partition_rows in sorted(grouped.items())
-        for row in partition_rows
-    ]
+    projected_records = _projected_records(grouped)
     casual_conversation_quality = audit_casual_conversation_quality(projected_records)
     model_facing_style_quality = _audit_model_facing_style(projected_records)
     model_facing_repetition_quality = audit_sft_repetition_quality(
@@ -951,9 +1037,7 @@ def tokenize_instruction_dataset(
             axes = hand.split("|")
             if len(axes) != 4:
                 raise ValueError(f"invalid response-card hand signature: {hand!r}")
-            for omitted, name in enumerate(
-                ("order", "bridge", "layout", "opening")
-            ):
+            for omitted, name in enumerate(("order", "bridge", "layout", "opening")):
                 sibling = "|".join(
                     value for index, value in enumerate(axes) if index != omitted
                 )
@@ -993,9 +1077,7 @@ def tokenize_instruction_dataset(
             difficulty_counts.get("easy", 0) / train_count if train_count else 0.0
         )
         >= 0.20,
-        "multi_turn_share_between_10_and_30_percent": 0.10
-        <= multi_turn_share
-        <= 0.30,
+        "multi_turn_share_between_10_and_30_percent": 0.10 <= multi_turn_share <= 0.30,
         "four_response_length_bands_each_at_least_5_percent": all(
             count / train_count >= 0.05 if train_count else False
             for count in response_length_bands.values()
@@ -1008,19 +1090,15 @@ def tokenize_instruction_dataset(
             maximum_card_hand_share <= TRAIN_QUALITY_MAX_RESPONSE_CARD_HAND_SHARE
         ),
         "maximum_response_card_sibling_share_at_most_5_percent": (
-            maximum_card_sibling_share
-            <= TRAIN_QUALITY_MAX_RESPONSE_CARD_HAND_SHARE
+            maximum_card_sibling_share <= TRAIN_QUALITY_MAX_RESPONSE_CARD_HAND_SHARE
         ),
-        "sklearn_statistical_quality_audit_passed": statistical_quality_audit[
-            "passed"
-        ],
+        "sklearn_statistical_quality_audit_passed": statistical_quality_audit["passed"],
         "model_facing_style_repetition_audit_passed": (
             model_facing_style_quality["passed"]
         ),
         "all_fourteen_core_families_have_multiscale_repetition_metrics": (
             len(core_family_counts) == 14
-            and set(core_family_counts)
-            <= set(model_facing_repetition_quality["tasks"])
+            and set(core_family_counts) <= set(model_facing_repetition_quality["tasks"])
             and all(
                 model_facing_repetition_quality["tasks"][task]["audited"]
                 for task in core_family_counts
@@ -1030,8 +1108,7 @@ def tokenize_instruction_dataset(
             model_facing_repetition_quality["supervised_passed"]
         ),
         "authored_conversation_share_at_least_5_percent": (
-            authored_conversation_share
-            >= TRAIN_QUALITY_MIN_AUTHORED_CONVERSATION_SHARE
+            authored_conversation_share >= TRAIN_QUALITY_MIN_AUTHORED_CONVERSATION_SHARE
         ),
         "heldout_evaluation_has_at_least_28_authored_examples": (
             manifests.get("eval", {}).get("examples", 0) >= 28
@@ -1071,8 +1148,7 @@ def tokenize_instruction_dataset(
         "train_family_counts": train_family_counts,
         "train_family_shares": family_shares,
         "core_train_family_shares": {
-            task: round(share, 6)
-            for task, share in sorted(core_family_shares.items())
+            task: round(share, 6) for task, share in sorted(core_family_shares.items())
         },
         "required_casual_conversation": require_casual_conversation,
         "reasoning_envelope_version": reasoning_envelope_version,
@@ -1090,9 +1166,7 @@ def tokenize_instruction_dataset(
             task: len(counts) for task, counts in sorted(card_hands_by_task.items())
         },
         "maximum_response_card_hand_share": round(maximum_card_hand_share, 6),
-        "maximum_response_card_sibling_share": round(
-            maximum_card_sibling_share, 6
-        ),
+        "maximum_response_card_sibling_share": round(maximum_card_sibling_share, 6),
         "response_card_sibling_neighbourhoods_by_family": {
             task: {
                 dimension: {

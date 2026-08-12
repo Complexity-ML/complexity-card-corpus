@@ -669,15 +669,34 @@ uv run card-corpus tokenize \
   --tokenizer /path/to/tokenizer-o200k \
   --output build/tokenized/o200k
 
-uv run card-corpus tokenize-instruct \
+uv run card-corpus project-instruct \
   --instructions build/post-training/conversations.parquet \
   --supplement build/conversation-surface-10k/conversations.parquet \
-  --tokenizer /path/to/tokenizer-32k \
   --heldout-evaluation data/evaluation/generalist-heldout-v2.json \
   --reasoning-envelope-version v18 \
   --workers 8 \
   --output build/post-training-v18
+
+uv run card-corpus audit-projected-sft \
+  --artifact build/post-training-v18 \
+  --workers 8
+
+uv run card-corpus tokenize-projected-sft \
+  --artifact build/post-training-v18 \
+  --tokenizer /path/to/tokenizer-32k
 ```
+
+The SFT release is deliberately split into resumable phases. Projection writes
+`projected.parquet` and `projection-manifest.json` with
+`quality_status: not_run`; it does not run the sklearn, style, repetition, or
+release audits and does not tokenize. Auditing reads that exact Parquet and
+writes `audit-manifest.json` with `passed` or `failed`. Tokenization reads the
+same audited Parquet, writes only the binary shards and final `manifest.json`,
+and never invokes a quality audit. It refuses a missing or failed audit by
+default; `--allow-failed-audit` is reserved for diagnostic builds whose final
+manifest remains not ready. Packaging and publication remain separate. The
+legacy `tokenize-instruct` command is kept as an all-in-one compatibility
+orchestrator for CI, not as the recommended iterative workflow.
 
 V18 provides nested VariableBy2D think/final decks for five reasoning
 families. It renders `<think>...</think><final>...</final>` only for the three

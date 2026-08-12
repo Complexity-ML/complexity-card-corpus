@@ -67,6 +67,7 @@ PROJECTED_SFT_SCHEMA = pa.schema(
         ("reasoning_card_hand", pa.string()),
         ("structure_signature", pa.string()),
         ("response_card_hand", pa.string()),
+        ("conditioning_cards_json", pa.string()),
         ("source_representation", pa.string()),
         ("source", pa.string()),
         ("license", pa.string()),

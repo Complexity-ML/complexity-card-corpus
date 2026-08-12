@@ -11,11 +11,16 @@ import pyarrow.parquet as pq
 import pytest
 
 import complexity_card_corpus.sft.surface_variation as surface_variation_module
+import complexity_card_corpus.sft.phases as sft_phases_module
+import complexity_card_corpus.sft.tokenization as tokenization_module
 from complexity_card_corpus.build import CARD_SCHEMA, DOCUMENT_SCHEMA, RELATION_SCHEMA
 from complexity_card_corpus.sft import (
     IGNORE_INDEX,
+    audit_projected_instruction_dataset,
+    project_instruction_dataset,
     build_instruction_dataset,
     load_heldout_evaluation,
+    tokenize_projected_instruction_dataset,
     tokenize_instruction_dataset,
 )
 from complexity_card_corpus.sft.schema import INSTRUCTION_SCHEMA
@@ -335,22 +340,21 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
     assert manifest["release_quality"]["checks"]["no_exact_duplicate_train_prompts"]
     assert manifest["release_quality"]["exact_train_response_uniqueness_ratio"] == 1.0
     assert (
-        manifest["surface_selection"][
-            "post_variation_exact_response_deduplication"
-        ]["exact_response_uniqueness_ratio"]
+        manifest["surface_selection"]["post_variation_exact_response_deduplication"][
+            "exact_response_uniqueness_ratio"
+        ]
         == 1.0
     )
     assert (
-        manifest["surface_selection"][
-            "post_variation_exact_prompt_deduplication"
-        ]["exact_prompt_uniqueness_ratio"]
+        manifest["surface_selection"]["post_variation_exact_prompt_deduplication"][
+            "exact_prompt_uniqueness_ratio"
+        ]
         == 1.0
     )
     assert manifest["release_quality"]["target_training_examples"] is None
     assert manifest["release_quality"]["target_supervised_training_tokens"] is None
     assert not any(
-        "requested_target" in check
-        for check in manifest["release_quality"]["checks"]
+        "requested_target" in check for check in manifest["release_quality"]["checks"]
     )
     assert (
         "at_least_fourteen_training_families" in manifest["release_quality"]["checks"]
@@ -428,15 +432,17 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
                 local_labels[:-1][local_supervised],
             )
             supervised_mask = local_labels != IGNORE_INDEX
-            boundaries = np.diff(
-                np.pad(supervised_mask.astype(np.int8), (1, 1))
-            )
+            boundaries = np.diff(np.pad(supervised_mask.astype(np.int8), (1, 1)))
             supervised_starts = np.flatnonzero(boundaries == 1)
             supervised_ends = np.flatnonzero(boundaries == -1)
             source = source_rows[example["example_id"]]
-            assert len(supervised_starts) == len(supervised_ends) == sum(
-                message["role"] == "assistant"
-                for message in row_by_id[example["example_id"]]["messages"]
+            assert (
+                len(supervised_starts)
+                == len(supervised_ends)
+                == sum(
+                    message["role"] == "assistant"
+                    for message in row_by_id[example["example_id"]]["messages"]
+                )
             )
             for run_start, run_end in zip(
                 supervised_starts,
@@ -525,6 +531,77 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
     assert "/Users/" not in (tmp_path / "hf/manifest.json").read_text()
 
 
+def test_sft_projection_and_tokenization_are_resumable_phases(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tokenizer = Path("/Users/boris/Dev/complexity-framework/tokenizer")
+    if not tokenizer.exists():
+        return
+    corpus = tmp_path / "corpus"
+    _tiny_corpus(corpus)
+    build_instruction_dataset(corpus, tmp_path / "instructions")
+
+    def unexpected_audit(*args: object, **kwargs: object) -> None:
+        raise AssertionError("projection phase invoked a quality audit")
+
+    monkeypatch.setattr(tokenization_module, "_audit_sft_projection", unexpected_audit)
+    monkeypatch.setattr(tokenization_module, "audit_rows_quality", unexpected_audit)
+    artifact = tmp_path / "phased"
+    projection = project_instruction_dataset(
+        tmp_path / "instructions/instructions.parquet",
+        artifact,
+        casual_registry_path=None,
+        require_casual_conversation=False,
+    )
+    assert projection["phase"] == "projection"
+    assert projection["phase_status"] == "passed"
+    assert projection["quality_status"] == "not_run"
+    assert (artifact / "projected.parquet").exists()
+    assert not (artifact / "audit-manifest.json").exists()
+    assert not (artifact / "train/input_ids.bin").exists()
+
+    def tokenization_must_not_audit(*args: object, **kwargs: object) -> None:
+        raise AssertionError("tokenization phase invoked a quality audit")
+
+    monkeypatch.setattr(
+        sft_phases_module, "audit_rows_quality", tokenization_must_not_audit
+    )
+    tokenized = tokenize_projected_instruction_dataset(
+        artifact,
+        tokenizer,
+        require_audit_passed=False,
+    )
+    assert tokenized["phase"] == "tokenization"
+    assert tokenized["phase_status"] == "passed"
+    assert tokenized["quality_status"] == "not_run"
+    assert tokenized["total_examples"] == projection["projected_parquet"]["examples"]
+    assert (artifact / "train/input_ids.bin").exists()
+
+
+def test_sft_audit_phase_consumes_existing_projection(tmp_path: Path) -> None:
+    corpus = tmp_path / "corpus"
+    _tiny_corpus(corpus)
+    build_instruction_dataset(corpus, tmp_path / "instructions")
+    artifact = tmp_path / "phased"
+    projection = project_instruction_dataset(
+        tmp_path / "instructions/instructions.parquet",
+        artifact,
+        casual_registry_path=None,
+        require_casual_conversation=False,
+    )
+
+    audit = audit_projected_instruction_dataset(artifact)
+
+    assert audit["phase"] == "audit"
+    assert audit["phase_status"] in {"passed", "failed"}
+    assert audit["quality_status"] in {"passed", "failed"}
+    assert (
+        audit["projected_parquet_sha256"] == projection["projected_parquet"]["sha256"]
+    )
+    assert (artifact / "audit-manifest.json").exists()
+
+
 def test_sft_target_naturalization_removes_contract_labels() -> None:
     cards = TrainingCards(
         surface="conversational",
@@ -601,7 +678,9 @@ def test_reasoning_target_removes_field_separators_and_nested_check_frames() -> 
     assert "1800 / 36 = 50" in target
 
 
-def test_compact_reasoning_target_keeps_equation_total_and_check_under_25_words() -> None:
+def test_compact_reasoning_target_keeps_equation_total_and_check_under_25_words() -> (
+    None
+):
     cards = TrainingCards(
         surface="direct",
         dialogue_state="new_request",
@@ -1008,8 +1087,7 @@ def test_extraction_projection_canonicalizes_json_key_casing_recursively() -> No
             {
                 "role": "assistant",
                 "content": (
-                    '{"Record_id":"A1","Environment":"iOS",'
-                    '"Nested":{"Name":"Rin"}}'
+                    '{"Record_id":"A1","Environment":"iOS","Nested":{"Name":"Rin"}}'
                 ),
             },
         ],
@@ -1022,9 +1100,7 @@ def test_extraction_projection_canonicalizes_json_key_casing_recursively() -> No
         "environment": "iOS",
         "nested": {"name": "Rin"},
     }
-    assert answer == (
-        '{"record_id":"A1","environment":"iOS","nested":{"name":"Rin"}}'
-    )
+    assert answer == ('{"record_id":"A1","environment":"iOS","nested":{"name":"Rin"}}')
 
 
 def test_brainstorm_projection_preserves_content_after_comparison() -> None:
@@ -1085,9 +1161,7 @@ def test_brainstorm_projection_removes_domain_specific_feasibility_rubric(
 
     assert "remain feasible under the stated limits" not in target.lower()
     assert "The alternatives emphasize different strengths." in target
-    assert target.endswith(
-        "Select Shared table because it is easiest to test."
-    )
+    assert target.endswith("Select Shared table because it is easiest to test.")
     _audit_sft_projection(
         [
             {
@@ -1209,9 +1283,7 @@ def test_structural_deduplication_preserves_the_same_shape_across_domains() -> N
 
     assert [row["example_id"] for row in kept] == ["finance", "travel"]
     assert audit["dropped_structural_duplicates"] == 0
-    assert audit["structural_deduplication_unit"] == (
-        "task+domain+response_structure"
-    )
+    assert audit["structural_deduplication_unit"] == ("task+domain+response_structure")
 
 
 def test_structural_deduplication_allows_a_schema_specific_limit() -> None:
@@ -1733,13 +1805,8 @@ def test_surface_selection_balances_existing_hands_without_new_card_axes() -> No
     )
     assert len(hands) == 32
     assert max(hands.values()) == 4
-    assert audit["method"] == (
-        "least_used_response_hand_and_sibling_neighbourhood"
-    )
-    assert (
-        audit["tasks"]["grounded_qa"]["maximum_selected_sibling_share"]
-        <= 0.05
-    )
+    assert audit["method"] == ("least_used_response_hand_and_sibling_neighbourhood")
+    assert audit["tasks"]["grounded_qa"]["maximum_selected_sibling_share"] <= 0.05
     assert audit["new_card_axes"] == 0
 
 
@@ -1825,8 +1892,7 @@ def test_critique_surface_openings_preserve_three_sentence_contract() -> None:
     ]
 
     assert all(
-        len(re.findall(r"[^.!?]+[.!?](?:\s|$)", text)) == 3
-        for text in generated
+        len(re.findall(r"[^.!?]+[.!?](?:\s|$)", text)) == 3 for text in generated
     )
 
 
@@ -2537,12 +2603,15 @@ def test_generic_answer_development_is_disabled_for_every_family() -> None:
     )
     for task in tasks:
         answer = "Paris is the capital of France."
-        assert develop_answer(
-            answer,
-            task=task,
-            metadata={"subject": "France"},
-            example_id=f"development:{task}",
-        ) == answer
+        assert (
+            develop_answer(
+                answer,
+                task=task,
+                metadata={"subject": "France"},
+                example_id=f"development:{task}",
+            )
+            == answer
+        )
 
 
 @pytest.mark.parametrize(
@@ -2587,10 +2656,7 @@ def test_model_facing_style_audit_detects_repeated_sentence_scaffolds() -> None:
     assert audit["passed"] is False
     assert audit["prefix_failure_tasks"] == ["explanation_learning"]
     assert (
-        audit["tasks"]["explanation_learning"][
-            "maximum_six_word_prefix_share"
-        ]
-        == 1.0
+        audit["tasks"]["explanation_learning"]["maximum_six_word_prefix_share"] == 1.0
     )
 
 
@@ -2747,8 +2813,7 @@ def test_tokenization_replaces_generated_validation_with_heldout(
     )
     assert manifest["release_quality"]["required_casual_conversation"] is True
     assert (
-        manifest["release_quality"]["checks"]["casual_conversation_is_present"]
-        is False
+        manifest["release_quality"]["checks"]["casual_conversation_is_present"] is False
     )
     assert manifest["casual_conversation_quality"]["present"] is False
     assert manifest["partitions"]["eval"]["examples"] == 28
