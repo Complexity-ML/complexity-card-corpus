@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..variable_by import reasoning_envelope_variable_by
+from ..variable_by.reservoirs import planning_constraint_surfaces
 from .language import _labelled_fields
 
 
@@ -36,6 +37,22 @@ _ENVELOPE = re.compile(
 )
 _SENTENCE = re.compile(r"(?<=[.!?])\s+")
 _NUMBER = re.compile(r"\d+(?:[.,/]\d+)*")
+
+
+def _number_values(text: str) -> set[str]:
+    """Return comparable numeric values, including fraction components.
+
+    A fraction such as ``204/1008`` establishes both 204 and 1008. Treating
+    the complete fraction as one opaque token made a final phrasing such as
+    ``204 outcomes out of 1008`` look unsupported even though both values
+    were explicitly present in the reasoning.
+    """
+
+    return {
+        component
+        for matched in _NUMBER.findall(text)
+        for component in matched.split("/")
+    }
 
 
 @dataclass(frozen=True)
@@ -152,19 +169,10 @@ def _reasoning_parts(
 ) -> tuple[str, str, tuple[str, ...]]:
     fields = _labelled_fields(_without_hand(source), ("Equation", "Total", "Check"))
     if set(fields) == {"Equation", "Total", "Check"}:
-        equation = re.sub(
-            r"^(?:using the supplied values,\s*|the direct calculation is\s+|"
-            r"represent the required operation as\s+|evaluating the quantities gives\s+|"
-            r"the numerical relation is\s+|mapping each supplied quantity to its role gives\s+|"
-            r"following the stated order of operations yields\s+|"
-            r"the quantities combine in this form:\s*|"
-            r"a direct numerical model of the prompt is\s+)",
-            "",
-            fields["Equation"],
-            flags=re.IGNORECASE,
-        )
+        equation = fields["Equation"]
         check = re.sub(
-            r"^(?:independently,\s*|a second view confirms that\s*|"
+            r"^(?:independently,\s*|inspect the supplied values, then note that\s*|"
+            r"use a second view of the values;\s*|a second view confirms that\s*|"
             r"verify the result by noting that\s*|"
             r"reversing or decomposing the operation shows that\s*|"
             r"an independent reconstruction confirms that\s*|"
@@ -177,14 +185,25 @@ def _reasoning_parts(
         equation = _sentence(equation)
         check = _sentence(check)
         total = _clean_total(fields["Total"])
-        finals = (
-            _sentence(f"The result is {total}"),
-            _sentence(f"The answer is {total}"),
-            _sentence(f"Therefore, the result is {total}"),
-            _sentence(f"This gives {total}"),
-            _sentence(f"The computed value is {total}"),
-            _sentence(f"The supplied values produce {total}"),
+        final_patterns = (
+            "The result is {total}", "{total} answers the calculation directly",
+            "Therefore, the result is {total}", "This gives {total}",
+            "{total} is the computed value", "The supplied values produce {total}",
+            "The required quantity is {total}", "Calculation yields {total}",
+            "The evaluated total comes to {total}", "So the requested value is {total}",
+            "The resulting amount equals {total}", "{total} is the numerical answer",
+            "Completing the operation gives {total}", "{total} is the final quantity",
+            "From these values, {total} is the outcome", "The calculation resolves to {total}",
+            "{total} is the supported total", "Altogether, this produces {total}",
+            "The requested computation returns {total}", "{total} is the resulting value",
+            "After evaluation, {total} answers the question", "The figures establish {total}",
+            "The operation produces a total of {total}", "{total} is the final evaluated result",
+            "Direct evaluation returns {total}", "{total} follows from the supplied operation",
+            "The requested computation gives {total}", "{total} completes the calculation",
+            "Evaluating the relation produces {total}", "{total} is established by the figures",
+            "The quantities combine to give {total}", "{total} is the supported outcome",
         )
+        finals = tuple(_sentence(pattern.format(total=total)) for pattern in final_patterns)
         return equation, check, finals
     parts = _sentences(final)
     first = parts[0] if parts else final
@@ -230,6 +249,14 @@ def _planning_parts(
     choice = head[choice_start:].strip() if choice_start is not None else head
     criteria = head[:choice_start].strip() if choice_start is not None else head
     constraint = str(metadata.get("constraint") or metadata.get("source_constraint") or "the hard limits")
+    constraint_surfaces = planning_constraint_surfaces(constraint)
+    constraint = constraint_surfaces[
+        int.from_bytes(
+            hashlib.sha256(f"planning-boundary:{source}".encode()).digest()[:8],
+            "big",
+        )
+        % len(constraint_surfaces)
+    ]
     option_match = re.fullmatch(
         r"(?:Choose A:\s*(.*?)|Choose Option A,\s*(.*?),\s*as the compliant candidate|"
         r"Choose the viable option, A:\s*(.*?))\.?",
@@ -273,7 +300,7 @@ def _planning_parts(
     fallback_analysis, _fallback_verification = _fallback_analysis(metadata)
     return (
         _sentence(criteria) or fallback_analysis,
-        _sentence(f"A separate boundary remains: {constraint.rstrip('.')}"),
+        _sentence(constraint),
         final_variants,
     )
 
@@ -329,7 +356,6 @@ def _critique_parts(
 def _troubleshooting_parts(
     source: str, final: str, metadata: dict[str, Any]
 ) -> tuple[str, str, tuple[str, ...]]:
-    analysis, verification = _fallback_analysis(metadata)
     steps = [
         match.group(1).strip()
         for match in re.finditer(
@@ -340,6 +366,24 @@ def _troubleshooting_parts(
     ]
     if not steps:
         steps = _sentences(final)
+    fallback_analysis, fallback_verification = _fallback_analysis(metadata)
+    analysis = _sentence(
+        steps[1] if len(steps) > 1 else (steps[0] if steps else fallback_analysis)
+    )
+    verification_candidates = [
+        sentence
+        for sentence in _sentences(final)
+        if re.search(
+            r"\b(?:direct|regression|verify|checks?|baseline|control)\b",
+            sentence,
+            re.IGNORECASE,
+        )
+    ]
+    verification = _sentence(
+        verification_candidates[-1]
+        if verification_candidates
+        else fallback_verification
+    )
     return analysis, verification, _layout_variants(steps)
 
 
@@ -423,6 +467,7 @@ def audit_reasoning_envelopes(
     """Validate V18 syntax, scope, length and per-family think diversity."""
 
     by_task: dict[str, list[ReasoningEnvelope]] = defaultdict(list)
+    envelope_example_ids: dict[str, list[str]] = defaultdict(list)
     invalid: list[str] = []
     unexpected: list[str] = []
     missing: list[str] = []
@@ -442,6 +487,7 @@ def audit_reasoning_envelopes(
             unexpected.append(str(row["example_id"]))
             continue
         by_task[task].append(envelope)
+        envelope_example_ids[task].append(str(row["example_id"]))
 
     task_audits: dict[str, Any] = {}
     diversity_failures: list[str] = []
@@ -449,6 +495,7 @@ def audit_reasoning_envelopes(
     generic_plan_failures: list[str] = []
     card_hand_failures: list[str] = []
     calculation_failures: list[str] = []
+    calculation_failure_examples: list[dict[str, Any]] = []
     for task, envelopes in sorted(by_task.items()):
         think_counts = Counter(envelope.think.casefold() for envelope in envelopes)
         maximum_count = max(think_counts.values(), default=0)
@@ -480,12 +527,27 @@ def audit_reasoning_envelopes(
             len(envelopes) < 100
             or maximum_hand_share <= maximum_exact_think_share
         )
-        calculation_ok = task != "reasoning_verification" or all(
-            set(_NUMBER.findall(envelope.final)).issubset(
-                set(_NUMBER.findall(envelope.think))
-            )
-            for envelope in envelopes
-        )
+        calculation_ok = True
+        if task == "reasoning_verification":
+            for example_id, envelope in zip(
+                envelope_example_ids[task], envelopes, strict=True
+            ):
+                missing_numbers = sorted(
+                    _number_values(envelope.final)
+                    - _number_values(envelope.think)
+                )
+                if not missing_numbers:
+                    continue
+                calculation_ok = False
+                if len(calculation_failure_examples) < 20:
+                    calculation_failure_examples.append(
+                        {
+                            "example_id": example_id,
+                            "missing_numbers": missing_numbers,
+                            "think": envelope.think,
+                            "final": envelope.final,
+                        }
+                    )
         if not length_ok:
             length_failures.append(task)
         if not diversity_ok:
@@ -539,6 +601,7 @@ def audit_reasoning_envelopes(
         "invalid_examples": invalid[:20],
         "unexpected_examples": unexpected[:20],
         "missing_examples": missing[:20],
+        "calculation_failure_examples": calculation_failure_examples,
         "checks": checks,
         "passed": all(checks.values()),
     }

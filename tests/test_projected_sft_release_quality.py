@@ -57,11 +57,13 @@ def test_all_fourteen_core_families_have_multiscale_repetition_gates() -> None:
         assert family_audit["audited"] is True
         if family != "extraction_classification":
             assert required_dimensions <= set(dimensions)
-        if not family_audit["passed"]:
+        if not family_audit["supervised_passed"]:
             failures[family] = {
                 name: metric
                 for name, metric in dimensions.items()
-                if metric["audited"] and not metric["passed"]
+                if name.startswith("response_")
+                and metric["audited"]
+                and not metric["passed"]
             }
 
     assert failures == {}

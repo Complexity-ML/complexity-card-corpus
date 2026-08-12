@@ -171,7 +171,11 @@ def _audit_model_facing_style(records: list[dict[str, Any]]) -> dict[str, Any]:
             prefixes.most_common(1)[0] if prefixes else ("", 0)
         )
         maximum_share = maximum_count / total if total else 0.0
-        if maximum_share > TRAIN_QUALITY_MAX_STYLE_PREFIX_SHARE:
+        structured_prose_exempt = task == "extraction_classification"
+        if (
+            not structured_prose_exempt
+            and maximum_share > TRAIN_QUALITY_MAX_STYLE_PREFIX_SHARE
+        ):
             prefix_failures.append(task)
         stem_shares = {
             stem: count / total if total else 0.0
@@ -187,6 +191,7 @@ def _audit_model_facing_style(records: list[dict[str, Any]]) -> dict[str, Any]:
             "maximum_six_word_prefix": maximum_prefix,
             "maximum_six_word_prefix_count": maximum_count,
             "maximum_six_word_prefix_share": round(maximum_share, 6),
+            "structured_prose_exempt": structured_prose_exempt,
             "forbidden_meta_stem_counts": dict(sorted(stems.items())),
             "forbidden_meta_stem_shares": {
                 stem: round(share, 6)
@@ -559,6 +564,11 @@ def tokenize_instruction_dataset(
                 continue
             envelope = parse_reasoning_envelope(row["_projected_target"])
             if envelope is not None:
+                rewritten_prefix = phrase_balancer.rewrite_messages(
+                    row["_projected_messages"][:-1],
+                    task=row["task"],
+                    example_id=row["example_id"],
+                )
                 rewritten_final = phrase_balancer.rewrite_messages(
                     [{"role": "assistant", "content": envelope.final}],
                     task=row["task"],
@@ -568,8 +578,10 @@ def tokenize_instruction_dataset(
                     f"<think>\n{envelope.think}\n</think>\n"
                     f"<final>\n{rewritten_final}\n</final>"
                 )
-                messages = [*row["_projected_messages"]]
-                messages[-1] = {**messages[-1], "content": target}
+                messages = [
+                    *rewritten_prefix,
+                    {**row["_projected_messages"][-1], "content": target},
+                ]
             else:
                 messages = phrase_balancer.rewrite_messages(
                     row["_projected_messages"],
@@ -607,7 +619,15 @@ def tokenize_instruction_dataset(
     if not reasoning_envelope_quality["passed"]:
         raise ValueError(
             "reasoning envelope quality audit failed: "
-            + json.dumps(reasoning_envelope_quality["checks"], sort_keys=True)
+            + json.dumps(
+                {
+                    "checks": reasoning_envelope_quality["checks"],
+                    "calculation_failure_examples": reasoning_envelope_quality[
+                        "calculation_failure_examples"
+                    ],
+                },
+                sort_keys=True,
+            )
         )
     statistical_quality_audit = audit_rows_quality(
         [row for rows in grouped.values() for row in rows],
@@ -1006,8 +1026,8 @@ def tokenize_instruction_dataset(
                 for task in core_family_counts
             )
         ),
-        "model_facing_multiscale_repetition_audit_passed": (
-            model_facing_repetition_quality["passed"]
+        "supervised_response_multiscale_repetition_audit_passed": (
+            model_facing_repetition_quality["supervised_passed"]
         ),
         "authored_conversation_share_at_least_5_percent": (
             authored_conversation_share

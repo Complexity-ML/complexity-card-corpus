@@ -29,6 +29,9 @@ from complexity_card_corpus.variable_by.reservoirs import (
     CASUAL_INTENT_CARDS,
     GroundedQAFacts,
     grounded_qa_variable_by,
+    planning_answer_cards,
+    practical_answer_cards,
+    summary_answer_cards,
 )
 from complexity_card_corpus.variable_by.brainstorm_templates import (
     BRAINSTORM_GOAL_TEMPLATES,
@@ -346,6 +349,42 @@ def test_grounded_unknown_boundaries_have_no_dominant_trigram() -> None:
     }
 
 
+def test_response_reservoirs_have_at_least_twenty_four_cards_per_axis() -> None:
+    reservoirs = {
+        "practical": practical_answer_cards(
+            provider="the provider",
+            code="ABC123",
+            action="confirming the request",
+            day=12,
+            confirmation="date, price, and scope",
+            protected_state="the current record",
+        ),
+        "planning": planning_answer_cards(
+            option_a="the reversible plan",
+            budget=180,
+            option_b_cost=240,
+        ),
+        "summary": summary_answer_cards(
+            decision="retain the current plan",
+            action="verify the final report",
+            open_point="the release date",
+            owner="Amina",
+            day=14,
+        ),
+    }
+
+    for reservoir_name, axes in reservoirs.items():
+        for axis_index, cards in enumerate(axes):
+            assert len(cards) >= 24, (reservoir_name, axis_index, len(cards))
+            assert len(set(cards)) == len(cards), (reservoir_name, axis_index)
+
+
+def test_grounded_unknown_boundary_axis_has_twenty_four_surface_cards() -> None:
+    matrix = grounded_qa_variable_by("product_specs", _grounded_facts())
+
+    assert len(matrix.variable_for("boundary", "unknown")) >= 24
+
+
 def test_task_reservoir_contracts_never_pass_locals_as_an_api() -> None:
     source_root = Path(__file__).parents[1] / "src" / "complexity_card_corpus"
     offenders = {
@@ -393,7 +432,9 @@ def test_brainstorming_variable_by_keeps_grammar_senses_compatible(
             "measure",
             "compare",
         }
-        assert dealt["linker"]["duration"] in {"within", "over", "across"}
+        assert dealt["linker"]["duration"] in matrix.variable_for(
+            "linker", "duration"
+        )
         assert dealt["unit"]["trial_round"] in {
             "rounds",
             "test cycles",

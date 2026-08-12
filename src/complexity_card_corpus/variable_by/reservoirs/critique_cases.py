@@ -122,7 +122,12 @@ def critique_cases(facts: CritiqueFacts) -> dict[str, tuple[Any, ...]]:
     cases = {
         "email_draft": (
             f"Send the {page_count}-page {doc_qualifier} {doc_type} and its {file_count} attachments soon because everyone should know what I mean.",
-            f"the request has no recipient, deadline, or names for the {page_count}-page {doc_qualifier} {doc_type} or its {file_count} attachments",
+            (
+                f"the request has no recipient, deadline, or names for the {page_count}-page {doc_qualifier} {doc_type} or its {file_count} attachments",
+                f"the send instruction for the {doc_qualifier} {doc_type} leaves its audience, due date, and {file_count} attachment names undefined",
+                f"nobody can execute the delivery because neither who receives the {page_count}-page document nor when and which files are due is stated",
+                f"the email assumes shared context instead of identifying its recipient, timing, and attached-file set",
+            ),
             (
                 f"Please send the {page_count}-page {doc_qualifier} {doc_type} and its {file_count} attachments. First confirm the recipient, deadline, and file names.",
                 f"Confirm who should receive the {page_count}-page {doc_qualifier} {doc_type}, when it is due, and which {file_count} files belong with it. Send the document and attachments only after those details are supplied.",
@@ -137,7 +142,12 @@ def critique_cases(facts: CritiqueFacts) -> dict[str, tuple[Any, ...]]:
         ),
         "argument": (
             f"Our trial proves the {feature_qualifier} {feature_name} is always faster because {arg_success} of {arg_total} testers finished sooner.",
-            f"a universal claim about the {feature_qualifier} {feature_name} is not supported by {arg_success} successes among {arg_total} testers across {tested_system_count} configurations",
+            (
+                f"a universal claim about the {feature_qualifier} {feature_name} is not supported by {arg_success} successes among {arg_total} testers across {tested_system_count} configurations",
+                f"the trial result for {arg_success} of {arg_total} people cannot establish that the {feature_name} is faster in every setting",
+                f"the word always extrapolates beyond the {tested_system_count} configurations actually evaluated",
+                f"the evidence describes one bounded test of the {feature_qualifier} {feature_name}, not universal performance",
+            ),
             (
                 f"{arg_success} of {arg_total} testers finished sooner with the {feature_qualifier} {feature_name} in this trial. That result does not establish that it is always faster.",
                 f"In this trial, the {feature_qualifier} {feature_name} produced faster completion for {arg_success} of {arg_total} testers across {tested_system_count} configurations. The evidence supports only that observed result, not a universal speed claim.",
@@ -152,7 +162,12 @@ def critique_cases(facts: CritiqueFacts) -> dict[str, tuple[Any, ...]]:
         ),
         "project_plan": (
             f"Build the {product_area} {artifact_type} on a ${budget_amount} budget, test it, and launch in {plan_days} days.",
-            f"the ${budget_amount} plan for the {product_area} {artifact_type} gives no owner, dependency, or completion criterion",
+            (
+                f"the ${budget_amount} plan for the {product_area} {artifact_type} gives no owner, dependency, or completion criterion",
+                f"the {plan_days}-day schedule lists work without assigning responsibility or defining what finished means",
+                f"dependencies and accountable owners are missing from the proposed {product_area} launch",
+                f"the plan supplies budget and timing but no executable ownership, prerequisites, or acceptance gate",
+            ),
             (
                 f"Build and test the {product_area} {artifact_type} on its ${budget_amount} budget before the {plan_days}-day launch. Assign an owner, dependencies, completion criteria, and a launch date before execution.",
                 f"The {product_area} {artifact_type} has a ${budget_amount} budget and a {plan_days}-day target. Name the owner, dependencies, completion test, and dated launch milestone before work begins.",
@@ -167,7 +182,12 @@ def critique_cases(facts: CritiqueFacts) -> dict[str, tuple[Any, ...]]:
         ),
         "explanation": (
             f"Encryption makes {record_count} {data_category} {data_noun} safe by turning them into random text using a {key_bits}-bit key.",
-            f"the explanation of encrypting {record_count} {data_category} {data_noun} omits how the key is protected and overstates safety",
+            (
+                f"the explanation of encrypting {record_count} {data_category} {data_noun} omits how the key is protected and overstates safety",
+                f"calling ciphertext random and safe hides the security dependence on the {key_bits}-bit key and implementation",
+                f"the draft treats transformation alone as protection without explaining authorized reversal or key handling",
+                f"security is presented as automatic even though compromise of the encryption key would expose the records",
+            ),
             (
                 f"Encryption transforms {record_count} {data_category} {data_noun} using a {key_bits}-bit key. Authorized holders can reverse it, while security still depends on key protection and implementation.",
                 f"A {key_bits}-bit key transforms the {record_count} {data_category} {data_noun} into ciphertext that an authorized key holder can reverse. Protection still depends on how that key and the implementation are secured.",
@@ -182,7 +202,12 @@ def critique_cases(facts: CritiqueFacts) -> dict[str, tuple[Any, ...]]:
         ),
         "instructions": (
             f"Install the {update_minutes}-minute update for the {system_area} {system_noun} affecting {affected_user_count} users, delete the old folder, and check whether it works.",
-            f"the destructive deletion in the {system_area} {system_noun} update comes before verification or backup",
+            (
+                f"the destructive deletion in the {system_area} {system_noun} update comes before verification or backup",
+                f"the instructions remove the rollback source before the {update_minutes}-minute update is proven to work",
+                f"verification occurs too late because the old folder has already been deleted",
+                f"the sequence makes failure irreversible for {affected_user_count} users instead of preserving a tested fallback",
+            ),
             (
                 f"Back up the old folder and install the {update_minutes}-minute {system_area} {system_noun} update separately. Verify the application before deleting anything, and retain rollback until the checks pass.",
                 f"Preserve a restorable copy of the old folder before starting the {update_minutes}-minute {system_area} {system_noun} update. Test the separate installation for all {affected_user_count} users and remove nothing until verification succeeds.",
@@ -197,7 +222,12 @@ def critique_cases(facts: CritiqueFacts) -> dict[str, tuple[Any, ...]]:
         ),
         "summary": (
             f"The {team_name} {team_noun}'s {attendee_count}-person meeting discussed {topic_count} topics and everyone agreed the project was important.",
-            f"the summary of the {team_name} {team_noun}'s {attendee_count}-person meeting omits the actual decision and action",
+            (
+                f"the summary of the {team_name} {team_noun}'s {attendee_count}-person meeting omits the actual decision and action",
+                f"listing {topic_count} topics and their importance leaves readers without an outcome or assigned follow-up",
+                f"the meeting description records discussion but not what participants decided or who must act",
+                f"the draft lacks the operational information a summary needs: decision, owner, and next action",
+            ),
             (
                 f"The notes from the {team_name} {team_noun}'s {attendee_count}-person meeting record only that {topic_count} topics were discussed and the project was considered important. Add the actual decision and assigned action before using this as a complete summary.",
                 f"This record says the {team_name} {team_noun}'s {attendee_count} participants covered {topic_count} topics but identifies no outcome. Include the decision and its assigned follow-up before presenting the notes as a summary.",
@@ -212,7 +242,12 @@ def critique_cases(facts: CritiqueFacts) -> dict[str, tuple[Any, ...]]:
         ),
         "claim_evidence": (
             f"Users prefer the redesign; {comment_count} positive comments on the {venue_qualifier} {venue_noun} ({view_count} views) prove it.",
-            f"{comment_count} comments among {view_count} views on the {venue_qualifier} {venue_noun} cannot support a general preference claim",
+            (
+                f"{comment_count} comments among {view_count} views on the {venue_qualifier} {venue_noun} cannot support a general preference claim",
+                f"the positive commenters are not a representative sample of all viewers or users",
+                f"the draft turns a self-selected set of {comment_count} reactions into population evidence it does not have",
+                f"view and comment counts describe engagement with the {venue_noun}, not measured preference across users",
+            ),
             (
                 f"{comment_count} respondents commented positively on the {venue_qualifier} {venue_noun}, which recorded {view_count} views, about the redesign. Broader user preference remains unmeasured.",
                 f"The redesign received {comment_count} positive comments on a {venue_qualifier} {venue_noun} with {view_count} views. Those comments describe their authors and do not measure preference across all viewers or users.",
@@ -227,7 +262,12 @@ def critique_cases(facts: CritiqueFacts) -> dict[str, tuple[Any, ...]]:
         ),
         "interface_copy": (
             f"Error {error_code}. The {action_name} could not be completed after {retry_limit} attempts. Try again.",
-            f"the message about the {action_name} failing after {retry_limit} attempts gives neither the failed action nor a useful next step",
+            (
+                f"the message about the {action_name} failing after {retry_limit} attempts gives neither the failed action nor a useful next step",
+                f"error {error_code} leaves the user without enough detail to understand the failed {action_name} or choose what to do after {retry_limit} tries",
+                f"the draft reports {retry_limit} unsuccessful attempts but does not explain which part of the {action_name} failed or how to respond",
+                f"a generic retry instruction after error {error_code} provides no actionable diagnosis for the repeated {action_name} failure",
+            ),
             (
                 f"The requested {action_name} could not be completed after {retry_limit} attempts (error {error_code}). Review the available error details before trying again.",
                 f"Error {error_code} occurred while attempting the {action_name}, which has now failed {retry_limit} times. Inspect the recorded details before deciding whether another attempt is useful.",
@@ -242,22 +282,41 @@ def critique_cases(facts: CritiqueFacts) -> dict[str, tuple[Any, ...]]:
         ),
         "status_update": (
             f"The {initiative_area} {initiative_noun}, {percent_complete}% complete, is on track, although integration has been blocked for {blocked_days} days and the delivery date is no longer known.",
-            f"the opening claim about the {percent_complete}%-complete {initiative_area} {initiative_noun} conflicts with the stated blocker and missing delivery date",
+            (
+                f"the opening claim about the {percent_complete}%-complete {initiative_area} {initiative_noun} conflicts with the stated blocker and missing delivery date",
+                f"calling the {initiative_area} {initiative_noun} on track is unsupported while integration has been blocked for {blocked_days} days and delivery is unknown",
+                f"the status label overstates progress: {percent_complete}% completion does not resolve the {blocked_days}-day integration block or establish a delivery date",
+                f"the draft presents schedule confidence that its own {blocked_days}-day blocker and absent delivery estimate contradict",
+            ),
             (
                 f"Core work on the {initiative_area} {initiative_noun} is {percent_complete}% complete and progressing, but integration has been blocked for {blocked_days} days. Reassess the delivery date after that blocker is resolved.",
                 f"The {initiative_area} {initiative_noun} has reached {percent_complete}% completion, while its integration work has remained blocked for {blocked_days} days. Delivery timing is therefore unknown until the blocker clears.",
                 f"Report the {initiative_area} {initiative_noun} as {percent_complete}% complete rather than on track. A {blocked_days}-day integration delay prevents confirmation of the delivery date.",
                 f"Work completed on the {initiative_area} {initiative_noun} stands at {percent_complete}%, but integration is still blocked after {blocked_days} days. Set a new delivery estimate only once that dependency is resolved.",
+                f"The {initiative_area} {initiative_noun} is {percent_complete}% complete; however, a dependency has stopped integration for {blocked_days} days. Leave delivery timing unconfirmed until work resumes.",
+                f"State two separate facts: completion is {percent_complete}%, and the integration dependency has prevented progress for {blocked_days} days. No reliable delivery date follows yet.",
+                f"After {blocked_days} days without integration progress, the {percent_complete}%-complete {initiative_area} {initiative_noun} cannot be described as on schedule. Recalculate timing when the block ends.",
+                f"Use {percent_complete}% as the current completion figure for the {initiative_area} {initiative_noun}. Its integration delay is now {blocked_days} days, so release timing remains open.",
             ),
             (
                 f"Calling the {percent_complete}%-complete {initiative_area} {initiative_noun} on track while integration has been blocked for {blocked_days} days misrepresents the actual status.",
                 f"The opening claim about the {initiative_area} {initiative_noun} at {percent_complete}% and the separately stated blocker cannot both be accurate as written.",
                 f"{blocked_days} days of blocked integration on the {percent_complete}%-complete {initiative_area} {initiative_noun} is inconsistent with describing it as on track.",
+                f"A missing delivery date and a {blocked_days}-day integration delay make the on-track label for the {initiative_area} {initiative_noun} misleading.",
+                f"The reported {percent_complete}% completion figure does not justify schedule confidence while integration remains stopped.",
+                f"Readers would receive contradictory status signals from the on-track claim and the unresolved integration dependency.",
+                f"Progress on core work cannot establish delivery timing for a {initiative_area} {initiative_noun} whose integration path is still blocked.",
+                f"The schedule conclusion goes beyond the evidence because the blocker has lasted {blocked_days} days and no replacement date is known.",
             ),
         ),
         "survey_report": (
             f"Most users prefer the {surveyed_qualifier} {surveyed_feature} because {survey_selected} of {survey_total} participants selected it, a {metric_delta}-point margin.",
-            f"{survey_selected} responses in a {survey_total}-person sample about the {surveyed_qualifier} {surveyed_feature} (a {metric_delta}-point margin) do not establish a majority or a broader user preference",
+            (
+                f"{survey_selected} responses in a {survey_total}-person sample about the {surveyed_qualifier} {surveyed_feature} (a {metric_delta}-point margin) do not establish a majority or a broader user preference",
+                f"the claim generalizes beyond the {survey_total} surveyed people even though only {survey_selected} selected the {surveyed_qualifier} {surveyed_feature}",
+                f"a {metric_delta}-point lead inside this small sample cannot support the statement that most users prefer the {surveyed_qualifier} {surveyed_feature}",
+                f"the draft turns {survey_selected} selections among {survey_total} respondents into an unsupported population-wide preference claim",
+            ),
             (
                 f"{survey_selected} of {survey_total} participants selected the {surveyed_qualifier} {surveyed_feature}, a {metric_delta}-point margin. This sample does not establish a broader user preference.",
                 f"In this {survey_total}-person sample, {survey_selected} participants chose the {surveyed_qualifier} {surveyed_feature} by a {metric_delta}-point margin. The result describes the sample rather than users generally.",
@@ -272,7 +331,12 @@ def critique_cases(facts: CritiqueFacts) -> dict[str, tuple[Any, ...]]:
         ),
         "policy_notice": (
             f"Access to the {location_name} after {cutoff_hour}:00 is prohibited unless approved, and {exception_count} listed exceptions may be available.",
-            f"the notice about the {location_name} gives no approval authority for its {exception_count} listed exceptions",
+            (
+                f"the notice about the {location_name} gives no approval authority for its {exception_count} listed exceptions",
+                f"the after-hours rule names exceptions without saying who can grant them or through what process",
+                f"readers cannot follow the {cutoff_hour}:00 access policy because its approver and request route are absent",
+                f"the notice states a prohibition and exceptions but leaves enforcement responsibility undefined",
+            ),
             (
                 f"Access to the {location_name} after {cutoff_hour}:00 requires prior approval. Name the approving authority and the process for the {exception_count} listed exceptions before publishing the notice.",
                 f"Prior approval is required to enter the {location_name} after {cutoff_hour}:00. Identify who grants approval and how each of the {exception_count} exceptions is requested before the notice is issued.",
@@ -287,7 +351,12 @@ def critique_cases(facts: CritiqueFacts) -> dict[str, tuple[Any, ...]]:
         ),
         "data_caption": (
             f"The results for the {caption_product} improved by {metric_delta}% after the {change_type}.",
-            f"the caption citing a {metric_delta}% change for the {caption_product} names no metric, comparator, magnitude, or uncertainty",
+            (
+                f"the caption citing a {metric_delta}% change for the {caption_product} names no metric, comparator, magnitude, or uncertainty",
+                f"the {caption_product} caption calls a {metric_delta}% shift an improvement without identifying what was measured or how it was compared",
+                f"the claimed {metric_delta}% improvement after the {change_type} omits the baseline, measured quantity, and uncertainty",
+                f"readers cannot evaluate the {caption_product}'s {metric_delta}% result because the caption leaves its metric and comparator unstated",
+            ),
             (
                 f"The figure compares {caption_product} results before and after the {change_type}, showing a {metric_delta}% shift. Add the metric, magnitude, comparator, and uncertainty before claiming an improvement.",
                 f"Results for the {caption_product} differ by {metric_delta}% before and after the {change_type}. The caption needs the measured quantity, comparison baseline, magnitude, and uncertainty before interpreting that difference as better.",
@@ -302,7 +371,12 @@ def critique_cases(facts: CritiqueFacts) -> dict[str, tuple[Any, ...]]:
         ),
         "release_note": (
             f"This update to the {release_component} (version {release_ver}.0) fixes all synchronization problems across {tested_system_count} systems and works on every supported system.",
-            f"the universal reliability and compatibility claims for {tested_system_count} tested systems exceed the stated evidence",
+            (
+                f"the universal reliability and compatibility claims for {tested_system_count} tested systems exceed the stated evidence",
+                f"testing version {release_ver}.0 on {tested_system_count} systems cannot establish that every supported environment is fixed",
+                f"the release note expands bounded synchronization results into an unsupported all-systems guarantee",
+                f"verified cases for the {release_component} are presented as universal compatibility without evidence from untested systems",
+            ),
             (
                 f"Version {release_ver}.0 fixes the {release_component} synchronization cases verified across {tested_system_count} tested systems. List the tested systems and retain any known limitations.",
                 f"Tests on {tested_system_count} systems verified specific {release_component} synchronization fixes in version {release_ver}.0. Name those systems and document remaining limitations instead of claiming universal compatibility.",
@@ -317,7 +391,12 @@ def critique_cases(facts: CritiqueFacts) -> dict[str, tuple[Any, ...]]:
         ),
         "support_macro": (
             f"We resolved the {support_issue} affecting {support_feature} for {affected_user_count} users. Please repeat the failed action to confirm that it now works.",
-            f"the reply claims resolution for {affected_user_count} affected users before the requested verification is complete",
+            (
+                f"the reply claims resolution for {affected_user_count} affected users before the requested verification is complete",
+                f"the macro calls the {support_issue} fixed even though no user has yet confirmed that {support_feature} works",
+                f"the stated resolution goes beyond the evidence because the failed action still needs to be repeated",
+                f"the response treats a candidate change as a confirmed repair across {affected_user_count} users without a validation result",
+            ),
             (
                 f"We applied a possible fix for the {support_issue} affecting {support_feature} for {affected_user_count} users. Please repeat the failed action so we can verify whether it is resolved.",
                 f"A potential correction for the {support_issue} in {support_feature} has been applied for the {affected_user_count} affected users. Repeat the failed action and report the result before we mark the case resolved.",
@@ -332,7 +411,12 @@ def critique_cases(facts: CritiqueFacts) -> dict[str, tuple[Any, ...]]:
         ),
         "risk_assessment": (
             f"The risk to the {risk_system}, with ${exposure_amount} of exposure, is low because only {incident_count} incidents occurred in the last {quiet_weeks} weeks.",
-            f"{incident_count} incidents across {quiet_weeks} weeks against ${exposure_amount} of exposure for the {risk_system} do not establish low likelihood or low impact",
+            (
+                f"{incident_count} incidents across {quiet_weeks} weeks against ${exposure_amount} of exposure for the {risk_system} do not establish low likelihood or low impact",
+                f"the {risk_system}'s short record of {incident_count} incidents does not justify calling ${exposure_amount} of exposure low risk",
+                f"a {quiet_weeks}-week observation window leaves the probability and consequence of loss on the {risk_system} unresolved",
+                f"the draft infers a low rating from incident frequency alone without assessing the ${exposure_amount} impact or existing controls",
+            ),
             (
                 f"Only {incident_count} incidents were recorded for the {risk_system} in the last {quiet_weeks} weeks, against ${exposure_amount} of exposure. Assess likelihood, impact, exposure, and mitigation evidence before assigning a risk level.",
                 f"The {risk_system} recorded {incident_count} incidents across {quiet_weeks} weeks while ${exposure_amount} remained exposed. A risk rating requires evidence about likelihood, impact, and mitigation beyond that short count.",

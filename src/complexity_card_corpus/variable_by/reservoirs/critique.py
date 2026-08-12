@@ -6,7 +6,7 @@ from collections.abc import Mapping
 def critique_reservoir(
     code: str,
     *,
-    weakness: str | None = None,
+    weakness: str | tuple[str, ...] | None = None,
     revision: str | tuple[str, ...] | None = None,
     consequences: tuple[str, ...] = (),
 ) -> Mapping[str, Mapping[str, tuple[str, ...]]]:
@@ -42,7 +42,7 @@ def critique_reservoir(
         )
         table["scenario"].update(
             {
-                "weakness": (weakness,),
+                "weakness": (weakness,) if isinstance(weakness, str) else weakness,
                 "revision": (revision,) if isinstance(revision, str) else revision,
             }
         )

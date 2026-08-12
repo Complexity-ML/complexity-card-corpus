@@ -588,21 +588,32 @@ def _combine_repetition_audits(audits: list[dict[str, Any]]) -> dict[str, Any]:
         return {
             "maximum_allowed_share": MAXIMUM_SFT_REPETITION_SHARE,
             "minimum_examples": MINIMUM_REPETITION_AUDIT_EXAMPLES,
+            "maximum_examples_per_task": None,
             "opening_and_closing_windows": list(SFT_REPETITION_WINDOWS),
             "internal_span_words": max(SFT_REPETITION_WINDOWS),
             "passed": True,
+            "supervised_passed": True,
             "violations": [],
+            "supervised_violations": [],
             "tasks": {},
         }
     first = audits[0]
     violations = [item for audit in audits for item in audit["violations"]]
+    supervised_violations = [
+        item
+        for audit in audits
+        for item in audit.get("supervised_violations", [])
+    ]
     return {
         "maximum_allowed_share": first["maximum_allowed_share"],
         "minimum_examples": first["minimum_examples"],
+        "maximum_examples_per_task": first["maximum_examples_per_task"],
         "opening_and_closing_windows": first["opening_and_closing_windows"],
         "internal_span_words": first["internal_span_words"],
         "passed": not violations,
+        "supervised_passed": not supervised_violations,
         "violations": violations,
+        "supervised_violations": supervised_violations,
         "tasks": {
             task: stats
             for audit in audits
@@ -710,9 +721,17 @@ def audit_sft_repetition_quality(
             ),
             "audited": task_audited,
             "passed": all(item["passed"] for item in dimensions.values()),
+            "supervised_passed": all(
+                item["passed"]
+                for name, item in dimensions.items()
+                if name.startswith("response_")
+            ),
             "dimensions": dimensions,
         }
 
+    supervised_violations = [
+        item for item in violations if item["dimension"].startswith("response_")
+    ]
     return {
         "maximum_allowed_share": maximum_share,
         "minimum_examples": minimum_examples,
@@ -720,7 +739,9 @@ def audit_sft_repetition_quality(
         "opening_and_closing_windows": list(SFT_REPETITION_WINDOWS),
         "internal_span_words": max(SFT_REPETITION_WINDOWS),
         "passed": not violations,
+        "supervised_passed": not supervised_violations,
         "violations": violations,
+        "supervised_violations": supervised_violations,
         "tasks": tasks,
     }
 
@@ -789,7 +810,14 @@ def _audit_sft_projection(rows: list[dict[str, Any]]) -> dict[str, Any]:
             )
         by_task[row["task"]][_normalized_structure(target)] += 1
     if hits:
-        raise ValueError(f"model-facing answer contains a control rubric: {hits[0]}")
+        first_by_phrase = {
+            hit["phrase"]: hit
+            for hit in reversed(hits)
+        }
+        raise ValueError(
+            "model-facing answer contains a control rubric: "
+            f"{list(first_by_phrase.values())}; total_hits={len(hits)}"
+        )
     if incomplete_targets:
         raise ValueError(
             "model-facing answer is incomplete: "

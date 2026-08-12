@@ -6,6 +6,8 @@ from ..variable_by.reservoirs import (
     GroundedQAFacts,
     grounded_qa_variable_by,
     meeting_summary_cards,
+    summary_answer_cards,
+    summary_case_variants,
 )
 from ..variable_by.templates import GROUNDED_QA_TEMPLATES
 from .core import (
@@ -234,19 +236,32 @@ def _summary(row: dict[str, Any], variant: int) -> TaskHand:
         ),
     }
     summary_domain = _render_domain(row)
-    decision, action, open_point = cases[summary_domain]
-    decision_cards = (decision,)
-    open_point_cards = (open_point,)
+    default_decision, default_action, default_open_point = cases[summary_domain]
+    decision_cards, action_cards, open_point_cards = summary_case_variants(
+        summary_domain,
+        default_decision=default_decision,
+        default_action=default_action,
+        default_open_point=default_open_point,
+        contrast_ratio=contrast_ratio,
+        sample_count=sample_count,
+        case_count=case_count,
+        test_coverage=test_coverage,
+        employee_count=employee_count,
+        citation_count=citation_count,
+        downtime_minutes=downtime_minutes,
+        example_count=example_count,
+    )
     if summary_domain == "meeting_transcript":
         decision_cards, open_point_cards = meeting_summary_cards(
             contrast_ratio,
-            default_decision=decision,
-            default_open_point=open_point,
+            default_decision=decision_cards[0],
+            default_open_point=open_point_cards[0],
         )
     decision = _pick(f"summary-decision:{code}:{variant}", decision_cards)
+    action = _pick(f"summary-action:{code}:{variant}", action_cards)
     open_point = _pick(f"summary-open-point:{code}:{variant}", open_point_cards)
     source = (
-        f"The recorded decision is to {decision}. {owner} will {action} by day {day}. "
+        f"The recorded decision is to {decision}. {owner} will {action} before day {day} ends. "
         f"The source leaves {open_point} unresolved."
     )
     data = _compose_subcards(
@@ -290,25 +305,12 @@ def _summary(row: dict[str, Any], variant: int) -> TaskHand:
         row,
         variant,
         "summary-answer",
-        (
-            (
-                f"Decision: {decision}.",
-                f"Decision: the record is to {decision}.",
-                f"Decision: proceed by choosing to {decision}.",
-                f"Decision: the agreed direction is to {decision}.",
-            ),
-            (
-                f"Action: due day {day}, {owner} will {action}.",
-                f"Action: no later than day {day}, {owner} will {action}.",
-                f"Action: {action}, owned by {owner}, closing out on day {day}, once confirmed.",
-                f"Action: {owner} is assigned to {action}; day {day} is the outside limit.",
-            ),
-            (
-                f"Open point: {open_point} remains unresolved.",
-                f"Open point: nothing in the source resolves {open_point}.",
-                f"Open point: {open_point} is still unresolved.",
-                f"Open point: no resolution is recorded for {open_point}.",
-            ),
+        summary_answer_cards(
+            decision=decision,
+            action=action,
+            open_point=open_point,
+            owner=owner,
+            day=day,
         ),
         pool_names=("decision", "owned_action", "open_point"),
     )

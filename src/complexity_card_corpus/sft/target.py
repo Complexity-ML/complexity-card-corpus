@@ -5,6 +5,10 @@ import re
 from typing import Any
 
 from ..training_cards import TrainingCards
+from ..variable_by.reservoirs import (
+    summary_decision_surfaces,
+    troubleshooting_first_step_surfaces,
+)
 from .answer_development import develop_answer
 from .language import (
     _final_assistant_target,
@@ -208,11 +212,15 @@ def _naturalize_assistant_target(
                 # length band. Keep the three required semantic roles while
                 # omitting optional explanatory tails after the first sentence
                 # or authored em-dash expansion.
-                concise_equation = re.split(r"(?<=[.!?])\s+", equation, 1)[0]
-                concise_total = re.split(r"(?<=[.!?])\s+", total, 1)[0]
-                concise_check = re.split(r"\s+—\s+", check, 1)[0]
+                concise_equation = re.split(
+                    r"(?<=[.!?])\s+", equation, maxsplit=1
+                )[0]
+                concise_total = re.split(
+                    r"(?<=[.!?])\s+", total, maxsplit=1
+                )[0]
+                concise_check = re.split(r"\s+—\s+", check, maxsplit=1)[0]
                 concise_check = re.split(
-                    r"(?<=[.!?])\s+", concise_check, 1
+                    r"(?<=[.!?])\s+", concise_check, maxsplit=1
                 )[0]
                 concise_clauses = {
                     "equation": _sentence(concise_equation),
@@ -288,13 +296,7 @@ def _naturalize_assistant_target(
             clauses = {
                 "decision": _response_phrase(
                     cards,
-                    (
-                        f"The decision is to {_inline_sentence(decision)}",
-                        f"They agreed to {_inline_sentence(decision)}",
-                        f"Proceed by choosing to {_inline_sentence(decision)}",
-                        f"The selected direction is to {_inline_sentence(decision)}",
-                        _sentence(decision),
-                    ),
+                    summary_decision_surfaces(_inline_sentence(decision)),
                     offset=21,
                 ),
                 "action": _response_phrase(
@@ -324,6 +326,23 @@ def _naturalize_assistant_target(
             )
     elif task == "grounded_qa":
         direct = response
+        # Evidence-scope labels and source bookkeeping are generator controls,
+        # not useful answer content.  Remove that leading clause completely so
+        # the model learns the documented result and its evidence boundary.
+        direct = re.sub(
+            r"^(?:Evidence scope|Grounding|Source basis)\s*[:—-]\s*"
+            r"[^.!?]*(?:\.|$)\s*",
+            "",
+            direct,
+            flags=re.IGNORECASE,
+        )
+        direct = re.sub(
+            r"^(?:Documented answer|Supported finding|Known result)\s*"
+            r"[:—-]\s*",
+            "",
+            direct,
+            flags=re.IGNORECASE,
+        )
         direct = re.sub(
             r"\s*[-—]\s*(?:Evidence scope|Grounding|Source basis|"
             r"Documented answer|Supported finding|Known result|Corroborating fact|"
@@ -342,6 +361,22 @@ def _naturalize_assistant_target(
             if unwrapped == direct:
                 break
             direct = unwrapped
+        direct = re.sub(
+            r"^(?=[^.!?]*\bSource [A-Za-z0-9]+\b)"
+            r"(?=[^.!?]*(?:support|evidence|ground|document|fact|record|"
+            r"answer|result|finding|response|content|portion|conclusion))"
+            r"[^.!?]*(?:\.|$)\s*",
+            "",
+            direct,
+            flags=re.IGNORECASE,
+        )
+        direct = re.sub(
+            r"^(?:Documented answer|Supported finding|Known result)\s*"
+            r"[:—-]\s*",
+            "",
+            direct,
+            flags=re.IGNORECASE,
+        )
         direct = re.sub(
             r"\s+(?:This is|The answer remains) limited to Source [A-Za-z0-9]+\.?$",
             "",
@@ -794,15 +829,11 @@ def _naturalize_assistant_target(
                     rendered_steps.append(
                         _response_phrase(
                             cards,
-                            (
-                                _sentence(step),
-                                f"First, {_inline_sentence(step)}",
-                                f"Start with this safeguard: {_sentence(step)}",
-                                f"Protect the current state first. {_sentence(step)}",
-                                f"Start here: {_sentence(step)}",
-                                f"Before testing, {_inline_sentence(step)}",
-                                f"Preparation comes first. {_sentence(step)}",
-                                f"Establish a safe baseline. {_sentence(step)}",
+                            tuple(
+                                _sentence(surface)
+                                for surface in troubleshooting_first_step_surfaces(
+                                    _inline_sentence(step)
+                                )
                             ),
                             offset=71,
                         )

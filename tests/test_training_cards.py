@@ -278,7 +278,12 @@ def test_weak_families_deal_multiple_visible_response_layouts() -> None:
             "spaced_lines",
             "opening_break",
         },
-        "conversation_empathy": {"paragraph", "line_breaks"},
+        "conversation_empathy": {
+            "paragraph",
+            "line_breaks",
+            "spaced_lines",
+            "opening_break",
+        },
         "safety_uncertainty": {"paragraph", "line_breaks", "bullets"},
     }
     for task, layouts in expected.items():

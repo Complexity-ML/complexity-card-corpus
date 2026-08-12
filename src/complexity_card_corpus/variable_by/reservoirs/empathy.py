@@ -18,7 +18,7 @@ _QUOTES = {
 
 _ACKNOWLEDGMENTS = {
     "work_stress": (
-        "It makes sense that unfinished work keeps pulling at your attention while you try to rest.",
+        "Unfinished work can understandably keep pulling at your attention while you try to rest.",
         "That sounds exhausting: your body is off duty, but your mind is still tracking the unfinished work.",
         "You are describing the strain of carrying work beyond the hours you meant to give it.",
     ),
@@ -29,7 +29,7 @@ _ACKNOWLEDGMENTS = {
     ),
     "uncertain_change": (
         "Hope and fear can sit together when change offers something new and asks you to release the familiar.",
-        "It makes sense to see possible good in the change while grieving the certainty you have now.",
+        "Seeing possible good in the change can coexist with grieving the certainty you have now.",
         "You do not have to treat excitement and fear as evidence that one of them is false.",
     ),
     "social_mistake": (
@@ -44,7 +44,7 @@ _ACKNOWLEDGMENTS = {
     ),
     "loss_disappointment": (
         "After months of preparation, this outcome can carry both grief and uncertainty about what comes next.",
-        "It makes sense to feel sad and stuck when so much effort was tied to a different outcome.",
+        "Feeling sad and stuck is understandable when so much effort was tied to a different outcome.",
         "The disappointment sounds heavy precisely because the preparation mattered to you.",
     ),
     "caregiving_stress": (
@@ -54,7 +54,7 @@ _ACKNOWLEDGMENTS = {
     ),
     "grief_update": (
         "Grief can shift without a steady schedule, and an ordinary reminder can make the loss feel newly present.",
-        "It makes sense that talking feels possible one day while a reminder overwhelms you on another.",
+        "Talking may feel possible one day while a reminder overwhelms you on another, and that variation is understandable.",
         "The return of an intense feeling does not make the quieter days false.",
     ),
     "creative_rejection": (
@@ -76,6 +76,9 @@ _REFLECTIONS = {
         "The immediate task can simply be to make the moment less demanding.",
         "Nothing has to be resolved while the reaction still feels this immediate.",
         "Making room for one quieter moment may be enough before deciding what comes next.",
+        "Letting the physical intensity settle can come before interpreting the situation.",
+        "For now, reducing the pressure of the moment may matter more than finding a conclusion.",
+        "A slower breath and less immediate demand can create room before any choice is needed.",
     ),
     "The person feels ready for a small constructive step.": (
         "If you want to move, the next step can stay small and reversible.",
@@ -83,6 +86,9 @@ _REFLECTIONS = {
         "One modest action can be enough for now.",
         "Feeling ready can mean choosing only the smallest useful move.",
         "A limited next step can honor that readiness without creating pressure.",
+        "You can use that readiness on one contained action rather than a complete solution.",
+        "Moving forward can begin with an experiment that is easy to pause or revise.",
+        "The constructive energy is real even if you spend it on only one manageable choice.",
     ),
     "The person holds two conflicting feelings at once.": (
         "Both reactions can have room without forcing one to cancel the other.",
@@ -90,6 +96,9 @@ _REFLECTIONS = {
         "Mixed feelings can be acknowledged before any decision is made.",
         "The two responses can coexist without requiring an immediate verdict.",
         "Holding both feelings for now is a valid alternative to resolving the tension.",
+        "Neither feeling needs to win before you decide how gently to proceed.",
+        "The tension between the two reactions can be observed without being settled today.",
+        "You can respond to what both feelings need instead of declaring one more correct.",
     ),
     "The person is repeatedly replaying the event.": (
         "The replay does not have to produce a perfect explanation tonight.",
@@ -97,6 +106,9 @@ _REFLECTIONS = {
         "The event can matter without requiring another full review right now.",
         "A recurring thought does not create an obligation to analyze it again immediately.",
         "You can notice the replay and still choose not to follow it through another cycle.",
+        "The thought returning does not mean it deserves your full attention every time.",
+        "You may recognize the familiar loop and redirect attention without dismissing what happened.",
+        "Another replay is not required to prove that the event mattered.",
     ),
     "The speaker expresses several emotions without one clear request.": (
         "You do not need to sort every feeling before naming what would help.",
@@ -104,6 +116,9 @@ _REFLECTIONS = {
         "Several feelings can be present before one request takes shape.",
         "A useful need can be named even while the emotions remain mixed.",
         "The lack of one clear label does not prevent you from asking for support.",
+        "You can describe the support you need without first turning every emotion into a category.",
+        "A mixed emotional picture still leaves room for one clear preference about what happens next.",
+        "It is enough to identify what feels supportive now, even if the feelings remain difficult to separate.",
     ),
 }
 
@@ -132,6 +147,18 @@ _AGENCY = (
     "You can accept only the part of a suggestion that fits your present capacity.",
     "Nothing here requires turning a difficult moment into a plan immediately.",
     "You retain the option to revisit this when the timing feels more workable.",
+    "You can decide what kind of response fits without committing to a larger conversation.",
+    "Your present capacity can set the limit on how far this goes today.",
+    "You may keep the next action small enough to reverse or abandon without explanation.",
+    "The experience belongs to you, including the choice of whether to interpret it now.",
+    "You can ask for a pause, a reflection, or practical help without owing anyone all three.",
+    "Your preference can guide the response even while the situation itself remains uncertain.",
+    "It is possible to take one useful piece and leave the rest for a different time.",
+    "You may choose a boundary first and decide later whether any further step is worthwhile.",
+    "What happens next can remain a choice rather than a requirement created by the feeling.",
+    "You can define enough support for this moment without designing a complete solution.",
+    "The conversation can stop wherever it ceases to feel helpful or manageable.",
+    "You remain the person who decides whether this calls for action, company, or space.",
 )
 
 _QUESTIONS = (
@@ -157,6 +184,18 @@ _QUESTIONS = (
     "Would a question help, or would you prefer a simple reflection?",
     "What support would match the amount of energy you have available?",
     "Would you rather identify a need or let the mixed feelings remain as they are?",
+    "What part would you like to leave exactly as it is for now?",
+    "Would it feel better to slow down, be heard, or consider one option?",
+    "Which feeling needs the most room without requiring an answer?",
+    "Do you want to name what happened or focus on what would help next?",
+    "What would a response without pressure sound like to you?",
+    "Would you prefer acknowledgment first and practical ideas only if requested?",
+    "Is there anything you want understood before discussing a next step?",
+    "What part feels manageable enough to explore at your own pace?",
+    "Would keeping this open be more supportive than trying to resolve it?",
+    "Which need is clearest even if the rest of the experience remains mixed?",
+    "Do you want company with the feeling or help creating a little distance from it?",
+    "What would help you keep control of where this conversation goes?",
 )
 
 

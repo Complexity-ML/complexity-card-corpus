@@ -1,5 +1,50 @@
 from __future__ import annotations
 
+
+def planning_constraint_surfaces(constraint: str) -> tuple[str, ...]:
+    """Return equivalent phrasings for one planning evidence boundary."""
+
+    normalized = constraint.strip().rstrip(".")
+    known = {
+        "A fixed budget is a hard upper bound": (
+            "The stated budget cannot be exceeded",
+            "Cost must remain at or below the fixed ceiling",
+            "No viable plan may cross the supplied spending limit",
+            "The budget acts as a non-negotiable upper boundary",
+        ),
+        "A fixed deadline limits the feasible sequence": (
+            "The sequence must finish within the fixed deadline",
+            "Timing rules out any plan that completes too late",
+            "Every viable ordering has to fit the supplied time limit",
+            "The deadline constrains which sequence can be used",
+        ),
+        "One stated requirement cannot be traded away": (
+            "The mandatory requirement must remain satisfied",
+            "No trade-off may remove the stated non-negotiable condition",
+            "A viable option has to preserve the required feature",
+            "The fixed requirement cannot be exchanged for another benefit",
+        ),
+        "One important input remains uncertain": (
+            "A decisive input has not yet been confirmed",
+            "The plan must preserve uncertainty around one material fact",
+            "One important value remains open and cannot be assumed",
+            "Commitment should wait for the unresolved input",
+        ),
+        "Early steps should preserve the ability to change direction": (
+            "Initial actions need to remain reversible",
+            "The first steps must keep another direction available",
+            "Early sequencing should avoid an irreversible commitment",
+            "The plan needs flexibility until the evidence is stronger",
+        ),
+        "Stay within the stated resource ceiling": (
+            "Resource use must remain under the supplied ceiling",
+            "The plan cannot require capacity beyond the stated limit",
+            "Every step has to fit the available resources",
+            "The fixed resource boundary controls the feasible sequence",
+        ),
+    }
+    return known.get(normalized, (normalized,))
+
 _PLANNING_OPTION_SETS = {
     "travel_plan": (
         (
@@ -102,6 +147,21 @@ _PLANNING_OPTION_SETS = {
             "a high-cost direct transfer",
             "a cheap transport option missing adequate capacity",
         ),
+        (
+            "a two-stage move beginning with labeled low-priority items",
+            "an expedited crew priced above the cap",
+            "a bargain van plan that cannot protect the fragile load",
+        ),
+        (
+            "a cancellable first-day transfer with an essentials inventory",
+            "a premium door-to-door moving package",
+            "a slow self-move missing the required key exchange",
+        ),
+        (
+            "a room-sequenced move with a reversible booking",
+            "an over-budget express removal service",
+            "a low-price carrier without enough covered capacity",
+        ),
     ),
     "community_event": (
         (
@@ -118,6 +178,21 @@ _PLANNING_OPTION_SETS = {
             "a volunteer-led community session",
             "a catered conference package",
             "a low-cost venue without the required capacity",
+        ),
+        (
+            "a step-free library workshop with a reservable side room",
+            "a premium convention hall booking",
+            "an inexpensive outdoor session without weather cover",
+        ),
+        (
+            "a neighborhood session in an accessible civic room",
+            "an express event-service package above budget",
+            "a five-day venue plan lacking the mandatory access check",
+        ),
+        (
+            "a small indoor gathering with a documented backup space",
+            "a full-service commercial event bundle",
+            "a cheap room whose stated capacity is insufficient",
         ),
     ),
     "appointment_schedule": (
@@ -213,6 +288,12 @@ def planning_answer_cards(
         f"B cannot proceed because its cost is above ${budget}. C cannot proceed because five days is too long and one required item is absent.",
         f"Two independent checks reject the alternatives: price rejects B, while duration plus requirement coverage reject C.",
         f"Comparing each option with the hard gates leaves A alone; B costs ${option_b_cost}, and C is late with an incomplete requirement set.",
+        f"B cannot enter the shortlist at ${option_b_cost}, above the ${budget} maximum. C misses both the required timing and one mandatory feature.",
+        f"The eligible set excludes B on cost and C on schedule plus completeness, leaving only the fully compliant candidate.",
+        f"At ${option_b_cost}, B fails the financial boundary; C separately fails the deadline and required-scope boundaries.",
+        f"Checking price, duration, and mandatory coverage removes B for price and C for two non-financial failures.",
+        f"B's cost breaches the cap by ${option_b_cost - budget}, while C's five-day plan omits a required condition; neither qualifies.",
+        f"The fixed tests disqualify B at the budget gate and C at both the schedule and requirement gates.",
     )
     choices = (
         f"Choose A: {option_a}.",
@@ -239,15 +320,75 @@ def planning_answer_cards(
         f"A alone satisfies the fixed requirements: {option_a}.",
         f"The shortlist resolves to A: {option_a}.",
         f"Under the hard limits, proceed with A: {option_a}.",
+        f"Screening identifies A as viable: {option_a}.",
+        f"The constraints support A: {option_a}.",
+        f"After applying every fixed condition, A remains: {option_a}.",
+        f"The eligible candidate is A, namely {option_a}.",
+        f"Only {option_a} passes the complete set of gates, so use A.",
+        f"Select {option_a} as Option A after the other candidates fail mandatory checks.",
+        f"The comparison resolves in favor of A, {option_a}.",
+        f"A, {option_a}, is the supported selection under the supplied limits.",
     )
     sequences = (
         f"Sequence: confirm availability of {option_a} today, hold it reversibly, then verify every requirement before payment.",
         f"Sequence: verify {option_a} against the ${budget} cap and four-day deadline, request a reversible hold, then await written confirmation.",
         f"Sequence: check {option_a}'s availability, confirm every hard requirement under ${budget}, and make payment last.",
+        f"Sequence: screen {option_a} against every fixed condition, secure a cancellable hold, and commit only after confirmation.",
+        f"Sequence: ask whether {option_a} is available, document its compliance under ${budget}, then decide after the reply.",
+        f"Sequence: preserve the option provisionally, verify timing and requirements, and leave payment until all checks pass.",
+        f"Sequence: obtain written availability for {option_a}, recheck the hard limits, and convert the hold only at the end.",
+        f"Sequence: validate cost and duration first, place a reversible hold on {option_a}, then confirm the remaining requirement.",
+        f"Sequence: keep {option_a} uncommitted while verifying availability, full compliance, and the final payment condition.",
+        f"Sequence: request confirmation from the provider, compare it with the ${budget} ceiling, and commit only if every gate remains satisfied.",
+        f"Sequence: reserve {option_a} without payment, verify each mandatory condition in writing, then make the final choice.",
+        f"Sequence: confirm that {option_a} can be delivered on time, check the complete requirement list, and pay last.",
+        f"Sequence: use a cancellable hold for {option_a}, close the evidence gaps, and proceed only after the record is complete.",
+        f"Sequence: verify the deadline, price, and mandatory features of {option_a} before turning the provisional choice into a commitment.",
+        f"Sequence: keep the shortlist open, seek written confirmation for {option_a}, and finalize only when every hard test passes.",
+        f"Sequence: first establish availability, next verify the ${budget} and timing limits, and finally authorize {option_a}.",
+        f"Sequence: document why {option_a} qualifies, preserve a reversible position, and postpone payment until confirmation arrives.",
+        f"Sequence: check the unresolved availability of {option_a}, confirm all binding facts, and make commitment the last step.",
+        f"Sequence: place no irreversible order until {option_a} is available, compliant, and verified against the stated limits.",
+        f"Sequence: obtain a provisional hold, test {option_a} against each requirement, and release payment only after written verification.",
+        f"Sequence: ask for the current status of {option_a}, retain the evidence, and proceed after cost, deadline, and scope all pass.",
+        f"Sequence: preserve reversibility while availability is checked, then validate every constraint before selecting {option_a} definitively.",
+        f"Sequence: confirm {option_a} in writing, review its fit with the hard criteria, and convert the hold only when nothing remains uncertain.",
+        f"Sequence: treat {option_a} as provisional until its availability and full compliance are established, with payment deferred.",
+        f"Sequence: verify the candidate, retain a cancellable position, and authorize the plan only after the final requirement check.",
     )
     fallbacks = (
-        f"Fallback trigger: if {option_a} cannot be confirmed by tomorrow, pause and reopen the shortlist rather than selecting B or C.",
+        f"Fallback trigger: if {option_a} cannot be confirmed by tomorrow, pause and reopen the shortlist rather than selecting either rejected candidate.",
         f"Fallback trigger: an unverified requirement for {option_a} means stopping to seek another option under ${budget}.",
         f"Fallback trigger: if the hold on {option_a} expires before confirmation, return to comparison instead of accepting a failed option.",
+        f"Fallback trigger: if written availability for {option_a} does not arrive in time, keep the decision open and compare only new compliant candidates.",
+        f"Fallback trigger: any newly failed hard condition removes {option_a} and starts a fresh search within the same limits.",
+        f"Fallback trigger: if {option_a} exceeds ${budget} after verification, preserve the funds and rebuild the eligible shortlist.",
+        f"Fallback trigger: a missed deadline or missing requirement means abandoning the provisional hold without using either excluded alternative.",
+        f"Fallback trigger: if the provider cannot verify {option_a}, stop commitment and seek another option that passes every gate.",
+        f"Fallback trigger: conflicting evidence about {option_a} keeps payment paused and returns the decision to comparison.",
+        f"Fallback trigger: if any mandatory fact remains unknown at the decision point, release the hold and reopen the search.",
+        f"Fallback trigger: when confirmation arrives too late, retain a reversible position and identify a replacement under ${budget}.",
+        f"Fallback trigger: if {option_a} loses its compliant status, reject it and compare newly eligible alternatives from the beginning.",
+        f"Fallback trigger: an expired provisional reservation sends the plan back to the hard-constraint screen.",
+        f"Fallback trigger: if timing, price, or scope changes, pause the selection and rebuild the viable set.",
+        f"Fallback trigger: absent written proof that {option_a} qualifies, make no payment and resume the constrained search.",
+        f"Fallback trigger: if the final requirement check fails, keep B and C excluded and locate another compliant candidate.",
+        f"Fallback trigger: if {option_a} is unavailable, return to the criteria rather than relaxing a hard condition.",
+        f"Fallback trigger: if the reversible hold cannot be maintained through verification, stop and compare alternatives again.",
+        f"Fallback trigger: any provider response that contradicts the recorded facts reopens the decision before commitment.",
+        f"Fallback trigger: if {option_a} cannot satisfy all requirements simultaneously, preserve the current state and search again.",
+        f"Fallback trigger: a new cost above ${budget} cancels the provisional choice and restores the full comparison step.",
+        f"Fallback trigger: if confirmation remains incomplete tomorrow, leave the choice unresolved and seek another verified option.",
+        f"Fallback trigger: when the candidate no longer meets the four-day limit, release it and restart with the same criteria.",
+        f"Fallback trigger: if evidence for {option_a} is missing or inconsistent, do not infer compliance; return to the shortlist.",
+        f"Fallback trigger: failure of any hard gate ends the provisional path and requires a fresh qualifying alternative.",
+        f"Fallback trigger: if {option_a} is not fully documented as eligible, cancel the hold and apply every original constraint to a new candidate.",
+        f"Fallback trigger: any unresolved conflict in price, timing, or scope keeps payment stopped and sends the choice back to review.",
+        f"Fallback trigger: loss of written availability closes this path; preserve the budget and seek another candidate meeting all conditions.",
+        f"Fallback trigger: if verification changes one binding fact, withdraw the provisional selection and rerun the hard-constraint comparison.",
+        f"Fallback trigger: when {option_a} cannot be reserved reversibly, make no commitment and search within the original criteria.",
+        f"Fallback trigger: a failed final check means preserving the current position while a different eligible option is identified.",
+        f"Fallback trigger: if the provider leaves a mandatory condition unanswered, release the hold without weakening any requirement.",
+        f"Fallback trigger: an adverse confirmation result removes {option_a}; restart the search under the unchanged ${budget} ceiling.",
     )
     return reasons, choices, sequences, fallbacks

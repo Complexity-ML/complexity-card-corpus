@@ -143,6 +143,18 @@ def _masked_response(response: str, answer: dict[str, Any]) -> str:
     # strips it with this same regex before the text ever becomes a training
     # target, so diversity is measured on what the model actually sees.
     masked = _HAND_PREFIX.sub("", response, count=1)
+    # The labelled authoring fields are parsed and removed by the SFT
+    # projection.  Counting them here would make storage syntax such as
+    # ``Open point:`` look like model-facing repetition even though those
+    # tokens never contribute to training loss.
+    masked = re.sub(
+        r"(?<!\w)(?:Next step|Owner|Timing|Core idea|Example|Check|Decision|"
+        r"Action|Open point|Open item|Weakness|Revision|Immediate action|"
+        r"Boundary|Sequence|Fallback trigger|Revised text):\s*",
+        "",
+        masked,
+        flags=re.IGNORECASE,
+    )
     for value, placeholder in sorted(replacements, key=lambda item: -len(item[0])):
         masked = re.sub(re.escape(value), placeholder, masked, flags=re.IGNORECASE)
     for code in sorted(filter(None, codes), key=len, reverse=True):

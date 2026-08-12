@@ -539,18 +539,22 @@ CASUAL_SEMANTIC_CLOSINGS = (
 
 
 CASUAL_COMPACT_CLOSINGS = (
-    "{topic[closing_clause]}; {context[closing_clause_lower]}, with {intent[closing_focus]} shaped by {arc[closing_lens]}.",
-    "{topic[closing_clause]}; {context[closing_clause_lower]}, leaving {intent[closing_focus]} beside {arc[closing_lens]}.",
-    "{topic[closing_clause]}; {context[closing_clause_lower]}, so {intent[closing_focus]} stays connected to {arc[closing_lens]}.",
-    "{topic[closing_clause]}; {context[closing_clause_lower]}, while {arc[closing_lens]} gives form to {intent[closing_focus]}.",
-    "{topic[closing_clause]}; {context[closing_clause_lower]}, and {arc[closing_lens]} carries {intent[closing_focus]}.",
-    "{topic[closing_clause]}; {context[closing_clause_lower]}, bringing {intent[closing_focus]} and {arc[closing_lens]} together.",
-    "{topic[closing_clause]}; {context[closing_clause_lower]}, with {arc[closing_lens]} keeping {intent[closing_focus]} visible.",
-    "{topic[closing_clause]}; {context[closing_clause_lower]}, as the final link joins {intent[closing_focus]} to {arc[closing_lens]}.",
-    "{topic[closing_clause]}; {context[closing_clause_lower]}, so {intent[closing_focus]} can rest with {arc[closing_lens]}.",
-    "{topic[closing_clause]}; {context[closing_clause_lower]}, as {arc[closing_lens]} clarifies {intent[closing_focus]}.",
-    "{topic[closing_clause]}; {context[closing_clause_lower]}, with {intent[closing_focus]} and {arc[closing_lens]} held together.",
-    "{topic[closing_clause]}; {context[closing_clause_lower]}, keeping {arc[closing_lens]} close to {intent[closing_focus]}.",
+    "{topic[compact]} can stay {context[compact]}, joining {intent[closing_focus]} with {arc[closing_lens]}.",
+    "{topic[compact]} remains {context[compact]}, with {arc[closing_lens]} beside {intent[closing_focus]}.",
+    "For now, {topic[compact]} feels {context[compact]} through {intent[closing_focus]} and {arc[closing_lens]}.",
+    "The thought about {topic[compact]} stays {context[compact]}: {intent[closing_focus]} meets {arc[closing_lens]}.",
+    "Seen as {context[compact]}, {topic[compact]} links {intent[closing_focus]} to {arc[closing_lens]}.",
+    "Viewing {topic[compact]} as {context[compact]} holds {arc[closing_lens]} near {intent[closing_focus]}.",
+    "With {topic[compact]} kept {context[compact]}, {intent[closing_focus]} can rest beside {arc[closing_lens]}.",
+    "Here, {arc[closing_lens]} makes {topic[compact]} feel {context[compact]} while preserving {intent[closing_focus]}.",
+    "What remains of {topic[compact]} is {context[compact]}: {intent[closing_focus]} and {arc[closing_lens]}.",
+    "This leaves {topic[compact]} {context[compact]}, connecting {arc[closing_lens]} with {intent[closing_focus]}.",
+    "Around {topic[compact]}, {intent[closing_focus]} stays {context[compact]} alongside {arc[closing_lens]}.",
+    "At this point, {topic[compact]} feels {context[compact]}, joining {intent[closing_focus]} and {arc[closing_lens]}.",
+    "Let {topic[compact]} remain {context[compact]}, carrying {intent[closing_focus]} with {arc[closing_lens]}.",
+    "As {context[compact]}, {topic[compact]} brings {arc[closing_lens]} into {intent[closing_focus]}.",
+    "Both {intent[closing_focus]} and {arc[closing_lens]} keep {topic[compact]} {context[compact]}.",
+    "Keeping {topic[compact]} {context[compact]} lets {arc[closing_lens]} accompany {intent[closing_focus]}.",
 )
 
 

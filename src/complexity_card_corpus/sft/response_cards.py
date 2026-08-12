@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Mapping
 
 from ..training_cards import TrainingCards
@@ -59,12 +60,29 @@ def card_variant(cards: TrainingCards, size: int, *, offset: int = 0) -> int:
         raise ValueError("response phrase deck cannot be empty")
     material = "|".join(
         (
+            cards.surface,
+            cards.dialogue_state,
+            cards.output,
+            cards.evidence,
+            cards.reasoning,
+            cards.style,
+            cards.context_density,
+            cards.noise,
+            cards.uncertainty,
+            cards.response_order,
             cards.response_bridge,
             cards.response_opening,
             cards.response_layout,
+            cards.natural_opening,
+            cards.natural_link,
+            cards.natural_update,
+            cards.natural_depth,
             str(offset),
         )
     )
-    # The strings are deliberately stable public card IDs. Summing their bytes
-    # gives deterministic cross-process selection without coupling to row order.
-    return sum(material.encode("utf-8")) % size
+    # Hash the complete public card hand. A byte sum creates strong collisions
+    # between permutations and prevents deep reservoirs from being reached.
+    return int.from_bytes(
+        hashlib.sha256(material.encode("utf-8")).digest()[:8],
+        "big",
+    ) % size

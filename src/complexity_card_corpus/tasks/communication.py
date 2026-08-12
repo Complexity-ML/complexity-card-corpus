@@ -4,7 +4,12 @@ from typing import Any
 
 from ..variable_by import empathy_variable_by
 from ..variable_by.reservoirs import (
+    ClarificationFacts,
     ExplanationFacts,
+    clarification_default_cards,
+    clarification_question_cards,
+    clarification_restatement_cards,
+    clarification_restatement_meaning_cards,
     explanation_reservoir,
     writing_cards,
 )
@@ -175,7 +180,18 @@ def _explanation(row: dict[str, Any], variant: int) -> TaskHand:
             weight_kg=weight_kg,
         )
     )
-    mechanism, example, check, transfer_pool = lessons[rendered_domain]
+    mechanism_pool, example_pool, check_pool, transfer_pool = lessons[rendered_domain]
+    mechanism = (
+        _pick(f"explain-mechanism:{code}:{variant}", mechanism_pool)
+        if isinstance(mechanism_pool, tuple)
+        else mechanism_pool
+    )
+    example = (
+        _pick(f"explain-example:{code}:{variant}", example_pool)
+        if isinstance(example_pool, tuple)
+        else example_pool
+    )
+    check = _pick(f"explain-check:{code}:{variant}", check_pool)
     embedded_mechanism = _lower_sentence_initial(mechanism)
     data, goal = _deal_task_frames(
         row,
@@ -463,9 +479,46 @@ def _clarification(row: dict[str, Any], variant: int) -> TaskHand:
     rendered_domain = _render_domain(row)
     clarification_label = rendered_domain.replace("_", " ")
     ambiguous, restatement, question, reversible_default = cases[rendered_domain]
-    restatement = (
-        f"Context for {requester} and {stakeholder_group} {work_context}: "
-        f"{_lower_sentence_initial(restatement)}"
+    clarification_facts = ClarificationFacts(
+        weekday=weekday,
+        report_id=report_id,
+        word_limit=word_limit,
+        lead_event=lead_event,
+        project_name=project_name,
+        doc_count=doc_count,
+        option_count=option_count,
+        dependency=dependency,
+        update_topic=update_topic,
+        dashboard_name=dashboard_name,
+        destination=destination,
+        product=product,
+    )
+    restatement = _pick(
+        f"clarify-restatement-meaning:{code}:{variant}",
+        clarification_restatement_meaning_cards(
+            rendered_domain,
+            clarification_facts,
+        ),
+    )
+    question = _pick(
+        f"clarify-question:{code}:{variant}",
+        clarification_question_cards(
+            rendered_domain,
+            clarification_facts,
+        ),
+    )
+    reversible_default = _pick(
+        f"clarify-reversible-default:{code}:{variant}",
+        clarification_default_cards(rendered_domain, clarification_facts),
+    )
+    restatement = _pick(
+        f"clarify-restatement:{code}:{variant}",
+        clarification_restatement_cards(
+            requester=requester,
+            stakeholder_group=stakeholder_group,
+            work_context=work_context,
+            restatement=restatement,
+        ),
     )
     situation_title_parts = {
         "ambiguous_request": ("Ambiguous request", "identify the affected item"),

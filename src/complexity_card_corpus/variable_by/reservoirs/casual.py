@@ -27,6 +27,62 @@ _CONTEXT_FIELDS = {
     "context_closing": "closing",
 }
 
+_TOPIC_COMPACT = {
+    "casual:morning:quiet_start": "the quiet morning",
+    "casual:cooking:improvised_soup": "the improvised soup",
+    "casual:music:late_album": "the rediscovered album",
+    "casual:reading:slow_novel": "the slowly read novel",
+    "casual:film:comfort_rewatch": "the familiar film",
+    "casual:walking:unplanned_route": "the unplanned walk",
+    "casual:learning:language_phrase": "the new phrase",
+    "casual:garden:balcony_herbs": "the balcony herbs",
+    "casual:pet:window_watch": "the window-watching pet",
+    "casual:travel:station_memory": "the station memory",
+    "casual:photography:reflections": "the reflected photograph",
+    "casual:exercise:evening_stretch": "the evening stretch",
+    "casual:tea:afternoon_pot": "the afternoon tea",
+    "casual:neighborhood:bakery_line": "the bakery queue",
+    "casual:home:desk_reset": "the cleared desk",
+    "casual:sleep:late_reading": "the late reading",
+    "casual:writing:character_voice": "the character voice",
+    "casual:games:cooperative_puzzle": "the shared puzzle",
+    "casual:technology:phone_distance": "the phone-free distance",
+    "casual:weather:rainy_window": "the rainy window",
+    "casual:skill:small_repair": "the small repair",
+}
+
+_CONTEXT_COMPACT = {
+    "context:curious": "open to curiosity",
+    "context:light_exchange": "light",
+    "context:recent_change": "experimental",
+    "context:thinking_aloud": "unsettled",
+    "context:first_impression": "provisional",
+    "context:returning_topic": "worth revisiting",
+    "context:personal_preference": "personal",
+    "context:small_discovery": "simply noticed",
+    "context:gentle_habit": "pressure-free",
+    "context:compare_past": "open to change",
+    "context:shared_later": "easy to share",
+    "context:process_interest": "focused on process",
+    "context:no_rush": "unhurried",
+    "context:practical_note": "practical and enjoyable",
+    "context:unexpected_pleasure": "pleasantly surprising",
+    "context:one_detail": "centered on one detail",
+    "context:easy_followup": "open to another question",
+    "context:honest_reaction": "honest rather than polished",
+    "context:quiet_mood": "quietly remembered",
+    "context:open_ending": "open-ended",
+}
+
+_CONTEXT_CLOSING_VARIANTS = {
+    "context:no_rush": (
+        "Nothing else has to follow immediately.",
+        "There is no need for an immediate next step.",
+        "The thought can rest without leading anywhere yet.",
+        "No quick conclusion or action has to come next.",
+    ),
+}
+
 
 def _lower_first(value: str) -> str:
     value = value.strip()
@@ -82,18 +138,24 @@ def casual_reservoir(
         }
     )
     topic_cells["closing_clause"] = (_clause(subcards["closing"]),)
+    topic_cells["compact"] = (_TOPIC_COMPACT[topic["topic_id"]],)
+    context_closings = _CONTEXT_CLOSING_VARIANTS.get(
+        context["context_id"],
+        (context["closing_addition"],),
+    )
     context_cells = {
-        target: (context[f"{target}_addition"],)
+        target: (
+            context_closings
+            if target == "closing"
+            else (context[f"{target}_addition"],)
+        )
         for target in _CONTEXT_FIELDS.values()
     }
-    context_cells["closing_lower"] = (
-        _lower_first(context["closing_addition"]),
-    )
-    context_cells["closing_clause"] = (
-        _clause(context["closing_addition"]),
-    )
-    context_cells["closing_clause_lower"] = (
-        _lower_first(_clause(context["closing_addition"])),
+    context_cells["compact"] = (_CONTEXT_COMPACT[context["context_id"]],)
+    context_cells["closing_lower"] = tuple(_lower_first(value) for value in context_closings)
+    context_cells["closing_clause"] = tuple(_clause(value) for value in context_closings)
+    context_cells["closing_clause_lower"] = tuple(
+        _lower_first(_clause(value)) for value in context_closings
     )
     intent_cells = {
         "user_opening": tuple(intent["user_opening"]),

@@ -11,7 +11,13 @@ def reasoning_case(
     extra: int,
     *,
     number: Callable[[str, int, int], int],
-) -> tuple[str, str, str, str, tuple[str, ...]]:
+) -> tuple[
+    str,
+    str,
+    str | tuple[str, ...],
+    str | tuple[str, ...],
+    tuple[str, ...],
+]:
     """Compute one reasoning case and localize its semantic surfaces."""
 
     if domain == "shopping_arithmetic":
@@ -20,7 +26,11 @@ def reasoning_case(
         equation = f"{units} × {each} + {extra} = {result}"
         total, check = (
             f"${result}",
-            f"the item subtotal is ${units * each}, and adding ${extra} gives ${result}",
+            (
+                f"the item subtotal is ${units * each}, and adding ${extra} gives ${result}",
+                f"subtracting the ${extra} delivery charge from ${result} recovers the ${units * each} merchandise subtotal",
+                f"${units * each} covers {units} items at ${each} each before the one-time ${extra} fee",
+            ),
         )
         components = (
             f"Each of the {units} items costs ${each}; the flat ${extra} delivery fee is added once, not per item.",
@@ -33,7 +43,11 @@ def reasoning_case(
         equation = f"{units} × {each} + {extra} = {result}"
         total, check = (
             f"{result} minutes",
-            f"removing the {extra}-minute break leaves {units * each} session minutes",
+            (
+                f"removing the {extra}-minute break leaves {units * each} session minutes",
+                f"the {units} sessions account for {units * each} minutes before the final {extra}-minute break",
+                f"subtracting {extra} from {result} recovers {units} equal blocks of {each} minutes",
+            ),
         )
         components = (
             f"Each of the {units} sessions runs exactly {each} minutes; the {extra}-minute break is added once at the very end.",
@@ -45,8 +59,25 @@ def reasoning_case(
         data = f"Problem {code}: convert {units} metres to centimetres using 1 metre = 100 centimetres."
         equation = f"{units} × 100 = {result}"
         total, check = (
-            f"{result} centimetres",
-            f"dividing {result} by 100 returns {units} metres",
+            (
+                f"{result} centimetres",
+                f"the converted length is {result} centimetres",
+                f"centimetre total: {result}",
+                f"{units} metres equals {result} centimetres",
+                f"the exact metric conversion gives {result} centimetres",
+                f"after applying the factor of 100, the length is {result} centimetres",
+            ),
+            (
+                f"dividing {result} by 100 returns {units} metres",
+                f"dividing {result} centimetres by the same factor of 100 returns {units} metres",
+                f"the inverse conversion, {result} ÷ 100, recovers the original {units}-metre length",
+                f"reversing the scale gives {result} ÷ 100 = {units}, the starting length in metres",
+                f"one hundred centimetres per metre means {result} centimetres contains exactly {units} metres",
+                f"the backward calculation restores {units} metres from the {result}-centimetre result",
+                f"applying the reciprocal factor to {result} produces the original metre value, {units}",
+                f"the converted number passes an inverse check because division by 100 yields {units}",
+                f"grouping the {result} centimetres into hundreds reconstructs all {units} original metres",
+            ),
         )
         components = (
             f"Each of the {units} whole metres converts to exactly 100 centimetres, since 1 metre always equals 100 centimetres exactly, with no rounding needed.",
@@ -62,7 +93,11 @@ def reasoning_case(
         equation = f"{units} × {each} = {result}"
         total, check = (
             f"{result} cups",
-            f"{result} divided by {units} returns {each} cups per batch",
+            (
+                f"{result} divided by {units} returns {each} cups per batch",
+                f"splitting {result} cups equally across {units} batches restores the {each}-cup ratio",
+                f"the total preserves the recipe because {units} groups of {each} cups reconstruct {result}",
+            ),
         )
         components = (
             f"Each of the {units} batches uses the exact same {each}-cup ratio as the original single batch, entirely unscaled and unchanged.",
@@ -78,7 +113,11 @@ def reasoning_case(
         equation = f"max({units} × {each}, {units} × {extra}) = {result}"
         total, check = (
             f"{result}",
-            f"computing both products independently confirms {result} as the larger entry",
+            (
+                f"computing both products independently confirms {result} as the larger entry",
+                f"evaluating table A and table B separately leaves {result} as the greater total",
+                f"a direct comparison of {units * each} with {units * extra} verifies the maximum of {result}",
+            ),
         )
         components = (
             f"Table A's total is {units} × {each}, while table B's total is {units} × {extra}; only the larger of the two totals is reported.",
@@ -89,7 +128,11 @@ def reasoning_case(
         result = units + 3 * each
         data = f"Problem {code}: the sequence is {units}, {units + each}, {units + 2 * each}, __; use the constant difference."
         equation = f"{units} + 3 × {each} = {result}"
-        total, check = f"{result}", f"each adjacent pair differs by {each}"
+        total, check = f"{result}", (
+            f"each adjacent pair differs by {each}",
+            f"subtracting consecutive terms repeatedly returns the constant step {each}",
+            f"the first three gaps all equal {each}, confirming the arithmetic pattern",
+        )
         components = (
             f"Each term after the starting value {units} increases by the exact same fixed difference of {each}, which confirms an arithmetic pattern applies throughout this sequence.",
             f"The constant difference of {each} between consecutive terms is confirmed separately by each adjacent pair of the first three listed sequence values.",
@@ -101,7 +144,19 @@ def reasoning_case(
         equation = f"({each} - 1) + {units} = {result}"
         total, check = (
             f"{result}",
-            f"slot {each - 1} is occupied by A, immediately before B at slot {each}",
+            (
+                f"slot {each - 1} is occupied by A, immediately before B at slot {each}",
+                f"moving one position backward from B at {each} places A at {each - 1}",
+                f"the immediate-predecessor constraint fixes A at {each - 1} when B occupies {each}",
+                f"because B occupies position {each}, its immediate predecessor A must occupy position {each - 1}",
+                f"placing A directly before B turns B's slot {each} into A's slot {each - 1}",
+                f"the adjacency rule leaves only slot {each - 1} for A beside B in slot {each}",
+                f"A is exactly one slot earlier than B, so {each} for B implies {each - 1} for A",
+                f"reading the order constraint first locates A at {each - 1}, directly ahead of B at {each}",
+                f"B's known position determines A without using C: A belongs in slot {each - 1}",
+                f"the pair must occupy consecutive slots {each - 1} and {each}, with A first",
+                f"subtracting one position from B's slot establishes A's position as {each - 1}",
+            ),
         )
         components = (
             f"A's slot follows only from B's fixed position at slot {each}; C's slot {units} is independent of that constraint.",
@@ -126,8 +181,17 @@ def reasoning_case(
             f"{items_per_person} / {rounds} = {items_per_round}"
         )
         total, check = (
-            f"{items_per_person} items per person and {items_per_round} items per person per round",
-            f"{people} people × {rounds} rounds × {items_per_round} items = {item_count} items",
+            (
+                f"{items_per_person} items per person and {items_per_round} items per person per round",
+                f"each person receives {items_per_person} items total, divided as {items_per_round} in every round",
+                f"the equal allocation gives {items_per_person} to each person, or {items_per_round} per round",
+                f"per-person share: {items_per_person} items; per-round share for that person: {items_per_round} items",
+            ),
+            (
+                f"{people} people × {rounds} rounds × {items_per_round} items = {item_count} items",
+                f"multiplying {items_per_round} by {rounds} and then by {people} reconstructs all {item_count} items",
+                f"{people} equal shares of {items_per_person}, each split into {rounds} rounds, account for the full allocation",
+            ),
         )
         components = (
             f"The equal split happens twice: first among {people} people, then across {rounds} rounds for each person's share.",
@@ -140,8 +204,17 @@ def reasoning_case(
         data = f"Problem {code}: a bag has {units} blue and {each} amber tokens; one token is drawn uniformly."
         equation = f"{units} / ({units} + {each}) = {units}/{total_outcomes}"
         total, check = (
-            f"{units}/{total_outcomes} probability of blue",
-            f"the favorable and total counts are {units} and {total_outcomes}",
+            (
+                f"{units}/{total_outcomes} probability of blue",
+                f"a blue-draw probability of {units}/{total_outcomes}",
+                f"probability {units}/{total_outcomes} for drawing blue",
+                f"{units} favorable blue outcomes out of {total_outcomes} total outcomes",
+            ),
+            (
+                f"the favorable and total counts are {units} and {total_outcomes}",
+                f"counting {units} blue outcomes among {total_outcomes} equally likely tokens reproduces the fraction",
+                f"the denominator combines {units} blue with {each} amber tokens while the numerator keeps only blue",
+            ),
         )
         components = (
             f"The {total_outcomes} total tokens include both the {units} blue and {each} amber tokens counted together in one draw.",

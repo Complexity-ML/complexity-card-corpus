@@ -476,7 +476,11 @@ def _brainstorm(row: dict[str, Any], variant: int) -> TaskHand:
     )
     case_cards = cases[domain]
     brief, answer = case_cards[
-        _number(f"brainstorm-case:{row['scenario_id']}", 0, len(case_cards) - 1)
+        _number(
+            f"brainstorm-case:{row['scenario_id']}:{variant}",
+            0,
+            len(case_cards) - 1,
+        )
     ]
     (
         constraint_checks,
@@ -488,10 +492,16 @@ def _brainstorm(row: dict[str, Any], variant: int) -> TaskHand:
         row.get("constraint", ""),
         default_constraint,
     )
+    if isinstance(constraint_check, tuple):
+        constraint_check = _pick(
+            f"brainstorm-constraint:{code}:{variant}", constraint_check
+        )
     outcome_check = outcome_checks.get(
         row.get("desired_outcome", ""),
         default_outcome,
     )
+    if isinstance(outcome_check, tuple):
+        outcome_check = _pick(f"brainstorm-outcome:{code}:{variant}", outcome_check)
     options, selection = answer.rsplit(" Select ", 1)
     scale_low, scale_high = _BRAINSTORM_SCALE_RANGES[domain]
     day_low, day_high = _BRAINSTORM_DAY_RANGES[domain]
@@ -510,6 +520,10 @@ def _brainstorm(row: dict[str, Any], variant: int) -> TaskHand:
     pilot_setting = _pick(f"brainstorm-setting:{code}", pilot_settings)
     pilot_signal = _pick(f"brainstorm-signal:{code}", pilot_signals)
     closing_templates = _BRAINSTORM_SCALE_CLOSINGS[domain]
+    closing_template = _pick(
+        f"brainstorm-closing:{code}:{variant}",
+        closing_templates,
+    )
     lexical_variables = brainstorming_variable_by(
         domain,
         scale=scale_count,
@@ -539,9 +553,9 @@ def _brainstorm(row: dict[str, Any], variant: int) -> TaskHand:
                 f"Practical result: {outcome_check}",
             ),
             (
-                f"Select {selection} " + closing_templates[0],
-                f"Select this option: {selection} " + closing_templates[1],
-                f"Select the strongest fit: {selection} " + closing_templates[2],
+                f"Select {selection} " + closing_template,
+                f"Select this option: {selection} " + closing_template,
+                f"Select the strongest fit: {selection} " + closing_template,
             ),
         ),
         pool_names=("options", "criteria", "outcome", "selection"),

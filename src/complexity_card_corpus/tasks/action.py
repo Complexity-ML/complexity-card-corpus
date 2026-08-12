@@ -8,6 +8,11 @@ from ..variable_by.reservoirs import (
     practical_answer_cards,
     practical_cards,
     troubleshooting_cards,
+    troubleshooting_comparison_cards,
+    troubleshooting_diagnostic_surfaces,
+    troubleshooting_failure_cards,
+    troubleshooting_opening_cards,
+    troubleshooting_verification_cards,
 )
 from .core import (
     TaskHand,
@@ -42,6 +47,10 @@ def _practical(row: dict[str, Any], variant: int) -> TaskHand:
     provider, option, action, confirmation, protected_state = practical_cards(
         _render_domain(row)
     )
+    if isinstance(confirmation, tuple):
+        confirmation = _pick(
+            f"practical-confirmation:{code}:{variant}", confirmation
+        )
     bare_subject = _without_leading_article(payload["subject"])
     constraint = row.get("constraint", "")
     constraint_fact = ""
@@ -91,10 +100,11 @@ def _practical(row: dict[str, Any], variant: int) -> TaskHand:
 
 
 def _troubleshooting(row: dict[str, Any], variant: int) -> TaskHand:
-    env, error, change, diagnostic_templates, rollback = troubleshooting_cards(
+    env, error, change, diagnostic_templates, rollback_cards = troubleshooting_cards(
         _render_domain(row)
     )
     code = _code(row)
+    rollback = _pick(f"troubleshooting-rollback:{code}:{variant}", rollback_cards)
     no_admin = "administrator access is unavailable" in row["constraint"].lower()
     access_note = (
         f" Any test in {env} that requires a system-level change is out of scope."
@@ -126,31 +136,13 @@ def _troubleshooting(row: dict[str, Any], variant: int) -> TaskHand:
         f"troubleshooting-diagnostic:{code}:{variant}", diagnostic_templates
     )
     diagnostic_step = diagnostic_template.format(code=code, scope=scope)
-    opening_cards = (
-            f"Preserve log {code}, then reproduce once without changing user data.",
-            f"Begin by retaining control log {code} and repeating the failure one time.",
-            f"Record the current state beside log {code}; make no change before one controlled reproduction.",
-            f"Protect the existing data and use log {code} as the comparison baseline.",
-    )
-    comparison_cards = (
-            f"Repeat the failing operation in the same setup and compare the resulting log with {code}.",
-            f"Run the failing action once more under the test condition, then compare both observations with {code}.",
-            f"Keep every other variable fixed, repeat the operation, and inspect the difference from control {code}.",
-    )
-    verification_cards = (
-            f"Direct check: confirm that '{error}' no longer appears. Regression check: repeat the last known-good operation.",
-            f"Verify the fix by checking that '{error}' is absent, then rerun the documented good case.",
-            f"The direct test passes only when '{error}' disappears; the regression test must also preserve the former good behavior.",
-    )
-    failure_cards = (
-            f"If either check fails, {rollback}.",
-            f"If the direct or regression result is negative, {rollback}.",
-            f"Do not widen the change after a failed check; {rollback}.",
-    )
-    diagnostic_cards = (
-        f"2. {diagnostic_step}.",
-        f"2. Run this bounded diagnostic: {diagnostic_step}.",
-        f"2. In {scope}, perform this check: {diagnostic_step}.",
+    opening_cards = troubleshooting_opening_cards(code)
+    comparison_cards = troubleshooting_comparison_cards(code)
+    verification_cards = troubleshooting_verification_cards(error)
+    failure_cards = troubleshooting_failure_cards(rollback)
+    diagnostic_cards = troubleshooting_diagnostic_surfaces(
+        diagnostic_step,
+        scope,
     )
     answer = _compose_subcards(
         row,
@@ -181,7 +173,11 @@ def _planning(row: dict[str, Any], variant: int) -> TaskHand:
     b = budget + 25
     option_cards = planning_option_cards(_render_domain(row))
     option_a, option_b, option_c = option_cards[
-        _number(f"planning-options:{row['scenario_id']}", 0, len(option_cards) - 1)
+        _number(
+            f"planning-options:{row['scenario_id']}:{variant}",
+            0,
+            len(option_cards) - 1,
+        )
     ]
     comparison_record = (
         f"Option A: {option_a}; cost ${a}; duration 3 days; every required condition met. "

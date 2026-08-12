@@ -51,7 +51,32 @@ _COMMON_NOUNS_BY_SENSE = {
 
 _LINKERS_BY_SENSE = {
     "measurement": ("track", "measure", "compare"),
-    "duration": ("within", "over", "across"),
+    "duration": (
+        "within",
+        "over",
+        "across",
+        "during",
+        "throughout",
+        "for",
+        "in",
+        "inside",
+        "within the forthcoming",
+        "over the upcoming",
+        "across the following",
+        "during the coming",
+        "throughout the allotted",
+        "inside an estimated",
+        "over about",
+        "during nearly",
+        "within roughly",
+        "within a scheduled",
+        "across approximately",
+        "over no more than",
+        "for up to",
+        "in a window capped at",
+        "over a period lasting",
+        "during a span covering",
+    ),
 }
 
 _UNITS_BY_SENSE = {
@@ -126,9 +151,9 @@ def safety_variable_by(
     *,
     state: str,
     constraint: str,
-    action_grounding: str,
-    boundary_grounding: str,
-    channel_grounding: str,
+    action_grounding: str | tuple[str, ...],
+    boundary_grounding: str | tuple[str, ...],
+    channel_grounding: str | tuple[str, ...],
 ) -> VariableBy2D:
     """Return the localized semantic reservoir for one protective response."""
 
@@ -153,8 +178,8 @@ def empathy_variable_by(domain: str, *, state: str) -> VariableBy2D:
 def reasoning_variable_by(
     *,
     equation: str,
-    total: str,
-    check: str,
+    total: str | tuple[str, ...],
+    check: str | tuple[str, ...],
     quantity_roles: tuple[str, ...],
     domain: str,
     code: str,
@@ -201,7 +226,7 @@ def reasoning_envelope_variable_by(
 def critique_variable_by(
     code: str,
     *,
-    weakness: str | None = None,
+    weakness: str | tuple[str, ...] | None = None,
     revision: str | tuple[str, ...] | None = None,
     consequences: tuple[str, ...] = (),
 ) -> VariableBy2D:

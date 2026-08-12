@@ -124,6 +124,9 @@ def test_v18_variable_by_has_nested_think_and_final_dependencies() -> None:
 
     graph = variable_by.dependency_graph()
 
+    assert "focus[reasoning_verification]" in graph[
+        "opening[reasoning_verification]"
+    ]
     assert "opening[reasoning_verification]" in graph["think[reasoning_verification]"]
     assert "scenario[analysis]" in graph["think[reasoning_verification]"]
     assert graph["final[reasoning_verification]"] == (
@@ -259,6 +262,39 @@ def test_v18_audit_checks_scope_lengths_and_collisions() -> None:
         for task in audit["tasks"].values()
     )
     assert audit["checks"]["reasoning_final_numbers_are_established_in_think"]
+
+
+def test_v18_numeric_audit_recognizes_fraction_components_and_reports_real_gaps() -> None:
+    def audit(final_denominator: int) -> dict:
+        return audit_reasoning_envelopes(
+            [
+                {
+                    "example_id": "reasoning:fraction-components",
+                    "task": "reasoning_verification",
+                    "_projected_target": (
+                        "<think>\nThe supported calculation is 204 / "
+                        "(204 + 804) = 204/1008, which fixes both counts.\n"
+                        "</think>\n<final>\n204 favorable outcomes out of "
+                        f"{final_denominator} total outcomes.\n</final>"
+                    ),
+                }
+            ],
+            enabled=False,
+        )
+
+    supported = audit(1008)
+    unsupported = audit(1009)
+
+    assert supported["checks"][
+        "reasoning_final_numbers_are_established_in_think"
+    ]
+    assert supported["calculation_failure_examples"] == []
+    assert not unsupported["checks"][
+        "reasoning_final_numbers_are_established_in_think"
+    ]
+    assert unsupported["calculation_failure_examples"][0]["missing_numbers"] == [
+        "1009"
+    ]
 
 
 def test_v18_projection_is_opt_in_and_leaves_non_reasoning_natural() -> None:
