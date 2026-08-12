@@ -126,6 +126,14 @@ def parser() -> argparse.ArgumentParser:
         help="worker processes used for deterministic conversation rendering",
     )
     post_training.add_argument(
+        "--without-quality-audit",
+        action="store_true",
+        help=(
+            "render the source conversations only; record audit status as "
+            "not_run and audit the final SFT projection separately"
+        ),
+    )
+    post_training.add_argument(
         "--vocabulary-placement",
         type=Path,
         help="statistical token-to-family placement produced by place-vocabulary",
@@ -539,6 +547,7 @@ def main() -> None:
             workers=args.workers,
             target_rows=(args.target_rows or None),
             max_examples_per_family=(args.max_examples_per_family or None),
+            run_quality_audit=not args.without_quality_audit,
         )
         print(
             json.dumps(

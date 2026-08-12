@@ -40,6 +40,7 @@ def build_post_training_corpus(
     workers: int = 1,
     target_rows: int | None = None,
     max_examples_per_family: int | None = None,
+    run_quality_audit: bool = True,
 ) -> dict[str, Any]:
     if variants_per_scenario < 1:
         raise ValueError("variants_per_scenario must be positive")
@@ -67,13 +68,28 @@ def build_post_training_corpus(
         rows,
         max_examples_per_family=max_examples_per_family,
     )
-    audit = _audit(rows)
+    if run_quality_audit:
+        audit = _audit(rows)
+    else:
+        source_scenarios = {
+            json.loads(row["answer_json"])["scenario_id"] for row in rows
+        }
+        audit = {
+            "status": "not_run",
+            "rows": len(rows),
+            "source_scenarios": len(source_scenarios),
+            "family_counts": dict(sorted(Counter(row["task"] for row in rows).items())),
+        }
     audit["family_balance"] = family_balance
-    audit["scale_100k"] = post_training_capacity_report(
-        source_cards=len(scenarios),
-        configured_variants_per_source_card=variants_per_scenario,
-        audit=audit,
-        target_rows=target_rows,
+    audit["scale_100k"] = (
+        post_training_capacity_report(
+            source_cards=len(scenarios),
+            configured_variants_per_source_card=variants_per_scenario,
+            audit=audit,
+            target_rows=target_rows,
+        )
+        if run_quality_audit
+        else {"status": "not_run"}
     )
     observed_lexical_focus = {
         json.loads(row["answer_json"])["lexical_focus"]
@@ -150,6 +166,7 @@ def build_post_training_corpus(
         "variants_per_scenario": variants_per_scenario,
         "max_examples_per_family": max_examples_per_family,
         "workers": workers,
+        "quality_status": "completed" if run_quality_audit else "not_run",
         "audit": audit,
         "human_review": {
             "rows": len(review),
@@ -224,7 +241,9 @@ def _parallel_conversation_rows(
     ]
     arguments = [(chunk, variants_per_scenario) for chunk in chunks]
 
-    def collect(executor: ProcessPoolExecutor | ThreadPoolExecutor) -> list[dict[str, Any]]:
+    def collect(
+        executor: ProcessPoolExecutor | ThreadPoolExecutor,
+    ) -> list[dict[str, Any]]:
         collected: list[dict[str, Any]] = []
         for chunk_rows in executor.map(_render_conversation_chunk, arguments):
             collected.extend(chunk_rows)

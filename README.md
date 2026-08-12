@@ -433,8 +433,14 @@ uv run card-corpus build-post-training \
   --output build/post-training \
   --variants-per-scenario 8 \
   --workers 8 \
+  --without-quality-audit \
   --review-scenarios 140
 ```
+
+`--without-quality-audit` keeps source rendering separate from corpus
+evaluation and records `quality_status: not_run`. The final model-facing
+Parquet is audited once with `audit-projected-sft`; omitting the flag retains
+the legacy inline source audit for compatibility and focused source QA.
 
 ## Vocabulary mining
 
