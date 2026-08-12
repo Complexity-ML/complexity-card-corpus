@@ -3,11 +3,16 @@ from __future__ import annotations
 from typing import Any
 
 
-CHAT_TEMPLATE_ID = "complexity-chat-v1"
-DEFAULT_SYSTEM_PROMPT = (
-    "You are Complexity, a concise and grounded assistant. Answer the user "
-    "directly. Use provided evidence when present and do not invent missing facts."
-)
+CHAT_TEMPLATE_ID = "complexity-chat-v2"
+DEFAULT_SYSTEM_PROMPT = ""
+THINK_FINAL_ENVELOPE = {
+    "type": "optional_think_final",
+    "think_start": "<think>\n",
+    "think_end": "\n</think>",
+    "final_start": "\n<final>\n",
+    "final_end": "\n</final>",
+    "scope": "reasoning_tasks",
+}
 
 
 def chat_template_contract() -> dict[str, Any]:
@@ -15,7 +20,7 @@ def chat_template_contract() -> dict[str, Any]:
 
     return {
         "id": CHAT_TEMPLATE_ID,
-        "version": 1,
+        "version": 2,
         "system_prompt": DEFAULT_SYSTEM_PROMPT,
         "system_format": "System:\n{content}\n\n",
         "user_format": "User:\n{content}\n\n",
@@ -24,12 +29,16 @@ def chat_template_contract() -> dict[str, Any]:
         "eos_token": "<|endoftext|>",
         "assistant_only_loss": True,
         "training_projection": "naturalize_card_hand_preserve_assistant_turns",
+        "assistant_envelope": dict(THINK_FINAL_ENVELOPE),
     }
 
 
 def render_system_prefix(contract: dict[str, Any] | None = None) -> str:
     template = contract or chat_template_contract()
-    return template["system_format"].format(content=template["system_prompt"])
+    system_prompt = str(template["system_prompt"]).strip()
+    if not system_prompt:
+        return ""
+    return template["system_format"].format(content=system_prompt)
 
 
 def render_user_turn(content: str, contract: dict[str, Any] | None = None) -> str:

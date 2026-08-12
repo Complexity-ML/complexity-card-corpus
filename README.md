@@ -738,9 +738,11 @@ configured 32k tokenizer without coupling the file format to one vocabulary.
 Causal-SFT labels use `-100` for user prefixes and padding;
 only assistant tokens and the terminating EOS token contribute to the loss.
 The tokenized release also carries `chat_template.json`. Its
-`complexity-chat-v1` contract serializes the fixed system instruction, natural
-user content, assistant prefixes, and EOS identically for training, evaluation,
-export, and inference. Two-turn examples remain direct. One deterministic card
+`complexity-chat-v2` contract serializes natural user content, assistant
+prefixes, and EOS identically for training, evaluation, export, and inference,
+without injecting a default system instruction. The contract also records the
+audited optional `<think>...</think><final>...</final>` protocol used by
+reasoning-task targets. Two-turn examples remain direct. One deterministic card
 hand in five is preserved as a linked four-turn dialogue: evidence first, then
 one compatible clarification, objection, correction, follow-up or validation
 move, followed by the requested outcome and boundary. The remaining card hands

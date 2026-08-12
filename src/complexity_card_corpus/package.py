@@ -141,9 +141,11 @@ only where labels differ from `-100`. `examples.jsonl` records the offset and
 length of each independent example.
 
 Serialization follows the bundled `chat_template.json` contract
-(`complexity-chat-v1`). It renders a fixed system instruction followed by
-`User:\n<content>\n\nAssistant:\n`; only assistant content and EOS are
-supervised. Training and inference must use this exact same contract.
+(`complexity-chat-v2`). It renders `User:\n<content>\n\nAssistant:\n` without
+injecting a default system instruction; only assistant content and EOS are
+supervised. Reasoning-task targets retain the audited
+`<think>...</think><final>...</final>` protocol. Training and inference must
+use this exact same contract.
 
 ## Intended use
 

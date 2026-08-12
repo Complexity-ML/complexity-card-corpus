@@ -68,6 +68,7 @@ from complexity_card_corpus.training_cards import (
 )
 from complexity_card_corpus.chat_template import (
     CHAT_TEMPLATE_ID,
+    THINK_FINAL_ENVELOPE,
     render_system_prefix,
 )
 from complexity_card_corpus.english_morphology import correct_indefinite_articles
@@ -326,6 +327,10 @@ def test_sft_bin_masks_user_tokens_and_supervises_assistant(tmp_path: Path) -> N
     except AttributeError:
         eos_id = encoding.eot_token
     assert template["id"] == CHAT_TEMPLATE_ID
+    assert template["id"] == "complexity-chat-v2"
+    assert template["system_prompt"] == ""
+    assert render_system_prefix(template) == ""
+    assert template["assistant_envelope"] == THINK_FINAL_ENVELOPE
     assert template["assistant_only_loss"] is True
     assert template["training_projection"] == (
         "naturalize_card_hand_preserve_assistant_turns"
