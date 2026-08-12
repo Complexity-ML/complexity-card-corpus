@@ -15,6 +15,11 @@ from .language import (
     _render_natural_instruction,
     _without_internal_card_labels,
 )
+from .reasoning_envelope import (
+    REASONING_ENVELOPE_ACTIVE_TASKS,
+    REASONING_ENVELOPE_VERSION,
+    render_reasoning_envelope,
+)
 from .target import _apply_semantic_resolution, _naturalize_assistant_target
 
 
@@ -24,6 +29,8 @@ def _project_sft_exchange(
     example_id: str,
     task: str,
     answer_json: str,
+    reasoning_envelope_version: str | None = None,
+    reasoning_seed: str | None = None,
 ) -> tuple[str, str, TrainingCards]:
     try:
         metadata = json.loads(answer_json) if answer_json else {}
@@ -54,6 +61,21 @@ def _project_sft_exchange(
             metadata=metadata,
             example_id=example_id,
         )
+    if reasoning_envelope_version is not None:
+        if reasoning_envelope_version != REASONING_ENVELOPE_VERSION:
+            raise ValueError(
+                f"unsupported reasoning envelope version: {reasoning_envelope_version}"
+            )
+        if task in REASONING_ENVELOPE_ACTIVE_TASKS:
+            envelope = render_reasoning_envelope(
+                task=task,
+                source_response=_final_assistant_target(messages),
+                natural_final=target,
+                metadata=metadata,
+                seed=reasoning_seed or example_id,
+            )
+            if envelope is not None:
+                target = envelope.text
     return (
         _without_internal_card_labels(prompt),
         correct_indefinite_articles(_without_internal_card_labels(target)),
@@ -67,6 +89,8 @@ def _project_sft_conversation(
     example_id: str,
     task: str,
     answer_json: str,
+    reasoning_envelope_version: str | None = None,
+    reasoning_seed: str | None = None,
 ) -> tuple[list[dict[str, str]], TrainingCards]:
     """Preserve real dialogue turns while removing card-storage syntax.
 
@@ -83,6 +107,8 @@ def _project_sft_conversation(
         example_id=example_id,
         task=task,
         answer_json=answer_json,
+        reasoning_envelope_version=reasoning_envelope_version,
+        reasoning_seed=reasoning_seed,
     )
     sections = _card_sections(messages)
     try:

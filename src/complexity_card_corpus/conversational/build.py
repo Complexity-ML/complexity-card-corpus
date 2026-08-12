@@ -3,22 +3,17 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import shutil
 from collections import Counter
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import pyarrow as pa
-import pyarrow.parquet as pq
-
 from ..build import file_sha256
 from ..conversation_quality import audit_casual_conversation_quality
-from ..sft.schema import INSTRUCTION_SCHEMA
 from ..variable_by import casual_variable_by
+from ..variable_by.reservoirs import CASUAL_ARC_CARDS, CASUAL_INTENT_CARDS
 
 
-_DATASET_ID = "complexity-casual-conversation-v16"
+_DATASET_ID = "complexity-casual-conversation-v18"
 _WORD = re.compile(r"[a-z0-9']+")
 _PLACEHOLDER = re.compile(r"\{[^{}]+\}")
 _REQUIRED_SUBCARDS = {
@@ -62,40 +57,39 @@ def _join(*parts: str) -> str:
     return " ".join(_sentence(part) for part in parts if part.strip()).strip()
 
 
-def _validation_source_pairs(
-    pairs: list[tuple[dict[str, Any], dict[str, Any]]],
+def _semantic_unit_id(
+    topic: dict[str, Any],
+    context: dict[str, Any],
+    intent: dict[str, Any],
+    arc: dict[str, Any],
+) -> str:
+    return ":".join(
+        (
+            topic["topic_id"],
+            context["context_id"],
+            intent["intent_id"],
+            arc["arc_id"],
+        )
+    )
+
+
+def _validation_semantic_units(
+    units: list[
+        tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]
+    ],
     validation_percent: int,
 ) -> set[str]:
-    """Select validation pairs evenly across context cards.
+    """Select an exact deterministic percentage of unique semantic units."""
 
-    Repetition gates are evaluated on training rows. A purely global hash can
-    remove no example from one context and make a phrase occurring once per
-    topic exceed five percent after the split. Round-robin selection gives each
-    context the same held-out support before any context receives a second row.
-    """
-
-    by_context: dict[str, list[tuple[dict[str, Any], dict[str, Any]]]] = {}
-    for topic, context in pairs:
-        by_context.setdefault(context["context_id"], []).append((topic, context))
-    rounds = max(
-        1,
-        round(
-            max(len(context_pairs) for context_pairs in by_context.values())
-            * validation_percent
-            / 100
+    count = max(1, round(len(units) * validation_percent / 100))
+    ranked = sorted(
+        (
+            _semantic_unit_id(topic, context, intent, arc)
+            for topic, context, intent, arc in units
         ),
+        key=lambda unit_id: _digest(f"validation:{unit_id}"),
     )
-    selected: set[str] = set()
-    for context_id, context_pairs in sorted(by_context.items()):
-        ranked = sorted(
-            context_pairs,
-            key=lambda pair: _digest(
-                f"validation:{pair[0]['topic_id']}:{pair[1]['context_id']}"
-            ),
-        )
-        for topic, context in ranked[:rounds]:
-            selected.add(f"{topic['topic_id']}:context:{context['context_id']}")
-    return selected
+    return set(ranked[:count])
 
 
 def _validate_registry(registry: dict[str, Any]) -> None:
@@ -118,19 +112,28 @@ def _validate_registry(registry: dict[str, Any]) -> None:
     for stage, templates in decks.items():
         if len(set(templates)) != len(templates):
             raise ValueError(f"duplicate surface subcard in {stage}")
+    if len(CASUAL_INTENT_CARDS) < 8 or len(CASUAL_ARC_CARDS) < 9:
+        raise ValueError("casual semantic reservoirs lack intent or arc capacity")
+    for card in CASUAL_INTENT_CARDS:
+        if not {"intent_id", "user_opening", "assistant_entry", "closing_focus"} <= set(card):
+            raise ValueError(f"incomplete casual intent card: {card.get('intent_id')}")
+    for card in CASUAL_ARC_CARDS:
+        if not {"arc_id", "user_follow_up", "user_shift", "closing_lens"} <= set(card):
+            raise ValueError(f"incomplete casual arc card: {card.get('arc_id')}")
 
 
 def _messages(
     *,
     topic: dict[str, Any],
     context: dict[str, Any],
+    intent: dict[str, Any],
+    arc: dict[str, Any],
     decks: dict[str, list[str]],
-    variant: int,
-    pair_index: int,
+    unit_index: int,
 ) -> tuple[list[dict[str, str]], dict[str, int], int, tuple[str, ...]]:
-    pair_key = f"{topic['topic_id']}:{context['context_id']}"
-    matrix = casual_variable_by(topic, context, decks)
-    deal_seed = f"casual:{pair_key}:{variant}:{pair_index}"
+    semantic_unit_id = _semantic_unit_id(topic, context, intent, arc)
+    matrix = casual_variable_by(topic, context, intent, arc, decks)
+    deal_seed = f"casual:{semantic_unit_id}:{unit_index}"
     dealt = matrix.deal(deal_seed)
     indexes = {
         stage: _stable_index(
@@ -139,18 +142,25 @@ def _messages(
         )
         for stage in _STAGES
     }
-    turn_count = 4 if _stable_index(f"turns:{topic['topic_id']}:{context['context_id']}:{variant}", 5) < 2 else 6
+    turn_count = 4 if _stable_index(f"turns:{semantic_unit_id}", 5) < 2 else 6
     opening = _sentence(dealt["surface"]["user_opening"])
     entry = _sentence(dealt["surface"]["assistant_entry"])
     follow_up = _sentence(dealt["surface"]["user_follow_up"])
     assistant_reply = _sentence(dealt["surface"]["assistant_follow_up"])
-    closing = _sentence(dealt["surface"]["assistant_closing"])
+    closing_depth = _stable_index(f"closing-depth:{semantic_unit_id}", 3)
+    indexes["closing_depth"] = closing_depth
+    if closing_depth == 0:
+        closing = _sentence(dealt["semantic"]["closing_compact"])
+    elif closing_depth == 1:
+        closing = _sentence(dealt["semantic"]["closing_balanced"])
+    else:
+        closing = _sentence(dealt["surface"]["assistant_closing"])
     if turn_count == 4:
         messages = [
             {"role": "user", "content": opening},
             {"role": "assistant", "content": entry},
             {"role": "user", "content": follow_up},
-            {"role": "assistant", "content": _join(assistant_reply, closing)},
+            {"role": "assistant", "content": closing},
         ]
     else:
         assistant_reply = _join(
@@ -239,15 +249,14 @@ def _audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def build_casual_conversation_surface(
+def render_casual_conversation_rows(
     registry_path: Path,
-    output_root: Path,
     *,
     examples: int | None = None,
     seed: int = 42,
     validation_percent: int = 5,
-) -> dict[str, Any]:
-    """Build an additive casual-dialogue supplement from linked original cards."""
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Render the native casual family without creating a separate artifact."""
 
     if not 1 <= validation_percent <= 25:
         raise ValueError("validation percent must be between 1 and 25")
@@ -256,33 +265,41 @@ def build_casual_conversation_surface(
     topics = registry["topic_cards"]
     contexts = registry["context_cards"]
     decks = registry["surface_decks"]
-    pairs = [
-        (topic, context)
+    units = [
+        (topic, context, intent, arc)
         for topic in topics
         for context in contexts
+        for intent in CASUAL_INTENT_CARDS
+        for arc in CASUAL_ARC_CARDS
     ]
-    pairs.sort(key=lambda pair: _digest(f"{seed}:{pair[0]['topic_id']}:{pair[1]['context_id']}"))
-    validation_source_pairs = _validation_source_pairs(pairs, validation_percent)
+    units.sort(
+        key=lambda unit: _digest(
+            f"{seed}:{_semantic_unit_id(*unit)}"
+        )
+    )
     if examples is None:
-        examples = len(pairs)
+        examples = len(units)
     if examples < 100:
         raise ValueError("casual conversation build needs at least 100 examples")
-    capacity = len(pairs)
+    capacity = len(units)
     if examples > capacity:
         raise ValueError(f"requested {examples} rows exceeds card capacity {capacity}")
+    selected_units = units[:examples]
+    validation_source_pairs = _validation_semantic_units(
+        selected_units,
+        validation_percent,
+    )
 
     rows: list[dict[str, Any]] = []
-    for ordinal in range(examples):
-        pair_index = ordinal % len(pairs)
-        variant = 0
-        topic, context = pairs[pair_index]
-        source_pair_id = f"{topic['topic_id']}:context:{context['context_id']}"
+    for unit_index, (topic, context, intent, arc) in enumerate(selected_units):
+        source_pair_id = _semantic_unit_id(topic, context, intent, arc)
         messages, indexes, turn_count, variable_by_fields = _messages(
             topic=topic,
             context=context,
+            intent=intent,
+            arc=arc,
             decks=decks,
-            variant=variant,
-            pair_index=pair_index,
+            unit_index=unit_index,
         )
         rendered = "\n".join(
             f"{message['role'].title()}: {message['content']}" for message in messages
@@ -295,6 +312,7 @@ def build_casual_conversation_surface(
                 f"entry={indexes['assistant_entry']}",
                 f"follow={indexes['assistant_follow_up']}",
                 f"closing={indexes['assistant_closing']}",
+                f"closing_depth={indexes['closing_depth']}",
             )
         )
         rows.append(
@@ -313,7 +331,12 @@ def build_casual_conversation_surface(
                 "prompt": messages[0]["content"],
                 "response": messages[-1]["content"],
                 "rendered_text": rendered,
-                "source_keys": [topic["topic_id"], context["context_id"]],
+                "source_keys": [
+                    topic["topic_id"],
+                    context["context_id"],
+                    intent["intent_id"],
+                    arc["arc_id"],
+                ],
                 "evidence": [],
                 "answer_json": json.dumps(
                     {
@@ -321,6 +344,8 @@ def build_casual_conversation_surface(
                         "source_pair_id": source_pair_id,
                         "topic_card_id": topic["topic_id"],
                         "context_card_id": context["context_id"],
+                        "intent_card_id": intent["intent_id"],
+                        "arc_card_id": arc["arc_id"],
                         "surface_hand": surface_hand,
                         "response_structure": response_structure,
                         "deck_topology": {
@@ -343,26 +368,15 @@ def build_casual_conversation_surface(
     rows.sort(key=lambda row: row["example_id"])
     audit = _audit(rows)
 
-    temporary = output_root.with_name(f"{output_root.name}.partial")
-    if temporary.exists():
-        shutil.rmtree(temporary)
-    temporary.mkdir(parents=True)
-    output_path = temporary / "conversations.parquet"
-    pq.write_table(
-        pa.Table.from_pylist(rows, schema=INSTRUCTION_SCHEMA),
-        output_path,
-        compression="zstd",
-        use_dictionary=True,
-        write_statistics=True,
-        row_group_size=5_000,
-        write_page_index=True,
-    )
-    audit_path = temporary / "audit.json"
-    audit_path.write_text(json.dumps(audit, indent=2, sort_keys=True) + "\n")
-    manifest = {
-        "format": "casual-conversation-surface-v16",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "purpose": "additive natural conversation supplement",
+    content_digest = hashlib.sha256()
+    for row in rows:
+        content_digest.update(
+            json.dumps(row, sort_keys=True, separators=(",", ":")).encode()
+        )
+        content_digest.update(b"\n")
+    summary = {
+        "format": "casual-conversation-family-v18",
+        "purpose": "native casual_conversation training family",
         "seed": seed,
         "counts": {
             "examples": len(rows),
@@ -371,26 +385,18 @@ def build_casual_conversation_surface(
             "by_split": dict(sorted(Counter(row["split"] for row in rows).items())),
         },
         "capacity": capacity,
+        "semantic_capacity": {
+            "topics": len(topics),
+            "contexts": len(contexts),
+            "intents": len(CASUAL_INTENT_CARDS),
+            "arcs": len(CASUAL_ARC_CARDS),
+            "product": capacity,
+        },
         "audit": audit,
-        "inputs": {
-            "registry": {"path": str(registry_path), "sha256": file_sha256(registry_path)}
+        "registry": {
+            "path": str(registry_path),
+            "sha256": file_sha256(registry_path),
         },
-        "files": {},
+        "content_sha256": content_digest.hexdigest(),
     }
-    manifest["files"] = {
-        "conversations.parquet": {
-            "sha256": file_sha256(output_path),
-            "bytes": output_path.stat().st_size,
-        },
-        "audit.json": {
-            "sha256": file_sha256(audit_path),
-            "bytes": audit_path.stat().st_size,
-        },
-    }
-    (temporary / "manifest.json").write_text(
-        json.dumps(manifest, indent=2, sort_keys=True) + "\n"
-    )
-    if output_root.exists():
-        shutil.rmtree(output_root)
-    temporary.rename(output_root)
-    return manifest
+    return rows, summary

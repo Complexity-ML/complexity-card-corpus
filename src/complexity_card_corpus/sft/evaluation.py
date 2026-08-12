@@ -140,6 +140,7 @@ SFT_REPETITION_WINDOWS = (3, 5, 8)
 MINIMUM_REPETITION_AUDIT_EXAMPLES = 100
 _SENTENCE_BOUNDARY = re.compile(r"(?:[.!?]+|\n+)")
 _ROLE_LABEL = re.compile(r"(?im)^\s*(?:user|assistant):\s*")
+_REASONING_PROTOCOL_TAG = re.compile(r"</?(?:think|final)>", flags=re.IGNORECASE)
 _LIST_MARKER = re.compile(r"^\s*(?:\d+[.)]|[-*•])\s*")
 _STRUCTURED_RESPONSE_TASKS = {"extraction_classification"}
 _INCOMPLETE_TARGET_ENDING = re.compile(
@@ -172,6 +173,7 @@ def _normalized_opening(text: str, *, words: int = SFT_OPENING_WORDS) -> str:
 
     if words < 1:
         raise ValueError("opening signature must contain at least one word")
+    text = _REASONING_PROTOCOL_TAG.sub(" ", text)
     without_list_marker = re.sub(r"^\s*(?:\d+[.)]|[-*•])\s*", "", text)
     tokens = _OPENING_TOKEN.findall(_normalized_structure(without_list_marker))
     return " ".join(tokens[:words])
@@ -259,7 +261,7 @@ def assert_sft_opening_diversity(
 def _normalized_lexical_tokens(text: str) -> tuple[str, ...]:
     """Return comparable lexical tokens without chat labels or volatile slots."""
 
-    text = _ROLE_LABEL.sub("", text)
+    text = _REASONING_PROTOCOL_TAG.sub(" ", _ROLE_LABEL.sub("", text))
     text = _LIST_MARKER.sub("", text)
     return tuple(_OPENING_TOKEN.findall(_normalized_structure(text)))
 
@@ -272,8 +274,9 @@ def _text_repetition_signatures(text: str, *, side: str) -> dict[str, set[str]]:
     percentages of all n-grams emitted by a long answer.
     """
 
-    compact = re.sub(r"\s+", " ", _ROLE_LABEL.sub("", text)).strip().lower()
-    structure = _normalized_structure(_ROLE_LABEL.sub("", text))
+    protocol_free = _REASONING_PROTOCOL_TAG.sub(" ", _ROLE_LABEL.sub("", text))
+    compact = re.sub(r"\s+", " ", protocol_free).strip().lower()
+    structure = _normalized_structure(protocol_free)
     tokens = _normalized_lexical_tokens(text)
     signatures: dict[str, set[str]] = {
         f"{side}_exact": {compact} if compact else set(),
@@ -293,7 +296,7 @@ def _text_repetition_signatures(text: str, *, side: str) -> dict[str, set[str]]:
         for index in range(max(0, len(tokens) - span_size + 1))
     }
     sentences: set[str] = set()
-    for sentence in _SENTENCE_BOUNDARY.split(_ROLE_LABEL.sub("", text)):
+    for sentence in _SENTENCE_BOUNDARY.split(protocol_free):
         sentence_tokens = _normalized_lexical_tokens(sentence)
         if len(sentence_tokens) >= 4:
             sentences.add(" ".join(sentence_tokens))
@@ -615,6 +618,7 @@ def audit_sft_repetition_quality(
     target_key: str = "_projected_target",
     maximum_share: float = MAXIMUM_SFT_REPETITION_SHARE,
     minimum_examples: int = MINIMUM_REPETITION_AUDIT_EXAMPLES,
+    maximum_examples_per_task: int | None = None,
 ) -> dict[str, Any]:
     """Audit every material form of SFT repetition inside each family.
 
@@ -630,6 +634,8 @@ def audit_sft_repetition_quality(
         raise ValueError("maximum repetition share must be in (0, 1]")
     if minimum_examples < 1:
         raise ValueError("minimum repetition audit examples must be positive")
+    if maximum_examples_per_task is not None and maximum_examples_per_task < 1:
+        raise ValueError("maximum_examples_per_task must be positive")
 
     rows_by_task: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
@@ -637,7 +643,18 @@ def audit_sft_repetition_quality(
 
     tasks: dict[str, Any] = {}
     violations: list[dict[str, Any]] = []
-    for task, task_rows in sorted(rows_by_task.items()):
+    for task, population_rows in sorted(rows_by_task.items()):
+        task_rows = population_rows
+        if (
+            maximum_examples_per_task is not None
+            and len(task_rows) > maximum_examples_per_task
+        ):
+            task_rows = sorted(
+                task_rows,
+                key=lambda row: hashlib.sha256(
+                    f"repetition-audit:{task}:{row['example_id']}".encode()
+                ).digest(),
+            )[:maximum_examples_per_task]
         counters: dict[str, Counter[str]] = defaultdict(Counter)
         for row in task_rows:
             if prompt_key in row:
@@ -684,7 +701,13 @@ def audit_sft_repetition_quality(
             if not passed:
                 violations.append({"task": task, "dimension": dimension, **item})
         tasks[task] = {
+            "population_examples": len(population_rows),
             "examples": total,
+            "sampling": (
+                "deterministic_sha256"
+                if len(task_rows) < len(population_rows)
+                else "full_population"
+            ),
             "audited": task_audited,
             "passed": all(item["passed"] for item in dimensions.values()),
             "dimensions": dimensions,
@@ -693,6 +716,7 @@ def audit_sft_repetition_quality(
     return {
         "maximum_allowed_share": maximum_share,
         "minimum_examples": minimum_examples,
+        "maximum_examples_per_task": maximum_examples_per_task,
         "opening_and_closing_windows": list(SFT_REPETITION_WINDOWS),
         "internal_span_words": max(SFT_REPETITION_WINDOWS),
         "passed": not violations,

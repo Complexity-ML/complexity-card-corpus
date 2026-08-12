@@ -6,6 +6,7 @@ from .catalog import (
     critique_variable_by,
     empathy_variable_by,
     reasoning_variable_by,
+    reasoning_envelope_variable_by,
     safety_variable_by,
 )
 from .audit import (
@@ -31,5 +32,6 @@ __all__ = (
     "critique_variable_by",
     "empathy_variable_by",
     "reasoning_variable_by",
+    "reasoning_envelope_variable_by",
     "safety_variable_by",
 )

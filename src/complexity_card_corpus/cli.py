@@ -9,7 +9,6 @@ import pyarrow.parquet as pq
 
 from .build import build_corpus
 from .conversation_blueprint import build_conversation_blueprints
-from .conversational import build_casual_conversation_surface
 from .contract_embedding_audit import audit_contract_dataset_with_embeddings
 from .dictionary_review import write_dictionary_review
 from .definition_acceptance import accept_definition_proposals
@@ -223,17 +222,6 @@ def parser() -> argparse.ArgumentParser:
         conversation_surface.add_argument("--seed", type=int, default=42)
         conversation_surface.add_argument("--validation-percent", type=int, default=5)
 
-    casual_conversation = commands.add_parser("build-casual-conversation")
-    casual_conversation.add_argument("--registry", type=Path, required=True)
-    casual_conversation.add_argument("--output", type=Path, required=True)
-    casual_conversation.add_argument(
-        "--examples",
-        type=int,
-        help="rows to render; omitted means one row per semantic topic/context pair",
-    )
-    casual_conversation.add_argument("--seed", type=int, default=42)
-    casual_conversation.add_argument("--validation-percent", type=int, default=5)
-
     tokenize_instruct = commands.add_parser("tokenize-instruct")
     tokenize_instruct.add_argument("--instructions", type=Path, required=True)
     tokenize_instruct.add_argument(
@@ -248,12 +236,6 @@ def parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("data/conversation/original/casual-conversation-decks-v1.json"),
         help="original casual card registry built and included automatically",
-    )
-    tokenize_instruct.add_argument(
-        "--casual-output",
-        type=Path,
-        default=Path("build/casual-conversation-v16"),
-        help="deterministic V16 casual build directory",
     )
     tokenize_instruct.add_argument(
         "--without-casual-conversation",
@@ -310,6 +292,14 @@ def parser() -> argparse.ArgumentParser:
         help=(
             "separately authored evaluation JSON; generated validation rows are "
             "excluded when this option is provided"
+        ),
+    )
+    tokenize_instruct.add_argument(
+        "--reasoning-envelope-version",
+        choices=("v18",),
+        help=(
+            "emit audited VariableBy2D <think>/<final> targets for "
+            "reasoning families"
         ),
     )
 
@@ -657,40 +647,18 @@ def main() -> None:
                 sort_keys=True,
             )
         )
-    elif args.command == "build-casual-conversation":
-        result = build_casual_conversation_surface(
-            args.registry,
-            args.output,
-            examples=args.examples,
-            seed=args.seed,
-            validation_percent=args.validation_percent,
-        )
-        print(
-            json.dumps(
-                {"counts": result["counts"], "audit": result["audit"]},
-                indent=2,
-                sort_keys=True,
-            )
-        )
     elif args.command == "tokenize-instruct":
         supplements = list(args.supplement)
         require_casual_conversation = not args.without_casual_conversation
-        if require_casual_conversation:
-            build_casual_conversation_surface(
-                args.casual_registry,
-                args.casual_output,
-                seed=42,
-                validation_percent=5,
-            )
-            casual_path = args.casual_output / "conversations.parquet"
-            if casual_path.resolve() not in {path.resolve() for path in supplements}:
-                supplements.append(casual_path)
         result = tokenize_instruction_dataset(
             args.instructions,
             args.tokenizer,
             args.output,
             heldout_evaluation_path=args.heldout_evaluation,
             supplementary_instruction_paths=supplements,
+            casual_registry_path=(
+                args.casual_registry if require_casual_conversation else None
+            ),
             workers=args.workers,
             max_examples_per_family=(args.max_examples_per_family or None),
             max_per_structure=(args.max_per_structure or None),
@@ -699,6 +667,7 @@ def main() -> None:
             target_training_examples=(args.target_training_examples or None),
             target_supervised_tokens=(args.target_supervised_tokens or None),
             require_casual_conversation=require_casual_conversation,
+            reasoning_envelope_version=args.reasoning_envelope_version,
         )
         print(
             json.dumps(

@@ -76,8 +76,11 @@ def validate_task_hand(family: str, hand: TaskHand) -> None:
         ),
         "troubleshooting": lambda: (all(x in hand.answer for x in ("1.", "2.", "3."))),
         "writing_transformation": lambda: (len(hand.answer.split()) >= 12),
-        "planning_comparison": lambda: all(
-            x in hand.answer for x in ("Choose", "Sequence:", "Fallback trigger:")
+        "planning_comparison": lambda: any(
+            topology.name == "planning-answer"
+            and topology.pool_names
+            == ("criteria", "choice", "sequence", "fallback")
+            for topology in hand.answer.deck_topologies
         ),
         "conversation_empathy": lambda: hand.answer.count("?") <= 1,
         "safety_uncertainty": lambda: any(

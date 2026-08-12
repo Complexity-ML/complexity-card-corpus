@@ -8,9 +8,11 @@ import json
 import pyarrow.parquet as pq
 import pytest
 
+from complexity_card_corpus.conversational import render_casual_conversation_rows
 
-PROJECTED_SFT = Path("build/post-training-v16/projected.parquet")
-CASUAL_SOURCE = Path("build/casual-conversation-v16/conversations.parquet")
+
+PROJECTED_SFT = Path("build/post-training-v18/projected.parquet")
+CASUAL_REGISTRY = Path("data/conversation/original/casual-conversation-decks-v1.json")
 MAX_NORMALIZED_SENTENCE_SHARE = 0.05
 
 
@@ -25,6 +27,46 @@ def test_projected_sft_manifest_passes_every_release_quality_gate() -> None:
     assert all(release_quality["checks"].values())
 
 
+def test_all_fourteen_core_families_have_multiscale_repetition_gates() -> None:
+    manifest_path = PROJECTED_SFT.parent / "manifest.json"
+    if not manifest_path.exists():
+        pytest.skip("build the unified V18 SFT release before testing repetition")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    counts = manifest["release_quality"]["train_family_counts"]
+    core_families = set(counts) - {"casual_conversation"}
+    audit = manifest["model_facing_repetition_quality"]
+
+    assert len(core_families) == 14
+    assert core_families <= set(audit["tasks"])
+    required_dimensions = {
+        "response_exact",
+        "response_structure",
+        "response_opening_3",
+        "response_opening_5",
+        "response_opening_8",
+        "response_closing_3",
+        "response_closing_5",
+        "response_closing_8",
+        "response_sentence",
+        "response_span_8",
+    }
+    failures = {}
+    for family in sorted(core_families):
+        family_audit = audit["tasks"][family]
+        dimensions = family_audit["dimensions"]
+        assert family_audit["audited"] is True
+        if family != "extraction_classification":
+            assert required_dimensions <= set(dimensions)
+        if not family_audit["passed"]:
+            failures[family] = {
+                name: metric
+                for name, metric in dimensions.items()
+                if metric["audited"] and not metric["passed"]
+            }
+
+    assert failures == {}
+
+
 def test_projected_sft_includes_audited_casual_conversation() -> None:
     manifest_path = PROJECTED_SFT.parent / "manifest.json"
     if not manifest_path.exists():
@@ -34,7 +76,7 @@ def test_projected_sft_includes_audited_casual_conversation() -> None:
 
     assert manifest["release_quality"]["train_family_counts"][
         "casual_conversation"
-    ] == 400
+    ] == 28_728
     assert quality["present"] is True
     assert quality["passed"] is True
     assert quality["violations"] == []
@@ -42,14 +84,12 @@ def test_projected_sft_includes_audited_casual_conversation() -> None:
 
 
 def test_projected_sft_preserves_original_casual_turns_verbatim() -> None:
-    if not PROJECTED_SFT.exists() or not CASUAL_SOURCE.exists():
-        pytest.skip("build the V16 SFT and casual releases before testing projection")
+    if not PROJECTED_SFT.exists():
+        pytest.skip("build the unified V18 SFT release before testing projection")
+    rendered_rows, _summary = render_casual_conversation_rows(CASUAL_REGISTRY)
     source_rows = {
         row["example_id"]: row["messages"]
-        for row in pq.read_table(
-            CASUAL_SOURCE,
-            columns=["example_id", "split", "messages"],
-        ).to_pylist()
+        for row in rendered_rows
         if row["split"] == "train"
     }
     projected_rows = {

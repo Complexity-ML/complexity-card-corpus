@@ -165,37 +165,17 @@ def _naturalize_assistant_target(
             clauses = {
                 "idea": _response_phrase(
                     cards,
-                    (
-                        _sentence(idea),
-                        f"In simple terms, {_inline_sentence(idea)}",
-                        f"The central idea is that {_inline_sentence(idea)}",
-                        f"What matters here is that {_inline_sentence(idea)}",
-                        f"The mechanism works this way: {_sentence(idea)}",
-                        _sentence(idea),
-                    ),
+                    (_sentence(idea),) * 6,
                     offset=1,
                 ),
                 "example": _response_phrase(
                     cards,
-                    (
-                        f"For example, {_inline_sentence(example)}",
-                        f"For instance, {_inline_sentence(example)}",
-                        f"In practice, {_inline_sentence(example)}",
-                        f"A concrete case makes this visible. {_sentence(example)}",
-                        _sentence(example),
-                        f"Consider this case: {_sentence(example)}",
-                    ),
+                    (_sentence(example),) * 6,
                     offset=2,
                 ),
                 "check": _response_phrase(
                     cards,
-                    (
-                        _sentence(check),
-                        f"To test the distinction, {_inline_sentence(check)}",
-                        f"A useful transfer question is this: {_sentence(check)}",
-                        f"You can check the idea by asking: {_sentence(check)}",
-                        f"As a quick test, {_inline_sentence(check)}",
-                    ),
+                    (_sentence(check),) * 5,
                     offset=3,
                 ),
             }
@@ -407,22 +387,12 @@ def _naturalize_assistant_target(
             clauses = {
                 "revision": _response_phrase(
                     cards,
-                    (
-                        _sentence(revision),
-                        f"A grounded revision is: {_sentence(revision)}",
-                        f"Use this narrower wording: {_sentence(revision)}",
-                        f"The corrected version reads: {_sentence(revision)}",
-                    ),
+                    (_sentence(revision),) * 4,
                     offset=31,
                 ),
                 "weakness": _response_phrase(
                     cards,
-                    (
-                        f"The original overreaches because {_inline_sentence(weakness)}",
-                        f"This correction is needed because {_inline_sentence(weakness)}",
-                        f"The weakness is that {_inline_sentence(weakness)}",
-                        _sentence(weakness),
-                    ),
+                    (_sentence(weakness),) * 4,
                     offset=32,
                 ),
             }
@@ -445,34 +415,17 @@ def _naturalize_assistant_target(
             clauses = {
                 "action": _response_phrase(
                     cards,
-                    (
-                        _sentence(action),
-                        f"First, {_inline_sentence(action)}",
-                        _sentence(action),
-                        f"Act on the immediate risk first. {_sentence(action)}",
-                        f"For immediate protection, {_inline_sentence(action)}",
-                        _sentence(action),
-                    ),
+                    (_sentence(action),) * 6,
                     offset=41,
                 ),
                 "boundary": _response_phrase(
                     cards,
-                    (
-                        _sentence(boundary),
-                        f"Keep this limit in place. {_sentence(boundary)}",
-                        f"Do not go beyond this boundary. {_sentence(boundary)}",
-                        f"The safe scope remains limited. {_sentence(boundary)}",
-                    ),
+                    (_sentence(boundary),) * 4,
                     offset=42,
                 ),
                 "escalation": _response_phrase(
                     cards,
-                    (
-                        _sentence(escalation),
-                        f"Then {_inline_sentence(escalation)}",
-                        f"For further help, {_inline_sentence(escalation)}",
-                        _sentence(escalation),
-                    ),
+                    (_sentence(escalation),) * 4,
                     offset=43,
                 ),
             }
@@ -503,34 +456,17 @@ def _naturalize_assistant_target(
             clauses = {
                 "step": _response_phrase(
                     cards,
-                    (
-                        _sentence(step),
-                        f"Start by choosing to {_inline_sentence(step)}",
-                        f"The next workable move is to {_inline_sentence(step)}",
-                        f"First, {_inline_sentence(step)}",
-                        f"The immediate action is to {_inline_sentence(step)}",
-                        f"A practical first step is to {_inline_sentence(step)}",
-                        f"Begin with this action. {_sentence(step)}",
-                        f"Take the following step. {_sentence(step)}",
-                    ),
+                    (_sentence(step),) * 8,
                     offset=51,
                 ),
                 "owner": _response_phrase(
                     cards,
-                    (
-                        _sentence(owner),
-                        f"Ownership is assigned directly: {_inline_sentence(owner)}",
-                        f"For ownership, {_inline_sentence(owner)}",
-                    ),
+                    (_sentence(owner),) * 3,
                     offset=52,
                 ),
                 "timing": _response_phrase(
                     cards,
-                    (
-                        _sentence(timing),
-                        f"For timing, {_inline_sentence(timing)}",
-                        _sentence(timing),
-                    ),
+                    (_sentence(timing),) * 3,
                     offset=53,
                 ),
             }
@@ -567,37 +503,17 @@ def _naturalize_assistant_target(
             rendered = {
                 "restatement": _response_phrase(
                     cards,
-                    (
-                        _sentence(restatement),
-                        f"My current reading is that {_inline_sentence(restatement)}",
-                        f"The supported facts show that {_inline_sentence(restatement)}",
-                        f"What is clear so far is that {_inline_sentence(restatement)}",
-                        f"At this point, {_inline_sentence(restatement)}",
-                        f"The bounded interpretation is that {_inline_sentence(restatement)}",
-                    ),
+                    (_sentence(restatement),) * 6,
                     offset=81,
                 ),
                 "question": _response_phrase(
                     cards,
-                    (
-                        _sentence(question),
-                        f"One detail would resolve this: {_inline_sentence(question)}",
-                        f"Before proceeding, {_inline_sentence(question)}",
-                        f"The remaining question is: {_inline_sentence(question)}",
-                        f"Please clarify one point: {_inline_sentence(question)}",
-                    ),
+                    (_sentence(question),) * 5,
                     offset=82,
                 ),
                 "default": _response_phrase(
                     cards,
-                    (
-                        _sentence(default),
-                        f"Until that is confirmed, {_inline_sentence(default)}",
-                        f"For now, {_inline_sentence(default)}",
-                        f"Pending the answer, {_inline_sentence(default)}",
-                        f"The reversible default is clear: {_sentence(default)}",
-                        f"Meanwhile, {_inline_sentence(default)}",
-                    ),
+                    (_sentence(default),) * 6,
                     offset=83,
                 ),
             }
@@ -607,18 +523,7 @@ def _naturalize_assistant_target(
             return _sentence(fields["Understood"])
         direct = re.sub(
             r"^(?:My current reading|What is clear|The supported interpretation is limited):\s*",
-            _response_phrase(
-                cards,
-                (
-                    "My current reading is that ",
-                    "The supported facts show that ",
-                    "What is clear so far is that ",
-                    "At this point, ",
-                    "The bounded interpretation is that ",
-                    "I can establish that ",
-                ),
-                offset=81,
-            ),
+            "",
             response,
             flags=re.IGNORECASE,
         )

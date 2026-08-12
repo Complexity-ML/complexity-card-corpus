@@ -149,10 +149,22 @@ class VariableBy2D:
             visit(field)
         return tuple(expanded)
 
+    def deal_indices(self, seed: str) -> dict[str, dict[str, int]]:
+        """Return the deterministic card index selected in every 2D cell."""
+
+        return {
+            axis: {
+                sense: _stable_index(f"{seed}:{axis}:{sense}", len(cards))
+                for sense, cards in senses.items()
+            }
+            for axis, senses in self.table.items()
+        }
+
     def deal(self, seed: str) -> DealtVariableBy:
+        indices = self.deal_indices(seed)
         selected = {
             axis: {
-                sense: cards[_stable_index(f"{seed}:{axis}:{sense}", len(cards))]
+                sense: cards[indices[axis][sense]]
                 for sense, cards in senses.items()
             }
             for axis, senses in self.table.items()

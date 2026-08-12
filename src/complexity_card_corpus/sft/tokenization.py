@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
@@ -30,11 +31,18 @@ from ..training_cards import (
 )
 from .evaluation import (
     _audit_sft_projection,
+    audit_sft_repetition_quality,
     load_heldout_evaluation,
 )
 from .language import _card_sections, _render_messages
 from .projection import (
     _project_sft_conversation,
+)
+from .reasoning_envelope import (
+    REASONING_ENVELOPE_VERSION,
+    audit_reasoning_envelopes,
+    parse_reasoning_envelope,
+    reasoning_envelope_card_hand,
 )
 from .selection import (
     _normalized_structure,
@@ -72,6 +80,21 @@ _INSTRUCTION_COLUMNS = (
 # still prevents a single semantic domain from dominating a family while
 # preserving enough naturally uneven material for the release-scale corpus.
 TRAIN_QUALITY_MAX_DOMAIN_SHARE = 0.10
+TRAIN_QUALITY_MAX_STYLE_PREFIX_SHARE = 0.05
+TRAIN_QUALITY_MAX_MULTISCALE_REPETITION_SHARE = 0.045
+TRAIN_QUALITY_REPETITION_SAMPLE_PER_FAMILY = 10_000
+TRAIN_QUALITY_MIN_AUTHORED_CONVERSATION_SHARE = 0.05
+TRAIN_QUALITY_REASONING_ENVELOPE_SHARE = (0.15, 0.25)
+
+_STYLE_WORD = re.compile(r"[a-z0-9']+")
+_STYLE_NUMBER = re.compile(r"\d+(?:[.,:/]\d+)*(?:%|°c)?", re.IGNORECASE)
+_MODEL_FACING_META_STEMS = (
+    "a useful transfer question",
+    "the available evidence",
+    "the supplied details",
+    "the claim should remain",
+    "the process can be summarized",
+)
 
 SUPPLEMENT_TASK_ALIASES = {
     "empathetic_dialogue": "conversation_empathy",
@@ -92,7 +115,97 @@ def _project_surface(
         example_id=selection_key,
         task=row["task"],
         answer_json=row["answer_json"],
+        reasoning_envelope_version=row.get("_reasoning_envelope_version"),
+        reasoning_seed=row["example_id"],
     )
+
+
+def _reasoning_projection_fields(row: dict[str, Any]) -> dict[str, Any]:
+    envelope = parse_reasoning_envelope(row["_projected_target"])
+    if envelope is None:
+        return {
+            "reasoning_envelope": False,
+            "reasoning_trace": "",
+            "final_response": row["_projected_target"],
+            "reasoning_card_hand": "",
+        }
+    return {
+        "reasoning_envelope": True,
+        "reasoning_trace": envelope.think,
+        "final_response": envelope.final,
+        "reasoning_card_hand": reasoning_envelope_card_hand(
+            row["task"], row["example_id"]
+        ),
+    }
+
+
+def _audit_model_facing_style(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Measure repeated prose seen by the loss, not internal card metadata."""
+
+    train_records = [row for row in records if row["split"] == "train"]
+    task_counts = Counter(row["task"] for row in train_records)
+    stem_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    prefix_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    for row in train_records:
+        task = row["task"]
+        response = row["response"].casefold()
+        for stem in _MODEL_FACING_META_STEMS:
+            if stem in response:
+                stem_counts[task][stem] += 1
+        protocol_free = re.sub(r"</?(?:think|final)>", " ", response)
+        prefixes: set[str] = set()
+        for sentence in re.split(r"(?<=[.!?])\s+|\n+", protocol_free):
+            normalized = _STYLE_NUMBER.sub(" number ", sentence)
+            words = _STYLE_WORD.findall(normalized)
+            if len(words) >= 8:
+                prefixes.add(" ".join(words[:6]))
+        prefix_counts[task].update(prefixes)
+
+    task_audits: dict[str, Any] = {}
+    prefix_failures: list[str] = []
+    stem_failures: list[str] = []
+    for task, total in sorted(task_counts.items()):
+        prefixes = prefix_counts[task]
+        stems = stem_counts[task]
+        maximum_prefix, maximum_count = (
+            prefixes.most_common(1)[0] if prefixes else ("", 0)
+        )
+        maximum_share = maximum_count / total if total else 0.0
+        if maximum_share > TRAIN_QUALITY_MAX_STYLE_PREFIX_SHARE:
+            prefix_failures.append(task)
+        stem_shares = {
+            stem: count / total if total else 0.0
+            for stem, count in stems.items()
+        }
+        if any(
+            share > TRAIN_QUALITY_MAX_STYLE_PREFIX_SHARE
+            for share in stem_shares.values()
+        ):
+            stem_failures.append(task)
+        task_audits[task] = {
+            "examples": total,
+            "maximum_six_word_prefix": maximum_prefix,
+            "maximum_six_word_prefix_count": maximum_count,
+            "maximum_six_word_prefix_share": round(maximum_share, 6),
+            "forbidden_meta_stem_counts": dict(sorted(stems.items())),
+            "forbidden_meta_stem_shares": {
+                stem: round(share, 6)
+                for stem, share in sorted(stem_shares.items())
+            },
+        }
+    checks = {
+        "no_forbidden_model_facing_meta_stems": not stem_failures,
+        "maximum_six_word_sentence_prefix_share_at_most_5_percent_per_family": (
+            not prefix_failures
+        ),
+    }
+    return {
+        "tasks": task_audits,
+        "prefix_failure_tasks": prefix_failures,
+        "meta_stem_failure_tasks": stem_failures,
+        "checks": checks,
+        "passed": all(checks.values()),
+    }
 
 
 def _deal_surface(row: dict[str, Any], selection_key: str) -> TrainingCards:
@@ -237,6 +350,7 @@ def tokenize_instruction_dataset(
     output_root: Path,
     heldout_evaluation_path: Path | None = None,
     supplementary_instruction_paths: list[Path] | None = None,
+    casual_registry_path: Path | None = None,
     workers: int = 1,
     max_examples_per_family: int | None = None,
     max_per_structure: int | None = None,
@@ -245,6 +359,7 @@ def tokenize_instruction_dataset(
     target_training_examples: int | None = None,
     target_supervised_tokens: int | None = None,
     require_casual_conversation: bool = True,
+    reasoning_envelope_version: str | None = None,
 ) -> dict[str, Any]:
     """Project and tokenize SFT data without hidden scale-dependent truncation.
 
@@ -256,6 +371,10 @@ def tokenize_instruction_dataset(
         raise ValueError("target_training_examples must be positive")
     if target_supervised_tokens is not None and target_supervised_tokens < 1:
         raise ValueError("target_supervised_tokens must be positive")
+    if reasoning_envelope_version not in {None, REASONING_ENVELOPE_VERSION}:
+        raise ValueError(
+            f"unsupported reasoning envelope version: {reasoning_envelope_version}"
+        )
     encoding, tokenizer_config = load_encoding(tokenizer_root)
     eos_token = tokenizer_config.get("eos_token", "<|endoftext|>")
     try:
@@ -270,6 +389,42 @@ def tokenize_instruction_dataset(
             supplementary_instruction_paths,
         )
     )
+    if casual_registry_path is not None:
+        # Import lazily so the conversational renderer can reuse the SFT schema
+        # without creating a module-import cycle.
+        from ..conversational import render_casual_conversation_rows
+
+        casual_rows, casual_summary = render_casual_conversation_rows(
+            casual_registry_path,
+            seed=42,
+            validation_percent=5,
+        )
+        existing_ids = {row["example_id"] for row in source_rows}
+        duplicate_ids = existing_ids & {
+            row["example_id"] for row in casual_rows
+        }
+        if duplicate_ids:
+            raise ValueError(
+                "native casual family duplicates instruction id: "
+                + min(duplicate_ids)
+            )
+        source_rows.extend(casual_rows)
+        source_rows.sort(key=lambda row: row["example_id"])
+        instruction_sources.append(
+            {
+                "kind": "generated_native_family",
+                "family": "casual_conversation",
+                "registry_path": str(casual_registry_path),
+                "registry_sha256": casual_summary["registry"]["sha256"],
+                "sha256": casual_summary["content_sha256"],
+                "examples": len(casual_rows),
+                "task_aliases": {},
+                "semantic_capacity": casual_summary["semantic_capacity"],
+                "audit": casual_summary["audit"],
+            }
+        )
+        material = "\n".join(source["sha256"] for source in instruction_sources)
+        instruction_sources_sha256 = hashlib.sha256(material.encode()).hexdigest()
     evaluation_sha256: str | None = None
     evaluation_provenance: dict[str, int] = {}
     if heldout_evaluation_path is not None:
@@ -289,6 +444,9 @@ def tokenize_instruction_dataset(
                 row["split"] = "diagnostic"
         source_rows.extend(heldout_rows)
         evaluation_sha256 = file_sha256(heldout_evaluation_path)
+
+    for row in source_rows:
+        row["_reasoning_envelope_version"] = reasoning_envelope_version
 
     projected_rows, surface_selection = select_balanced_sft_surfaces(
         source_rows,
@@ -399,11 +557,25 @@ def tokenize_instruction_dataset(
             # to "My immediate goal" after a comma).
             if row["_source_representation"] == "conversation":
                 continue
-            messages = phrase_balancer.rewrite_messages(
-                row["_projected_messages"],
-                task=row["task"],
-                example_id=row["example_id"],
-            )
+            envelope = parse_reasoning_envelope(row["_projected_target"])
+            if envelope is not None:
+                rewritten_final = phrase_balancer.rewrite_messages(
+                    [{"role": "assistant", "content": envelope.final}],
+                    task=row["task"],
+                    example_id=row["example_id"],
+                )[0]["content"]
+                target = (
+                    f"<think>\n{envelope.think}\n</think>\n"
+                    f"<final>\n{rewritten_final}\n</final>"
+                )
+                messages = [*row["_projected_messages"]]
+                messages[-1] = {**messages[-1], "content": target}
+            else:
+                messages = phrase_balancer.rewrite_messages(
+                    row["_projected_messages"],
+                    task=row["task"],
+                    example_id=row["example_id"],
+                )
             row["_projected_messages"] = messages
             row["_projected_prompt"] = _render_messages(messages[:-1])
             row["_projected_target"] = messages[-1]["content"]
@@ -428,6 +600,15 @@ def tokenize_instruction_dataset(
     projection_audit = _audit_sft_projection(
         [row for rows in grouped.values() for row in rows]
     )
+    reasoning_envelope_quality = audit_reasoning_envelopes(
+        [row for rows in grouped.values() for row in rows],
+        enabled=reasoning_envelope_version == REASONING_ENVELOPE_VERSION,
+    )
+    if not reasoning_envelope_quality["passed"]:
+        raise ValueError(
+            "reasoning envelope quality audit failed: "
+            + json.dumps(reasoning_envelope_quality["checks"], sort_keys=True)
+        )
     statistical_quality_audit = audit_rows_quality(
         [row for rows in grouped.values() for row in rows],
         input_label="model-facing SFT projection",
@@ -478,6 +659,7 @@ def tokenize_instruction_dataset(
             "messages": row["_projected_messages"],
             "prompt": row["_projected_prompt"],
             "response": row["_projected_target"],
+            **_reasoning_projection_fields(row),
             "structure_signature": row["_structure_signature"],
             "response_card_hand": row[
                 "_conditioning_cards"
@@ -493,6 +675,12 @@ def tokenize_instruction_dataset(
         for row in partition_rows
     ]
     casual_conversation_quality = audit_casual_conversation_quality(projected_records)
+    model_facing_style_quality = _audit_model_facing_style(projected_records)
+    model_facing_repetition_quality = audit_sft_repetition_quality(
+        grouped.get("train", []),
+        maximum_share=TRAIN_QUALITY_MAX_MULTISCALE_REPETITION_SHARE,
+        maximum_examples_per_task=TRAIN_QUALITY_REPETITION_SAMPLE_PER_FAMILY,
+    )
     projected_path = temporary / "projected.parquet"
     pq.write_table(
         pa.Table.from_pylist(projected_records, schema=PROJECTED_SFT_SCHEMA),
@@ -554,6 +742,12 @@ def tokenize_instruction_dataset(
                             "response_card_hand": (
                                 conditioning_cards.response_structure_signature
                             ),
+                            "reasoning_envelope": _reasoning_projection_fields(row)[
+                                "reasoning_envelope"
+                            ],
+                            "reasoning_card_hand": _reasoning_projection_fields(row)[
+                                "reasoning_card_hand"
+                            ],
                             "cards": (
                                 ["situation", "data", "rule", "goal"]
                                 if has_card_hand
@@ -617,6 +811,9 @@ def tokenize_instruction_dataset(
         "surface_selection": surface_selection,
         "statistical_quality_audit": statistical_quality_audit,
         "casual_conversation_quality": casual_conversation_quality,
+        "model_facing_style_quality": model_facing_style_quality,
+        "model_facing_repetition_quality": model_facing_repetition_quality,
+        "reasoning_envelope_quality": reasoning_envelope_quality,
         "exact_response_deduplication": exact_deduplication,
         "exact_prompt_deduplication": exact_prompt_deduplication,
         "family_balance": family_balance,
@@ -676,6 +873,18 @@ def tokenize_instruction_dataset(
     exact_train_responses = len({row["response"] for row in train_records})
     exact_train_prompts = len({row["prompt"] for row in train_records})
     multi_turn_count = sum(len(row["messages"]) > 2 for row in train_records)
+    authored_conversation_count = sum(
+        row["source_representation"] == "conversation" for row in train_records
+    )
+    authored_conversation_share = (
+        authored_conversation_count / train_count if train_count else 0.0
+    )
+    reasoning_envelope_count = sum(
+        bool(row["reasoning_envelope"]) for row in train_records
+    )
+    reasoning_envelope_share = (
+        reasoning_envelope_count / train_count if train_count else 0.0
+    )
     authored_multi_turn_count = sum(
         len(row["messages"]) > 2 and row["source_representation"] == "conversation"
         for row in train_records
@@ -785,6 +994,25 @@ def tokenize_instruction_dataset(
         "sklearn_statistical_quality_audit_passed": statistical_quality_audit[
             "passed"
         ],
+        "model_facing_style_repetition_audit_passed": (
+            model_facing_style_quality["passed"]
+        ),
+        "all_fourteen_core_families_have_multiscale_repetition_metrics": (
+            len(core_family_counts) == 14
+            and set(core_family_counts)
+            <= set(model_facing_repetition_quality["tasks"])
+            and all(
+                model_facing_repetition_quality["tasks"][task]["audited"]
+                for task in core_family_counts
+            )
+        ),
+        "model_facing_multiscale_repetition_audit_passed": (
+            model_facing_repetition_quality["passed"]
+        ),
+        "authored_conversation_share_at_least_5_percent": (
+            authored_conversation_share
+            >= TRAIN_QUALITY_MIN_AUTHORED_CONVERSATION_SHARE
+        ),
         "heldout_evaluation_has_at_least_28_authored_examples": (
             manifests.get("eval", {}).get("examples", 0) >= 28
         ),
@@ -798,6 +1026,15 @@ def tokenize_instruction_dataset(
         )
         quality_checks["casual_conversation_quality_passed"] = (
             casual_conversation_quality["passed"]
+        )
+    if reasoning_envelope_version == REASONING_ENVELOPE_VERSION:
+        quality_checks["reasoning_envelope_v18_quality_passed"] = (
+            reasoning_envelope_quality["passed"]
+        )
+        quality_checks["reasoning_envelope_share_between_15_and_25_percent"] = (
+            TRAIN_QUALITY_REASONING_ENVELOPE_SHARE[0]
+            <= reasoning_envelope_share
+            <= TRAIN_QUALITY_REASONING_ENVELOPE_SHARE[1]
         )
     if target_training_examples is not None:
         quality_checks["training_examples_reach_requested_target"] = (
@@ -818,6 +1055,11 @@ def tokenize_instruction_dataset(
             for task, share in sorted(core_family_shares.items())
         },
         "required_casual_conversation": require_casual_conversation,
+        "reasoning_envelope_version": reasoning_envelope_version,
+        "reasoning_envelope_examples": reasoning_envelope_count,
+        "reasoning_envelope_share": round(reasoning_envelope_share, 6),
+        "model_facing_style_quality": model_facing_style_quality,
+        "model_facing_repetition_quality": model_facing_repetition_quality,
         "difficulty_counts": difficulty_counts,
         "response_length_bands": dict(response_length_bands),
         "distinct_train_structures": distinct_train_structures,
@@ -856,6 +1098,8 @@ def tokenize_instruction_dataset(
         "linked_card_multi_turn_share": round(
             linked_card_multi_turn_count / train_count if train_count else 0.0, 6
         ),
+        "authored_conversation_examples": authored_conversation_count,
+        "authored_conversation_share": round(authored_conversation_share, 6),
         "exact_train_response_uniqueness_ratio": round(
             exact_train_responses / train_count if train_count else 0.0, 6
         ),
@@ -882,6 +1126,15 @@ def tokenize_instruction_dataset(
             "quality_maximum_domain_share": TRAIN_QUALITY_MAX_DOMAIN_SHARE,
             "quality_maximum_response_card_hand_share": (
                 TRAIN_QUALITY_MAX_RESPONSE_CARD_HAND_SHARE
+            ),
+            "quality_maximum_style_prefix_share": (
+                TRAIN_QUALITY_MAX_STYLE_PREFIX_SHARE
+            ),
+            "quality_minimum_authored_conversation_share": (
+                TRAIN_QUALITY_MIN_AUTHORED_CONVERSATION_SHARE
+            ),
+            "quality_reasoning_envelope_share_range": list(
+                TRAIN_QUALITY_REASONING_ENVELOPE_SHARE
             ),
         },
     }

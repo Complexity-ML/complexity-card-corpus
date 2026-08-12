@@ -5,6 +5,7 @@ from .brainstorm import brainstorm_pilot_cards
 from .brainstorm_cases import BrainstormFacts, brainstorm_cases
 from .brainstorm_checks import brainstorm_checks
 from .casual import casual_reservoir
+from .casual_semantics import CASUAL_ARC_CARDS, CASUAL_INTENT_CARDS
 from .critique import critique_reservoir
 from .critique_cases import CritiqueFacts, critique_cases
 from .safety_cases import inherited_safety_case
@@ -14,6 +15,7 @@ from .grounded_qa import GroundedQAFacts, grounded_qa_variable_by
 from .planning import planning_answer_cards, planning_option_cards
 from .reasoning import reasoning_reservoir
 from .reasoning_cases import reasoning_case
+from .reasoning_envelope import reasoning_envelope_reservoir
 from .safety import safety_reservoir
 from .summary import meeting_summary_cards
 from .troubleshooting import troubleshooting_cards
@@ -27,6 +29,8 @@ __all__ = (
     "BrainstormFacts",
     "brainstorm_checks",
     "casual_reservoir",
+    "CASUAL_ARC_CARDS",
+    "CASUAL_INTENT_CARDS",
     "critique_cases",
     "CritiqueFacts",
     "inherited_safety_case",
@@ -40,6 +44,7 @@ __all__ = (
     "practical_cards",
     "reasoning_reservoir",
     "reasoning_case",
+    "reasoning_envelope_reservoir",
     "safety_reservoir",
     "meeting_summary_cards",
     "troubleshooting_cards",

@@ -3234,7 +3234,7 @@ _COMMON_RULES: dict[str, tuple[_SurfaceRule, ...]] = {
                 (
                     "For safety,",
                     "Until qualified verification,",
-                    "Within the available evidence,",
+                    "Given only what is confirmed,",
                     "As a protective limit,",
                     "For this response,",
                     "While the risk remains unresolved,",
@@ -9299,7 +9299,7 @@ _FINAL_RESIDUAL_CEILING_RULES: dict[str, tuple[_SurfaceRule, ...]] = {
                 "A diagnosis cannot be made from this information, and the safety concern remains.",
                 "The current evidence neither identifies the condition nor resolves the danger.",
                 "This account is too limited for diagnosis or reassurance that no risk remains.",
-                "Neither diagnostic certainty nor removal of the hazard follows from the supplied details.",
+                "These facts support neither a diagnosis nor an all-clear conclusion.",
                 "The information does not support a diagnosis, so the possible harm remains unresolved.",
                 "No reliable diagnosis or all-clear conclusion can be drawn from this report.",
                 "The evidence is inadequate to name the condition or dismiss the safety concern.",

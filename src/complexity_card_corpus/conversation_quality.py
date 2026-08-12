@@ -14,6 +14,12 @@ MAXIMUM_FUNCTION_PHRASE_SHARE = 0.15
 MAXIMUM_FINAL_PHRASE_SHARE = 0.05
 MAXIMUM_FINAL_SENTENCE_SHARE = 0.05
 MAXIMUM_FINAL_SENTENCES = 3
+_GRAMMAR_DEFECTS = {
+    "but_not_really": re.compile(r"\bbut not really\b", re.IGNORECASE),
+    "but_at_first": re.compile(r"\bbut at first\b", re.IGNORECASE),
+    "but_yes": re.compile(r"\bbut yes\b", re.IGNORECASE),
+    "i_think_so_i_think": re.compile(r"\bI think so\. I think\b", re.IGNORECASE),
+}
 
 
 def _sentences(text: str) -> tuple[str, ...]:
@@ -105,6 +111,7 @@ def audit_casual_conversation_quality(
     final_sentences: Counter[str] = Counter()
     final_sentence_counts: Counter[int] = Counter()
     malformed_role_sequences = 0
+    grammar_defects: Counter[str] = Counter()
 
     for row in selected:
         messages = row["messages"]
@@ -115,6 +122,9 @@ def audit_casual_conversation_quality(
         for function, message in zip(functions, messages, strict=True):
             role = message["role"]
             text = message["content"]
+            for name, pattern in _GRAMMAR_DEFECTS.items():
+                if pattern.search(text):
+                    grammar_defects[name] += 1
             sentence_signatures = {
                 signature
                 for sentence in _sentences(text)
@@ -162,6 +172,13 @@ def audit_casual_conversation_quality(
     violations: list[str] = []
     if malformed_role_sequences:
         violations.append(f"{malformed_role_sequences} malformed role sequences")
+    if grammar_defects:
+        violations.append(
+            "casual grammar defects detected: "
+            + ", ".join(
+                f"{name}={count}" for name, count in sorted(grammar_defects.items())
+            )
+        )
     for role, stats in role_stats.items():
         if stats["largest_four_word_phrase"]["share"] > MAXIMUM_ROLE_PHRASE_SHARE:
             violations.append(f"{role} four-word phrase repetition exceeds 5%")
@@ -192,6 +209,7 @@ def audit_casual_conversation_quality(
             "maximum_final_sentences": MAXIMUM_FINAL_SENTENCES,
         },
         "malformed_role_sequences": malformed_role_sequences,
+        "grammar_defects": dict(sorted(grammar_defects.items())),
         "final_sentence_counts": dict(sorted(final_sentence_counts.items())),
         "largest_final_six_word_phrase": largest_final_phrase,
         "largest_final_exact_sentence": largest_final_sentence,

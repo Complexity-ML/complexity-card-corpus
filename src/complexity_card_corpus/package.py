@@ -220,6 +220,13 @@ _HF_VIEW_COLUMNS = {
     ),
 }
 
+_HF_REASONING_COLUMNS = (
+    "reasoning_envelope",
+    "reasoning_trace",
+    "final_response",
+    "reasoning_card_hand",
+)
+
 
 def _project_hf_view(table, mode: str):
     """Return the explicit, stable schema exposed by one Hub subset.
@@ -241,6 +248,13 @@ def _project_hf_view(table, mode: str):
         )
         table = table.append_column("domain_group", groups)
     columns = _HF_VIEW_COLUMNS[mode]
+    if all(name in table.column_names for name in _HF_REASONING_COLUMNS):
+        insertion = columns.index("structure_signature")
+        columns = (
+            *columns[:insertion],
+            *_HF_REASONING_COLUMNS,
+            *columns[insertion:],
+        )
     missing = set(columns).difference(table.column_names)
     if missing:
         raise ValueError(

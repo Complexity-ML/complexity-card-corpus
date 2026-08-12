@@ -6,6 +6,7 @@ from .reservoirs import (
     critique_reservoir,
     empathy_reservoir,
     reasoning_reservoir,
+    reasoning_envelope_reservoir,
     safety_reservoir,
 )
 
@@ -13,11 +14,13 @@ from .reservoirs import (
 def casual_variable_by(
     topic: dict,
     context: dict,
+    intent: dict,
+    arc: dict,
     decks: dict[str, list[str]],
 ) -> VariableBy2D:
-    """Build nested variables for one casual topic × context conversation."""
+    """Build nested variables for one semantic casual conversation unit."""
 
-    return VariableBy2D(casual_reservoir(topic, context, decks))
+    return VariableBy2D(casual_reservoir(topic, context, intent, arc, decks))
 
 
 _AUDIENCE_SENSE_BY_BRAINSTORM_DOMAIN = {
@@ -168,6 +171,29 @@ def reasoning_variable_by(
             domain=domain,
             code=code,
             data=data,
+        )
+    )
+
+
+def reasoning_envelope_variable_by(
+    task: str,
+    *,
+    analysis: str,
+    analysis_inline: str,
+    verification: str,
+    verification_inline: str,
+    final_variants: tuple[str, ...],
+) -> VariableBy2D:
+    """Return the V18 nested think/final matrix for one grounded answer."""
+
+    return VariableBy2D(
+        reasoning_envelope_reservoir(
+            task,
+            analysis=analysis,
+            analysis_inline=analysis_inline,
+            verification=verification,
+            verification_inline=verification_inline,
+            final_variants=final_variants,
         )
     )
 

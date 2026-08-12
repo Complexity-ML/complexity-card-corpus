@@ -25,6 +25,8 @@ from complexity_card_corpus.variable_by.templates import (
     SAFETY_ANSWER_TEMPLATES,
 )
 from complexity_card_corpus.variable_by.reservoirs import (
+    CASUAL_ARC_CARDS,
+    CASUAL_INTENT_CARDS,
     GroundedQAFacts,
     grounded_qa_variable_by,
 )
@@ -175,6 +177,8 @@ def test_casual_variable_by_nests_surface_topic_and_context_cells() -> None:
     matrix = casual_variable_by(
         registry["topic_cards"][0],
         registry["context_cards"][0],
+        CASUAL_INTENT_CARDS[0],
+        CASUAL_ARC_CARDS[0],
         registry["surface_decks"],
     )
     dealt = matrix.deal("casual-variable-by-test")
@@ -182,9 +186,16 @@ def test_casual_variable_by_nests_surface_topic_and_context_cells() -> None:
     assert matrix.dependency_graph()["surface[user_opening]"] == (
         "topic[opening]",
         "context[opening]",
+        "intent[user_opening]",
     )
     assert "topic[reply_lower]" in matrix.expand_dependencies(
         ("surface[assistant_follow_up]",)
+    )
+    assert "arc[user_follow_up]" in matrix.expand_dependencies(
+        ("surface[user_follow_up]",)
+    )
+    assert "intent[closing_focus]" in matrix.expand_dependencies(
+        ("surface[assistant_closing]",)
     )
     assert "{" not in dealt["surface"]["user_opening"]
     assert "}" not in dealt["surface"]["assistant_closing"]

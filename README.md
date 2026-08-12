@@ -249,40 +249,33 @@ source anchors remain visible in unmasked statistics; subjects, intents,
 states, constraints, outcomes, fallbacks, IDs, dates, amounts, times and numeric
 slots are masked only when measuring response-template repetition.
 
-### Casual conversation V16
+### Native casual-conversation family in V18
 
-V16 adds an original casual-conversation source instead of converting task
-instructions into artificial chat. Twenty original topic cards and twenty
-context cards are connected to stage-specific subcard decks for openings,
-acknowledgements, follow-ups, topic shifts and context-aware conclusions.
+V18 adds a semantic casual-conversation family instead of converting task
+instructions into artificial chat. Twenty-one topic cards and twenty context
+cards are crossed with eight authored user intents and nine conversational
+arcs. These dimensions are connected to stage-specific subcard decks for
+openings, acknowledgements, follow-ups, topic shifts and context-aware
+conclusions.
 The dealer uses the shared `VariableBy2D` API: surface-function cells resolve
-nested `topic[...]` and `context[...]` cells, and every used cell is recorded in
-the model-invisible deck topology.
-The supplement is additive: none of the V12 task families or card hands is
+nested `topic[...]`, `context[...]`, `intent[...]`, `arc[...]`, and
+`semantic[...]` cells, and every used cell is recorded in the model-invisible
+deck topology.
+It is rendered in memory by the global `tokenize-instruct` pipeline and written
+directly into the unified projected Parquet and token shards. No separate casual
+Parquet is created by the release build, and none of the other families is
 removed.
 
-```bash
-uv run card-corpus build-casual-conversation \
-  --registry data/conversation/original/casual-conversation-decks-v1.json \
-  --output build/casual-conversation-v16 \
-  --seed 42
-```
-
-The current training build contains one four- or six-turn English conversation
-for each of the 420 topic/context pairs. Exact conversation and final-response
-uniqueness are both 100%, topic/context groups do not cross the
-train/validation split, and every final response contains two or three coherent
-sentences. Repetition is gated independently by role, exact sentence, phrase,
-and conversational function. The builder refuses requests above the 420
-semantic pairs: scaling requires new topic or context cards, never repeated
-surface renderings of the same conversation.
-
-For natural dialogue adaptation, the training framework selects this source at
-runtime. Its 568-row conversation profile retains the 398 casual
-training pairs and uses approximately 70% `casual_conversation`,
-20% `conversation_empathy`, and 10% `practical_action`; a separate
-`casual-only` stage is available for focused diagnostics. Rows are selected
-without duplication and the canonical dataset remains unchanged.
+The semantic capacity is `21 × 20 × 8 × 9 = 30,240` distinct four- or six-turn
+English conversations. The five-percent split retains 28,728 training rows and
+1,512 validation rows. Exact conversation and final-response uniqueness are
+both 100%; no semantic unit crosses the split; every final response contains
+one, two, or three coherent sentences, with all three length shapes represented.
+Repetition is gated independently by role, exact
+sentence, phrase, conversational function, model-facing six-word openings, and
+known composition grammar defects. The builder refuses requests above 30,240:
+scaling further requires a new topic, context, intent, or arc card, never a
+repeated rendering of an existing semantic unit.
 
 ### 100K scale contract
 
@@ -681,16 +674,39 @@ uv run card-corpus tokenize-instruct \
   --supplement build/conversation-surface-10k/conversations.parquet \
   --tokenizer /path/to/tokenizer-32k \
   --heldout-evaluation data/evaluation/generalist-heldout-v2.json \
+  --reasoning-envelope-version v18 \
   --workers 8 \
-  --output build/post-training-32k
+  --output build/post-training-v18
 ```
 
-`tokenize-instruct` deterministically rebuilds
-`build/casual-conversation-v16/conversations.parquet`, includes it as an
-instruction source, runs its role/function repetition audit inside the global
-SFT audit, and requires at least one retained `casual_conversation` training
-row. `--without-casual-conversation` exists only for isolated tests and
-diagnostics; such a build is not the official V16 release path.
+V18 provides nested VariableBy2D think/final decks for five reasoning
+families. It renders `<think>...</think><final>...</final>` only for the three
+families that require internal deliberation in the released mix: calculation
+and verification, constraint planning, and troubleshooting. Explanation and
+critique keep direct model-facing answers. This holds the reasoning envelope
+between 15% and 25% of training rows instead of teaching the model to deliberate
+on every request. The tag protocol is fixed, while both sections are grounded
+in each scenario. The release gate checks balanced
+tags, scope, bounded lengths, per-family collisions, card-hand concentration,
+and that every numeric value in a calculation final was established in its
+think section. Other families, including original casual conversation, remain
+natural and unwrapped.
+
+Training a V18 build must consume these pre-rendered targets directly. Do not
+also enable a runtime reasoning-envelope injector: that would double-wrap the
+answer and bypass the corpus audit. A static runtime envelope is suitable only
+for a short pipeline smoke test, not for judging the reasoning data.
+
+`tokenize-instruct` deterministically renders the native casual family in
+memory, merges it directly into the unified SFT rows, runs its role/function
+repetition audit inside the global audit, and requires it to contribute at
+least 5% of the training mix. The bundled semantic reservoir supplies 30,240 unique units
+from topic, context, intent, and arc cards; 28,728 enter the training split.
+Recycling an existing semantic unit does not count as new capacity.
+`--without-casual-conversation` exists only for isolated tests and diagnostics.
+V18 also requires the realized reasoning-envelope share to remain between 15%
+and 25%, and no normalized six-word sentence opening may exceed 5% inside a
+training family.
 
 Document token streams use little-endian `uint32`, which also supports the
 configured 32k tokenizer without coupling the file format to one vocabulary.

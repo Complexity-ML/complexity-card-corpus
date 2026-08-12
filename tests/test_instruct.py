@@ -32,7 +32,10 @@ from complexity_card_corpus.sft.evaluation import (
     audit_sft_repetition_quality,
     filter_sft_repetition_quality,
 )
-from complexity_card_corpus.sft.tokenization import _load_instruction_sources
+from complexity_card_corpus.sft.tokenization import (
+    _audit_model_facing_style,
+    _load_instruction_sources,
+)
 from complexity_card_corpus.sft.surface_selection import select_balanced_sft_surfaces
 from complexity_card_corpus.sft.surface_variation import SurfaceVariationBalancer
 from complexity_card_corpus.sft.language import _inline_sentence
@@ -1386,6 +1389,31 @@ def test_sft_repetition_gate_reports_every_repeated_surface_dimension() -> None:
         assert_sft_repetition_quality(rows)
 
 
+def test_sft_repetition_sampling_is_deterministic_and_reports_population() -> None:
+    rows = [
+        {
+            "example_id": f"sample:{index:04d}",
+            "task": "practical_action",
+            "_projected_prompt": f"Request marker {index} with a bounded goal.",
+            "_projected_target": (
+                f"Response marker {index} keeps this repeated internal phrase visible."
+            ),
+        }
+        for index in range(250)
+    ]
+    first = audit_sft_repetition_quality(rows, maximum_examples_per_task=100)
+    second = audit_sft_repetition_quality(
+        list(reversed(rows)),
+        maximum_examples_per_task=100,
+    )
+
+    assert first == second
+    task = first["tasks"]["practical_action"]
+    assert task["population_examples"] == 250
+    assert task["examples"] == 100
+    assert task["sampling"] == "deterministic_sha256"
+
+
 def test_sft_repetition_filter_drops_only_overrepresented_compositions() -> None:
     rows = []
     for index in range(120):
@@ -2539,6 +2567,56 @@ def test_projection_rejects_generic_meta_discourse_even_when_surface_varies(
                 }
             ]
         )
+
+
+def test_model_facing_style_audit_detects_repeated_sentence_scaffolds() -> None:
+    records = [
+        {
+            "split": "train",
+            "task": "explanation_learning",
+            "response": (
+                "The available record supports this exact repeated response "
+                f"for case {index}."
+            ),
+        }
+        for index in range(100)
+    ]
+
+    audit = _audit_model_facing_style(records)
+
+    assert audit["passed"] is False
+    assert audit["prefix_failure_tasks"] == ["explanation_learning"]
+    assert (
+        audit["tasks"]["explanation_learning"][
+            "maximum_six_word_prefix_share"
+        ]
+        == 1.0
+    )
+
+
+@pytest.mark.parametrize(
+    "stem",
+    (
+        "a useful transfer question",
+        "the available evidence",
+        "the supplied details",
+        "the claim should remain",
+        "the process can be summarized",
+    ),
+)
+def test_model_facing_style_audit_rejects_meta_stems(stem: str) -> None:
+    audit = _audit_model_facing_style(
+        [
+            {
+                "split": "train",
+                "task": "grounded_qa",
+                "response": f"{stem} within this otherwise natural answer.",
+            }
+        ]
+    )
+
+    assert audit["passed"] is False
+    assert audit["meta_stem_failure_tasks"] == ["grounded_qa"]
 
 
 def test_practical_surface_projection_removes_internal_control_colons() -> None:
