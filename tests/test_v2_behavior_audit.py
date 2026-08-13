@@ -21,6 +21,8 @@ def _permissive_thresholds() -> dict[str, float | int]:
         "required_train_examples": 1,
         "minimum_direct_casual_share": 0.0,
         "minimum_short_direct_casual_share": 0.0,
+        "minimum_natural_social_examples": 0,
+        "minimum_natural_social_share": 0.0,
         "maximum_internal_repetition_share": 1.0,
         "maximum_prompt_copy_share": 1.0,
         "maximum_task_internal_repetition_share": 1.0,
@@ -232,3 +234,24 @@ def test_v2_audit_checks_factual_anchor_answers() -> None:
     audit = audit_v2_behavior(rows, thresholds=_permissive_thresholds())
 
     assert audit["incorrect_anchors_by_category"]["factual"] == []
+
+
+def test_v2_audit_flags_a_task_dominated_uniform_loss_mix() -> None:
+    rows = [
+        _row(
+            f"long-{index}",
+            f"Explain case {index}.",
+            "This deliberately long explanation contains many supervised words "
+            "so one family dominates the raw uniform training objective.",
+            task="explanation_learning",
+        )
+        for index in range(20)
+    ]
+    rows.append(_row("hello", "Hello", "Hi!"))
+
+    audit = audit_v2_behavior(rows, thresholds=_permissive_thresholds())
+    mix = audit["raw_uniform_loss_mix"]
+
+    assert mix["top_task"] == "explanation_learning"
+    assert mix["top_task_share"] > 0.90
+    assert mix["balanced_sampling_required"] is True

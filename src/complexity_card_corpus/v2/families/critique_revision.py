@@ -34,15 +34,15 @@ _STYLE_GUIDANCE = {
     "plain": "use common words and state the actor, action, timing, and reason directly",
 }
 _PROMPTS = (
-    "Name the main clarity problem, then rewrite the draft in exactly two sentences using a {scenario[style]} tone; {scenario[style_guidance]}. Draft: {scenario[draft]}",
+    "Rewrite the draft in exactly two sentences using a {scenario[style]} tone; {scenario[style_guidance]}. Draft: {scenario[draft]}",
     "Revise this message into exactly two {scenario[style]} sentences; {scenario[style_guidance]}. Preserve the facts in this draft: {scenario[draft]}",
-    "The draft is wordy and indirect. Produce an exact two-sentence {scenario[style]} replacement and {scenario[style_guidance]}. Draft: {scenario[draft]}",
+    "Replace this wordy, indirect draft with exactly two {scenario[style]} sentences and {scenario[style_guidance]}. Draft: {scenario[draft]}",
     "Rewrite the following as two clear sentences in a {scenario[style]} style. Specifically, {scenario[style_guidance]}. Source: {scenario[draft]}",
 )
 _PROMPT_FUNCTIONS = (
-    ("diagnose_clarity", "request_exact_rewrite", "specify_style"),
+    ("request_exact_rewrite", "specify_style"),
     ("request_exact_rewrite", "specify_style", "preserve_facts"),
-    ("diagnose_indirectness", "request_exact_rewrite", "specify_style"),
+    ("request_exact_rewrite", "specify_style"),
     ("request_clear_rewrite", "specify_style", "supply_source"),
 )
 

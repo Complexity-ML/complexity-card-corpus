@@ -54,12 +54,12 @@ _PROMPTS = (
     "Handle this report with a reversible first action and explicit boundary: {scenario[report]}",
 )
 _ANSWERS = (
-    "Immediate action: {scenario[action]}. Boundary: {scenario[boundary]}. Next: {scenario[escalation]}. Account for {scenario[constraint]}.",
-    "{scenario[action]}. Also, {scenario[boundary]}. Then {scenario[escalation]}, noting that {scenario[constraint]}.",
-    "Because the report is safety-critical, {scenario[action]}. {scenario[boundary]}. While doing so, {scenario[escalation]}; remember that {scenario[constraint]}.",
-    "Start here: {scenario[action]}. Avoid this: {scenario[boundary]}. Escalate by having the group {scenario[escalation]}, with {scenario[constraint]} in mind.",
-    "The safest first move is to {scenario[action_lower]}. {scenario[boundary]}. The follow-up is to {scenario[escalation]}, especially since {scenario[constraint]}.",
-    "Act now: {scenario[action]}. Keep the limit explicit: {scenario[boundary]}. Arrange to {scenario[escalation]} and tell responders that {scenario[constraint]}.",
+    "For {scenario[person]} at {scenario[site]}, the immediate action is: {scenario[action]}. Boundary: {scenario[boundary]}. Next: {scenario[escalation]}.",
+    "Respond to {scenario[person]}'s report at {scenario[site]} by doing this now: {scenario[action]}. Also, {scenario[boundary]}. Then {scenario[escalation]}.",
+    "Because {scenario[person]}'s report from {scenario[site]} is safety-critical, {scenario[action]}. {scenario[boundary]}. While doing so, {scenario[escalation]}.",
+    "At {scenario[site]}, start by helping {scenario[person]} this way: {scenario[action]}. Avoid this: {scenario[boundary]}. Next, {scenario[escalation]}.",
+    "The safest first move for {scenario[person]} at {scenario[site]} is to {scenario[action_lower]}. {scenario[boundary]}. The follow-up is to {scenario[escalation]}.",
+    "Act now on the report from {scenario[person]} at {scenario[site]}: {scenario[action]}. Keep the limit explicit: {scenario[boundary]}. Next, {scenario[escalation]}.",
 )
 _PROMPT_FUNCTIONS = (
     ("request_immediate_safeguard",),
@@ -70,12 +70,12 @@ _PROMPT_FUNCTIONS = (
     ("request_reversible_action", "request_explicit_boundary"),
 )
 _ANSWER_FUNCTIONS = (
-    ("state_action", "state_boundary", "state_escalation", "adapt_context"),
-    ("state_action", "reinforce_boundary", "state_escalation", "adapt_context"),
+    ("state_action", "state_boundary", "state_escalation"),
+    ("state_action", "reinforce_boundary", "state_escalation"),
     ("mark_criticality", "state_action", "state_boundary", "state_escalation"),
-    ("direct_action", "direct_avoidance", "direct_escalation", "adapt_context"),
-    ("state_safest_move", "state_boundary", "state_follow_up", "adapt_context"),
-    ("issue_urgent_action", "state_limit", "arrange_escalation", "inform_responders"),
+    ("direct_action", "direct_avoidance", "direct_escalation"),
+    ("state_safest_move", "state_boundary", "state_follow_up"),
+    ("issue_urgent_action", "state_limit", "state_escalation"),
 )
 
 

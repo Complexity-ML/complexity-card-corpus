@@ -139,8 +139,7 @@ def _deck(
     contextual_answers = tuple(
         (
             "For {scenario[stakeholder]}'s work at {scenario[setting]}, "
-            + answer[0].lower()
-            + answer[1:]
+            + (answer if answer.startswith("I ") else answer[0].lower() + answer[1:])
         )
         for answer in _ANSWERS
     )

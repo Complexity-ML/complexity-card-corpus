@@ -278,6 +278,215 @@ _FOLLOW_UP_ANSWER_FUNCTIONS = (
     ("mark_operation", "state_total"),
 )
 
+_NATURAL_SOCIAL_SPECS = (
+    {
+        "intent": "friendly_greeting_with_help",
+        "domain": "social_greeting",
+        "subjects": (
+            "an email draft", "a planning question", "a short calculation",
+            "a paragraph I am revising", "a decision between two options",
+            "a confusing instruction", "a quick fact check", "a study question",
+            "a list I need to organize", "an idea I want to develop",
+            "a question I want to phrase clearly",
+        ),
+        "circumstances": (
+            "before a meeting", "during a quiet break", "before I send it",
+            "while the details are fresh", "before the end of the day",
+            "while I have a few minutes", "before I make a choice",
+            "as I get started", "before my next task", "while I review my notes",
+        ),
+        "prompts": (
+            "Hello! Could you help me with {scenario[subject]} {scenario[circumstance]}?",
+            "Hi—I've got {scenario[subject]} to work through {scenario[circumstance]}. Can you help?",
+            "Hey there. Do you have a moment for {scenario[subject]} {scenario[circumstance]}?",
+            "Good to meet you. I'd like a hand with {scenario[subject]} {scenario[circumstance]}.",
+            "Hello, can we look at {scenario[subject]} together {scenario[circumstance]}?",
+            "Hi! I could use some help with {scenario[subject]} {scenario[circumstance]}.",
+            "Hey, would you help me sort out {scenario[subject]} {scenario[circumstance]}?",
+            "Hello. I have {scenario[subject]} in front of me {scenario[circumstance]}.",
+            "Hi there—may I ask about {scenario[subject]} {scenario[circumstance]}?",
+            "Hello! Let's work on {scenario[subject]} {scenario[circumstance]}, if you're available.",
+        ),
+        "answers": (
+            "Hi! Of course—I can help with {scenario[subject]}. What would you like to tackle first?",
+            "Hello! Send me the details of {scenario[subject]}, and we'll take it one step at a time.",
+            "Hey! I'd be glad to help with {scenario[subject]}. Show me what you have so far.",
+            "Hi there. We can examine {scenario[subject]}; start wherever it feels unclear.",
+            "Hello! Yes, we can work through {scenario[subject]}. What's the main thing you need from it?",
+            "Hi! I'm ready to help with {scenario[subject]}. Paste it here when you're ready.",
+            "Hey—absolutely. Tell me what is giving you trouble in {scenario[subject]}.",
+            "Hello. We can keep this focused on {scenario[subject]}; what should the result look like?",
+            "Hi there! Share {scenario[subject]}, and I'll help you move it forward.",
+            "Hello! Let's get started with {scenario[subject]}. What context should I know?",
+        ),
+    },
+    {
+        "intent": "receive_thanks",
+        "domain": "social_gratitude",
+        "subjects": (
+            "the summary", "the calculation", "the rewrite", "the explanation",
+            "the checklist", "the comparison", "the example", "the plan",
+            "the correction", "the step-by-step breakdown",
+            "the final answer",
+        ),
+        "circumstances": (
+            "it makes much more sense now", "that cleared up my confusion",
+            "I can continue on my own", "that was exactly what I needed",
+            "the next step is clear", "I found the mistake",
+            "I know what to change", "the shorter version works better",
+            "I can explain it now", "that saved me some time",
+        ),
+        "prompts": (
+            "Thanks for {scenario[subject]}; {scenario[circumstance]}.",
+            "Thank you—{scenario[subject]} helped, and {scenario[circumstance]}.",
+            "I appreciate your help with {scenario[subject]}. {scenario[circumstance_cap]}.",
+            "That was helpful, thanks. With {scenario[subject]}, {scenario[circumstance]}.",
+            "Thanks! After reading {scenario[subject]}, {scenario[circumstance]}.",
+            "Much appreciated. {scenario[subject_cap]} worked well because {scenario[circumstance]}.",
+            "Thank you for taking care of {scenario[subject]}; {scenario[circumstance]}.",
+            "I just wanted to say thanks for {scenario[subject]}. {scenario[circumstance_cap]}.",
+            "Perfect, thank you. From {scenario[subject]}, {scenario[circumstance]}.",
+            "Thanks for the help—after {scenario[subject]}, {scenario[circumstance]}.",
+        ),
+        "answers": (
+            "You're welcome! I'm glad the work on {scenario[subject]} helped.",
+            "Happy to help. It's good to hear that {scenario[subject]} made things clearer.",
+            "You're very welcome—glad {scenario[subject]} was useful.",
+            "Anytime! I'm pleased the help with {scenario[subject]} got you moving again.",
+            "Glad I could help with {scenario[subject]}. Good luck with the next step!",
+            "You're welcome. It's great that {scenario[subject]} gave you what you needed.",
+            "My pleasure! I'm glad we could sort out {scenario[subject]}.",
+            "Of course. Happy that {scenario[subject]} worked for you.",
+            "You're welcome! Nice to know the help with {scenario[subject]} paid off.",
+            "Glad to hear it. Come back anytime you want another look at {scenario[subject]}.",
+        ),
+    },
+    {
+        "intent": "close_conversation",
+        "domain": "social_closing",
+        "subjects": (
+            "the message", "the budget check", "the study plan", "the outline",
+            "the comparison", "the troubleshooting notes", "the short summary",
+            "the revised paragraph", "the task list", "the final calculation",
+            "the cleaned-up notes",
+        ),
+        "circumstances": (
+            "head to a meeting", "send the result", "take a break",
+            "continue with the rest of my work", "share it with the team",
+            "review the final version", "start the next task", "save my notes",
+            "make the decision", "finish for the day",
+        ),
+        "prompts": (
+            "That covers {scenario[subject]}; I need to {scenario[circumstance]} now. Bye!",
+            "I'm all set with {scenario[subject]}. Time to {scenario[circumstance]}—thanks and goodbye.",
+            "We can stop here; {scenario[subject]} is done and I should {scenario[circumstance]}.",
+            "That's everything I needed for {scenario[subject]}. I'm going to {scenario[circumstance]} now.",
+            "Looks good to me. I'll {scenario[circumstance]} after finishing {scenario[subject]}. See you!",
+            "No more questions about {scenario[subject]}; I have to {scenario[circumstance]}. Thanks!",
+            "Great, {scenario[subject]} is sorted. I'll {scenario[circumstance]} next. Bye for now.",
+            "I'm done with {scenario[subject]} for the moment and need to {scenario[circumstance]}. Take care.",
+            "That is enough for {scenario[subject]}. I can {scenario[circumstance]} now—goodbye.",
+            "Let's leave it there. With {scenario[subject]} complete, I'll {scenario[circumstance]}.",
+        ),
+        "answers": (
+            "Sounds good. I'm glad we got {scenario[subject]} sorted—take care!",
+            "You're all set. Good luck when you {scenario[circumstance]}, and see you next time.",
+            "Great! I hope {scenario[subject]} serves you well. Until next time.",
+            "Happy we could finish {scenario[subject]}. Have a good rest of your day!",
+            "Understood. Go ahead and {scenario[circumstance]}; I'll be here if you need anything else.",
+            "Glad that is settled. Take care, and good luck with {scenario[subject]}.",
+            "All right—thanks for the conversation. I hope {scenario[subject]} works out well.",
+            "Perfect. You can {scenario[circumstance]} with that behind you. See you!",
+            "You're welcome. Have a smooth time with {scenario[circumstance]}.",
+            "Goodbye! Come back anytime you want to revisit {scenario[subject]}.",
+        ),
+    },
+    {
+        "intent": "ask_for_help",
+        "domain": "social_help",
+        "subjects": (
+            "draft a short email", "check a small calculation", "simplify a paragraph",
+            "compare two choices", "organize a short list", "explain a concept",
+            "spot an error in my notes", "plan the next three steps",
+            "turn notes into a summary", "rewrite a sentence more clearly",
+            "prepare a direct question",
+        ),
+        "circumstances": (
+            "with a five-minute time limit", "without adding new facts",
+            "in plain English", "with a concise answer", "one step at a time",
+            "for a non-specialist reader", "while keeping the original meaning",
+            "with the key result first", "without unnecessary jargon",
+            "so I can verify the result myself",
+        ),
+        "prompts": (
+            "Can you help me {scenario[subject]} {scenario[circumstance]}?",
+            "Would you mind helping me {scenario[subject]} {scenario[circumstance]}?",
+            "I could use a hand to {scenario[subject]} {scenario[circumstance]}.",
+            "Could we {scenario[subject]} together {scenario[circumstance]}?",
+            "Please help me {scenario[subject]} {scenario[circumstance]}.",
+            "Are you able to {scenario[subject]} {scenario[circumstance]}?",
+            "I'd like your help to {scenario[subject]} {scenario[circumstance]}.",
+            "Can we work on how to {scenario[subject]} {scenario[circumstance]}?",
+            "I need to {scenario[subject]} {scenario[circumstance]}; can you assist?",
+            "Could you guide me as I {scenario[subject]} {scenario[circumstance]}?",
+        ),
+        "answers": (
+            "Yes—I can help you {scenario[subject]} {scenario[circumstance]}. Send me the material you have.",
+            "Absolutely. Share the details, and we'll {scenario[subject]} {scenario[circumstance]}.",
+            "Of course. We can {scenario[subject]} {scenario[circumstance]}; start with the current version.",
+            "Sure. Show me what you're working with, and I'll help you {scenario[subject]} {scenario[circumstance]}.",
+            "I'd be glad to help. Paste the relevant part so we can {scenario[subject]} {scenario[circumstance]}.",
+            "Yes. Tell me the intended outcome, and we'll {scenario[subject]} {scenario[circumstance]}.",
+            "Certainly—send it over. I'll focus on helping you {scenario[subject]} {scenario[circumstance]}.",
+            "We can do that. Give me the input, and I'll help {scenario[subject]} {scenario[circumstance]}.",
+            "Sure thing. Let's {scenario[subject]} {scenario[circumstance]}; what should I look at first?",
+            "Yes, I can assist. Share the context needed to {scenario[subject]} {scenario[circumstance]}.",
+        ),
+    },
+    {
+        "intent": "repair_understanding",
+        "domain": "social_repair",
+        "subjects": (
+            "the difference between the two options", "why the total changed",
+            "what the first step accomplishes", "which detail matters most",
+            "how the example supports the conclusion", "what you mean by the boundary",
+            "why that check is useful", "how the two sentences connect",
+            "when the rule applies", "what I should do next",
+            "why the answer changed",
+        ),
+        "circumstances": (
+            "your last explanation", "the example above", "the shorter answer",
+            "the second paragraph", "the list of steps", "the comparison you gave",
+            "the previous message", "the final sentence", "the worked example",
+            "the answer you just sent",
+        ),
+        "prompts": (
+            "I didn't follow {scenario[subject]} in {scenario[circumstance]}. Could you rephrase it?",
+            "What did you mean by {scenario[subject]} in {scenario[circumstance]}?",
+            "I'm still confused about {scenario[subject]} after {scenario[circumstance]}. Can you say it another way?",
+            "Could you clarify {scenario[subject]} from {scenario[circumstance]}?",
+            "I lost the thread around {scenario[subject]} in {scenario[circumstance]}. Please explain it more simply.",
+            "Can we revisit {scenario[subject]} from {scenario[circumstance]}? It was not clear to me.",
+            "I understand most of it, but not {scenario[subject]} in {scenario[circumstance]}. Could you help?",
+            "Please unpack {scenario[subject]} from {scenario[circumstance]} without using the same wording.",
+            "Could you give a fresh explanation of {scenario[subject]} instead of repeating {scenario[circumstance]}?",
+            "I'm not sure I understood {scenario[subject]} in {scenario[circumstance]}. What is the plain version?",
+        ),
+        "answers": (
+            "Of course. I'll restate {scenario[subject]} in simpler terms and use a fresh example.",
+            "Sure—let me explain {scenario[subject]} from a different angle.",
+            "Absolutely. I'll focus only on {scenario[subject]} and avoid repeating the earlier wording.",
+            "Yes. Let's slow down and make {scenario[subject]} explicit before moving on.",
+            "No problem. I'll give a shorter explanation of {scenario[subject]} and check that it lands.",
+            "Thanks for pointing that out. Here's another way to understand {scenario[subject]}.",
+            "Certainly. I'll separate {scenario[subject]} from the surrounding details first.",
+            "I can clarify that. Let's rebuild the explanation of {scenario[subject]} one piece at a time.",
+            "Yes—I'll replace the abstract wording with a concrete account of {scenario[subject]}.",
+            "Let's revisit it. I'll explain {scenario[subject]} plainly, then you can tell me what remains unclear.",
+        ),
+    },
+)
+
 
 def _row(
     *,
@@ -291,6 +500,8 @@ def _row(
     prompt_functions: tuple[tuple[str, ...], ...] | None = None,
     answer_functions: tuple[tuple[str, ...], ...] | None = None,
     semantic_frame: SemanticFrame | None = None,
+    prompt_choice: int | None = None,
+    answer_choice: int | None = None,
 ) -> dict[str, object]:
     scenario = {
         key: (str(value),)
@@ -306,6 +517,20 @@ def _row(
             }
         )
     )
+    prompt_plan_options = prompt_variant_plans(
+        sense="request",
+        pool_name="request",
+        functions=(prompt_functions or tuple(("request",) for _ in prompts)),
+    )
+    answer_plan_options = answer_variant_plans(
+        sense="direct",
+        pool_name="direct",
+        functions=(answer_functions or tuple(("answer",) for _ in answers)),
+    )
+    if prompt_choice is not None:
+        prompt_plan_options = (prompt_plan_options[prompt_choice],)
+    if answer_choice is not None:
+        answer_plan_options = (answer_plan_options[answer_choice],)
     deck = V2RoleSeparatedDeck(
         name=f"{TASK}:{domain}",
         variables=variables,
@@ -315,22 +540,8 @@ def _row(
         answer_pools=(
             V2SubcardPool("direct", SurfaceRole.ANSWER, ("{answer[direct]}",)),
         ),
-        prompt_plans=prompt_variant_plans(
-            sense="request",
-            pool_name="request",
-            functions=(
-                prompt_functions
-                or tuple(("request",) for _ in prompts)
-            ),
-        ),
-        answer_plans=answer_variant_plans(
-            sense="direct",
-            pool_name="direct",
-            functions=(
-                answer_functions
-                or tuple(("answer",) for _ in answers)
-            ),
-        ),
+        prompt_plans=prompt_plan_options,
+        answer_plans=answer_plan_options,
     )
     return render_v2_row(
         task=TASK,
@@ -355,6 +566,89 @@ def _anchor_rows() -> Iterable[dict[str, object]]:
             answers=("{scenario[answer]}",),
             validator={"kind": "exact", "expected": answer},
         )
+
+
+def _natural_social_rows() -> Iterable[dict[str, object]]:
+    """Natural social acts, kept distinct from short computational exercises."""
+
+    for spec in _NATURAL_SOCIAL_SPECS:
+        prompts = tuple(spec["prompts"])
+        answers = tuple(
+            answer.replace(
+                "{scenario[subject]}",
+                "{scenario[subject_answer]}",
+            ).replace(
+                "{scenario[circumstance]}",
+                "{scenario[circumstance_answer]}",
+            )
+            for answer in spec["answers"]
+        )
+        prompt_functions = tuple(
+            ((f"{spec['intent']}_prompt_{index}",))
+            for index in range(len(prompts))
+        )
+        answer_functions = tuple(
+            ((f"{spec['intent']}_answer_{index}",))
+            for index in range(len(answers))
+        )
+        for subject_index, subject in enumerate(spec["subjects"]):
+            for circumstance_index, circumstance in enumerate(
+                spec["circumstances"]
+            ):
+                for prompt_index in range(len(prompts)):
+                    answer_index = (
+                        subject_index * 3
+                        + circumstance_index * 7
+                        + prompt_index
+                    ) % len(answers)
+                    facts = {
+                        "intent": spec["intent"],
+                        "subject": subject,
+                        "subject_cap": subject[0].upper() + subject[1:],
+                        "subject_answer": {
+                            "a paragraph I am revising": "your paragraph",
+                            "a list I need to organize": "your list",
+                            "an idea I want to develop": "your idea",
+                            "a question I want to phrase clearly": "your question",
+                            "spot an error in my notes": "spot an error in your notes",
+                        }.get(subject, subject),
+                        "circumstance": circumstance,
+                        "circumstance_answer": {
+                            "continue with the rest of my work": "continue with the rest of your work",
+                            "save my notes": "save your notes",
+                            "so I can verify the result myself": "so you can verify the result yourself",
+                        }.get(circumstance, circumstance),
+                        "circumstance_cap": (
+                            circumstance[0].upper() + circumstance[1:]
+                        ),
+                    }
+                    yield _row(
+                        case_id=(
+                            f"natural:{spec['intent']}:{subject_index}:"
+                            f"{circumstance_index}:{prompt_index}:{answer_index}"
+                        ),
+                        domain=str(spec["domain"]),
+                        difficulty="easy",
+                        facts=facts,
+                        prompts=prompts,
+                        answers=answers,
+                        validator={
+                            "kind": "natural",
+                            "minimum_words": 3,
+                            "maximum_words": 40,
+                            "forbidden": ["teach_back", "available evidence"],
+                        },
+                        prompt_functions=prompt_functions,
+                        answer_functions=answer_functions,
+                        prompt_choice=prompt_index,
+                        answer_choice=answer_index,
+                        semantic_frame=SemanticFrame(
+                            intent=str(spec["intent"]),
+                            facts=facts,
+                            expected_outcome={"social_act": spec["intent"]},
+                            user_tone="casual",
+                        ),
+                    )
 
 
 def _arithmetic_rows() -> Iterable[dict[str, object]]:
@@ -606,8 +900,15 @@ def casual_conversation_capacity() -> int:
     comparisons_count = 100 * 60
     formatting = 4_060 + 100
     multi_turn = len(_FOLLOW_UP_CONTEXTS) * 50 * 50
+    natural_social = sum(
+        len(spec["subjects"])
+        * len(spec["circumstances"])
+        * len(spec["prompts"])
+        for spec in _NATURAL_SOCIAL_SPECS
+    )
     return (
         len(_ANCHORS)
+        + natural_social
         + arithmetic
         + comparisons_count
         + formatting
@@ -619,6 +920,7 @@ def casual_conversation_capacity() -> int:
 
 def render_casual_conversation_rows() -> list[dict[str, object]]:
     rows = list(_anchor_rows())
+    rows.extend(_natural_social_rows())
     rows.extend(_arithmetic_rows())
     rows.extend(_comparison_rows())
     rows.extend(_formatting_rows())

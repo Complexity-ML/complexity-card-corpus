@@ -107,8 +107,7 @@ def render_troubleshooting_rows() -> list[dict[str, object]]:
             )
             contextual_answers = tuple(
                 (
-                    f"Given that {constraint}, for the reported {component} symptom "
-                    f"({symptom}) at {{scenario[site]}}, "
+                    f"Given that {constraint}, "
                     + answer[0].lower()
                     + answer[1:]
                 )

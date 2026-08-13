@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from complexity_card_corpus.v2 import audit_v2_family_roadmap
@@ -30,3 +32,12 @@ def test_v2_context_clarification_passes_every_family_gate(
     assert family["behavior"]["prompt_copy_share"] <= 0.10
     assert family["near_duplicates"]["prompt"]["collision_share"] <= 0.10
     assert family["near_duplicates"]["final"]["collision_share"] <= 0.10
+
+
+def test_v2_context_clarification_never_lowercases_the_pronoun_i(
+    rows: list[dict[str, object]],
+) -> None:
+    assert all(
+        re.search(r"\bi\b", str(row["final_response"])) is None
+        for row in rows
+    )

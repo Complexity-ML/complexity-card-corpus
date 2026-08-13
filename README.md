@@ -73,11 +73,11 @@ sampling quota, or 400K truncation layer.
 | Family | Examples |
 |---|---:|
 | `brainstorming_creativity` | 384 |
-| `casual_conversation` | 30,294 |
+| `casual_conversation` | 45,794 |
 | `context_clarification` | 9,216 |
 | `conversation_empathy` | 128 |
 | `critique_revision` | 64 |
-| `explanation_learning` | 30,848 |
+| `explanation_learning` | 32,776 |
 | `extraction_classification` | 3,456 |
 | `grounded_qa` | 4,608 |
 | `planning_comparison` | 384 |
@@ -87,9 +87,9 @@ sampling quota, or 400K truncation layer.
 | `summarization_synthesis` | 64 |
 | `troubleshooting` | 384 |
 | `writing_transformation` | 64 |
-| **Total** | **188,662** |
+| **Total** | **206,090** |
 
-The release split contains 184,801 training, 1,920 validation, and 1,941 test
+The release split contains 201,587 training, 2,044 validation, and 2,459 test
 examples. Split assignment is deterministic and keeps exact and normalized
 structural groups from leaking across partitions.
 

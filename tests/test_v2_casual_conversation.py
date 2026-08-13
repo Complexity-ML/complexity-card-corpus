@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from complexity_card_corpus.v2 import audit_v2_behavior, audit_v2_family_roadmap
@@ -20,9 +22,10 @@ def rows() -> list[dict[str, object]]:
 def test_v2_casual_renders_every_valid_direct_case(
     rows: list[dict[str, object]],
 ) -> None:
-    assert len(rows) == casual_conversation_capacity() == 30_294
+    assert len(rows) == casual_conversation_capacity() == 45_794
     assert len({row["example_id"] for row in rows}) == len(rows)
-    assert all(len(row["messages"]) == 2 for row in rows)
+    assert all(len(row["messages"]) in {2, 4} for row in rows)
+    assert sum(len(row["messages"]) == 4 for row in rows) == 10_000
 
 
 def test_v2_casual_passes_every_family_gate(
@@ -46,6 +49,33 @@ def test_v2_casual_satisfies_global_direct_and_anchor_contract(
 
     assert audit["casual_conversation"]["direct_rows"] >= 25_000
     assert audit["casual_conversation"]["short_direct_share"] >= 0.90
+    assert audit["casual_conversation"]["natural_social_rows"] >= 5_000
     assert audit["missing_anchors"] == []
     assert audit["incorrect_anchors"] == []
     assert audit["passed"] is True
+
+
+def test_v2_natural_social_surfaces_preserve_speaker_grammar(
+    rows: list[dict[str, object]],
+) -> None:
+    social = [
+        row for row in rows if str(row["domain"]).startswith("social_")
+    ]
+    assert social
+    assert all("my notes" not in str(row["final_response"]) for row in social)
+    assert all(
+        "the rest of my work" not in str(row["final_response"])
+        for row in social
+    )
+    assert all(
+        "so I can verify" not in str(row["final_response"])
+        for row in social
+    )
+    assert all(
+        "a paragraph I am revising" not in str(row["final_response"])
+        for row in social
+    )
+    assert all(
+        re.search(r"(?<=[.!?])\s+[a-z]", str(row["prompt"])) is None
+        for row in social
+    )

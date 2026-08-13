@@ -12,4 +12,8 @@ def test_v2_critique_uses_full_capacity_and_exactly_two_sentences() -> None:
 
     assert len(rows) == critique_revision_capacity() == 64
     assert all(len(re.findall(r"[.!?](?:\s|$)", row["final_response"])) == 2 for row in rows)
+    assert all(
+        not re.search(r"\b(?:name|diagnose) the (?:main )?(?:clarity )?problem\b", row["prompt"], re.I)
+        for row in rows
+    )
     assert family["priority"] == "PASS"

@@ -124,11 +124,23 @@ _ANCHOR_CATEGORIES = {
     },
 }
 
+_NATURAL_SOCIAL_DOMAINS = {
+    "social",
+    "identity",
+    "social_greeting",
+    "social_gratitude",
+    "social_closing",
+    "social_help",
+    "social_repair",
+}
+
 DEFAULT_V2_THRESHOLDS = {
     "required_train_examples": None,
     "minimum_direct_casual_examples": 25_000,
     "minimum_direct_casual_share": 0.70,
     "minimum_short_direct_casual_share": 0.90,
+    "minimum_natural_social_examples": 5_000,
+    "minimum_natural_social_share": 0.02,
     "maximum_internal_repetition_share": 0.02,
     "maximum_prompt_copy_share": 0.03,
     "maximum_task_internal_repetition_share": 0.05,
@@ -335,6 +347,7 @@ def audit_v2_behavior(
     task_thinking_fivegrams: dict[str, Counter[str]] = defaultdict(Counter)
     task_thinking_final_overlap = Counter()
     task_thinking_prompt_copied = Counter()
+    task_supervised_words = Counter()
     task_examples: dict[str, dict[str, list[dict[str, str]]]] = defaultdict(
         lambda: defaultdict(list)
     )
@@ -343,6 +356,7 @@ def audit_v2_behavior(
     assistant_history_turns = 0
     casual_assistant_turns = Counter()
     casual_direct_short = 0
+    natural_social_rows = 0
     anchors_seen = Counter()
     anchors_correct = Counter()
     empty_targets = 0
@@ -366,6 +380,7 @@ def audit_v2_behavior(
         assistant_turns[len(assistant_indexes)] += 1
         assistant_history_turns += max(0, len(assistant_indexes) - 1)
         if task == "casual_conversation":
+            natural_social_rows += str(row.get("domain", "")) in _NATURAL_SOCIAL_DOMAINS
             casual_assistant_turns[len(assistant_indexes)] += 1
             if len(assistant_indexes) == 1:
                 response = messages[assistant_indexes[0]]["content"]
@@ -390,6 +405,7 @@ def audit_v2_behavior(
             empty_targets += 1
             continue
         if final:
+            task_supervised_words[task] += len(_words(final)) + len(_words(thinking))
             task_exact_responses[task][" ".join(final.casefold().split())] += 1
             repeated = (
                 _ngram_repetition_ratio(final) > 0.20
@@ -497,6 +513,28 @@ def audit_v2_behavior(
     thinking_total = sum(task_thinking_targets.values())
     thinking_repeated_total = sum(task_thinking_repeated.values())
     thinking_prompt_copied_total = sum(task_thinking_prompt_copied.values())
+    supervised_words_total = sum(task_supervised_words.values())
+    supervised_word_shares = {
+        task: round(count / max(1, supervised_words_total), 6)
+        for task, count in sorted(task_supervised_words.items())
+    }
+    top_supervised_task, top_supervised_words = (
+        task_supervised_words.most_common(1)[0]
+        if task_supervised_words
+        else ("", 0)
+    )
+    raw_uniform_loss_mix = {
+        "unit": "model_facing_words",
+        "total": supervised_words_total,
+        "task_shares": supervised_word_shares,
+        "top_task": top_supervised_task,
+        "top_task_share": round(
+            top_supervised_words / max(1, supervised_words_total), 6
+        ),
+        "balanced_sampling_required": (
+            top_supervised_words / max(1, supervised_words_total) > 0.35
+        ),
+    }
     missing_anchors = sorted(set(_ANCHORS) - set(anchors_seen))
     incorrect_anchors = sorted(
         name for name in _ANCHORS
@@ -573,6 +611,10 @@ def audit_v2_behavior(
         violations.append("direct casual conversation share is below target")
     if casual_direct and casual_direct_short / casual_direct < policy["minimum_short_direct_casual_share"]:
         violations.append("short direct casual response share is below target")
+    if natural_social_rows < policy["minimum_natural_social_examples"]:
+        violations.append("too few genuinely social conversations")
+    if natural_social_rows / max(1, train_rows) < policy["minimum_natural_social_share"]:
+        violations.append("genuinely social conversation share is below target")
     if repeated_total / max(1, total_targets) > policy["maximum_internal_repetition_share"]:
         violations.append("internal response repetition exceeds global target")
     if copied_total / max(1, total_targets) > policy["maximum_prompt_copy_share"]:
@@ -618,6 +660,10 @@ def audit_v2_behavior(
         "casual_conversation": {
             "rows": casual_rows,
             "direct_rows": casual_direct,
+            "natural_social_rows": natural_social_rows,
+            "natural_social_share": round(
+                natural_social_rows / max(1, train_rows), 6
+            ),
             "direct_share": round(casual_direct / max(1, casual_rows), 6),
             "two_assistant_rows": casual_two,
             "two_assistant_share": round(casual_two / max(1, casual_rows), 6),
@@ -625,6 +671,7 @@ def audit_v2_behavior(
             "three_plus_assistant_share": round(casual_three_plus / max(1, casual_rows), 6),
             "short_direct_share": round(casual_direct_short / max(1, casual_direct), 6),
         },
+        "raw_uniform_loss_mix": raw_uniform_loss_mix,
         "anchors": {
             name: {
                 "examples": anchors_seen[name],
@@ -661,6 +708,8 @@ def audit_projected_parquet(
     def rows() -> Iterable[dict[str, Any]]:
         available = set(parquet.schema.names)
         columns = ["task", "split", "messages"]
+        if "domain" in available:
+            columns.append("domain")
         columns.extend(
             name
             for name in ("reasoning_trace", "final_response")

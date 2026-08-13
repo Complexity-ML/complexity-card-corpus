@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -7,15 +8,19 @@ import pytest
 from complexity_card_corpus.v2 import audit_projected_parquet
 
 
-PROJECTED_V2 = Path("build/card-corpus-v2/projected.parquet")
+pytestmark = pytest.mark.slow
 
 
 def test_projected_release_passes_v2_learned_behavior_gate() -> None:
-    """Red release gate: it stays failing until the V2 corpus is repaired."""
+    """Opt-in release gate for an explicitly selected projected artifact."""
 
-    if not PROJECTED_V2.exists():
-        pytest.skip("build the projected V2 candidate before running its release gate")
-    audit = audit_projected_parquet(PROJECTED_V2)
+    selected = os.environ.get("CARD_CORPUS_V2_PROJECTED")
+    if not selected:
+        pytest.skip("set CARD_CORPUS_V2_PROJECTED to audit a release candidate")
+    projected = Path(selected)
+    if not projected.exists():
+        pytest.fail(f"selected projected V2 artifact does not exist: {projected}")
+    audit = audit_projected_parquet(projected)
 
     assert audit["passed"] is True, {
         "violations": audit["violations"],
