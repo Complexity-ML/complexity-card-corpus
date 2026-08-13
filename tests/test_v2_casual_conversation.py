@@ -22,10 +22,10 @@ def rows() -> list[dict[str, object]]:
 def test_v2_casual_renders_every_valid_direct_case(
     rows: list[dict[str, object]],
 ) -> None:
-    assert len(rows) == casual_conversation_capacity() == 49_794
+    assert len(rows) == casual_conversation_capacity() == 52_794
     assert len({row["example_id"] for row in rows}) == len(rows)
     assert all(len(row["messages"]) in {2, 4} for row in rows)
-    assert sum(len(row["messages"]) == 4 for row in rows) == 10_000
+    assert sum(len(row["messages"]) == 4 for row in rows) == 11_000
 
 
 def test_v2_casual_passes_every_family_gate(

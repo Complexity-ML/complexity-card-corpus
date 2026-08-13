@@ -17,6 +17,7 @@ from ..decks import (
     answer_variant_plans,
     prompt_variant_plans,
 )
+from ..reservoirs.knowledge_basics import CONCEPTS, GENERAL_FACTS
 from ._common import render_v2_row, validate_complete_rows
 
 
@@ -215,6 +216,25 @@ _CONSTRAINT_DEADLINES = (
     "Monday morning", "Tuesday afternoon", "Wednesday noon", "Thursday evening",
     "Friday morning", "the next review", "the client call", "the weekly meeting",
     "the release window", "the handoff session",
+)
+_FACT_CONTEXTS = (
+    "a quick reference", "a study card", "a classroom check", "a quiz review",
+    "a beginner's note", "a fact sheet", "a short oral answer", "a revision guide",
+    "a knowledge check", "a glossary entry", "a tutoring session", "a practice round",
+    "a concise explainer", "a study-group check", "a general-audience note",
+    "a reference answer", "an introductory lesson", "a memory exercise",
+    "a direct response", "a learning worksheet",
+)
+_CONCEPT_AUDIENCES = (
+    "a curious beginner", "a high-school student", "a new team member",
+    "a non-specialist reader", "someone reviewing the idea quickly",
+)
+_CONCEPT_FOCUSES = (
+    "start with a plain definition before giving the example",
+    "make the contrast with the nearby idea explicit",
+    "lead with the concrete example and then explain it",
+    "explain why the distinction matters in practice",
+    "give a compact definition, example, and contrast",
 )
 _ARITHMETIC_PROMPT_FUNCTIONS = (
     ("request_operation",),
@@ -962,11 +982,108 @@ def _fact_rows() -> Iterable[dict[str, object]]:
         )
 
 
+def _general_fact_rows() -> Iterable[dict[str, object]]:
+    prompts = (
+        "For {scenario[context]}, answer this directly: {scenario[question]}",
+        "I need {scenario[context]}. {scenario[question]} Give the answer and one supporting detail.",
+        "As part of {scenario[context]}, please answer: {scenario[question]}",
+        "Provide a concise factual response for {scenario[context]}: {scenario[question]}",
+    )
+    answers = (
+        "{scenario[answer]}. {scenario[detail]}",
+        "The answer is {scenario[answer]}. {scenario[detail]}",
+        "{scenario[detail]} Therefore, the answer is {scenario[answer]}.",
+        "{scenario[answer]} is the requested fact. {scenario[detail]}",
+    )
+    for fact_index, (topic, question, answer, detail) in enumerate(GENERAL_FACTS):
+        for context_index, context in enumerate(_FACT_CONTEXTS):
+            facts = {
+                "topic": topic, "question": question, "answer": answer,
+                "detail": detail, "context": context,
+            }
+            yield _row(
+                case_id=f"general-fact:{fact_index}:{context_index}",
+                domain="general_knowledge",
+                difficulty="easy",
+                facts=facts,
+                prompts=prompts,
+                answers=answers,
+                validator={"kind": "contains", "required": [answer, detail]},
+                prompt_functions=(
+                    ("set_use_context", "ask_fact"),
+                    ("set_use_context", "ask_fact", "request_supporting_detail"),
+                    ("set_use_context", "request_answer"),
+                    ("request_concise_fact", "set_use_context"),
+                ),
+                answer_functions=(
+                    ("state_answer", "support_fact"),
+                    ("label_answer", "support_fact"),
+                    ("support_fact", "derive_answer"),
+                    ("state_requested_fact", "support_fact"),
+                ),
+            )
+
+
+def _concept_definition_rows() -> Iterable[dict[str, object]]:
+    prompts = (
+        "Explain {scenario[concept]} for {scenario[audience]}; {scenario[focus]}.",
+        "What does {scenario[concept]} mean? Write for {scenario[audience]} and {scenario[focus]}.",
+        "Help {scenario[audience]} understand {scenario[concept]}. Please {scenario[focus]}.",
+        "Define {scenario[concept]} without assuming specialist knowledge. The reader is {scenario[audience]}; {scenario[focus]}.",
+        "Give a useful explanation of {scenario[concept]} to {scenario[audience]}. In particular, {scenario[focus]}.",
+    )
+    answers = (
+        "{scenario[concept_cap]} is {scenario[definition]}. For example, {scenario[example]}. {scenario[contrast]}.",
+        "{scenario[definition_cap]}. A concrete example is that {scenario[example]}. {scenario[contrast]}.",
+        "Consider this example: {scenario[example]}. It illustrates {scenario[concept]}, which is {scenario[definition]}. {scenario[contrast]}.",
+        "In practical terms, {scenario[concept]} means {scenario[definition]}. You can see it when {scenario[example]}. {scenario[contrast]}.",
+        "A compact definition of {scenario[concept]} is {scenario[definition]}. One instance is that {scenario[example]}. The key distinction is this: {scenario[contrast_lower]}.",
+    )
+    for concept_index, (topic, concept, definition, example, contrast) in enumerate(CONCEPTS):
+        for audience_index, audience in enumerate(_CONCEPT_AUDIENCES):
+            for focus_index, focus in enumerate(_CONCEPT_FOCUSES):
+                facts = {
+                    "topic": topic,
+                    "concept": concept,
+                    "concept_cap": concept[0].upper() + concept[1:],
+                    "definition": definition,
+                    "definition_cap": definition[0].upper() + definition[1:],
+                    "example": example,
+                    "contrast": contrast,
+                    "contrast_lower": contrast[0].lower() + contrast[1:],
+                    "audience": audience,
+                    "focus": focus,
+                }
+                yield _row(
+                    case_id=f"concept:{concept_index}:{audience_index}:{focus_index}",
+                    domain="concept_definition",
+                    difficulty="easy",
+                    facts=facts,
+                    prompts=prompts,
+                    answers=answers,
+                    validator={"kind": "contains", "required": [example]},
+                    prompt_functions=(
+                        ("request_explanation", "name_audience", "specify_focus"),
+                        ("ask_definition", "name_audience", "specify_focus"),
+                        ("request_beginner_explanation", "specify_focus"),
+                        ("request_definition", "forbid_assumed_expertise", "specify_focus"),
+                        ("request_useful_explanation", "name_audience", "specify_focus"),
+                    ),
+                    answer_functions=(
+                        ("define", "give_example", "contrast"),
+                        ("define", "give_example", "contrast"),
+                        ("give_example", "define", "contrast"),
+                        ("define_practically", "give_example", "contrast"),
+                        ("define_compactly", "give_example", "contrast"),
+                    ),
+                )
+
+
 def _multi_turn_rows() -> Iterable[dict[str, object]]:
     """Context-dependent follow-ups that cannot be answered from the last turn alone."""
 
     for context, items in _FOLLOW_UP_CONTEXTS:
-        for base in range(20, 70):
+        for base in range(20, 75):
             for increment in range(2, 52):
                 result = base + increment
                 base_words = _number_words(base)
@@ -1021,7 +1138,7 @@ def casual_conversation_capacity() -> int:
     arithmetic = 7_000 + 5_000 + 2_100 + 2_000
     comparisons_count = 100 * 60
     formatting = 4_060 + 100
-    multi_turn = len(_FOLLOW_UP_CONTEXTS) * 50 * 50
+    multi_turn = len(_FOLLOW_UP_CONTEXTS) * 55 * 50
     natural_social = sum(
         len(spec["subjects"])
         * len(spec["circumstances"])
@@ -1037,6 +1154,8 @@ def casual_conversation_capacity() -> int:
         + 4_000
         + 4_000
         + len(_FACTS)
+        + len(GENERAL_FACTS) * len(_FACT_CONTEXTS)
+        + len(CONCEPTS) * len(_CONCEPT_AUDIENCES) * len(_CONCEPT_FOCUSES)
         + multi_turn
     )
 
@@ -1050,6 +1169,8 @@ def render_casual_conversation_rows() -> list[dict[str, object]]:
     rows.extend(_multi_constraint_rows())
     rows.extend(_sorting_rows())
     rows.extend(_fact_rows())
+    rows.extend(_general_fact_rows())
+    rows.extend(_concept_definition_rows())
     rows.extend(_multi_turn_rows())
     return validate_complete_rows(TASK, rows, casual_conversation_capacity())
 
