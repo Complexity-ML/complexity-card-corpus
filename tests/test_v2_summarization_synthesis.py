@@ -10,6 +10,6 @@ def test_v2_summarization_uses_full_capacity_and_passes() -> None:
     rows = render_summarization_synthesis_rows()
     family = audit_v2_family_roadmap(rows)["families"]["summarization_synthesis"]
 
-    assert len(rows) == summarization_synthesis_capacity() == 64
+    assert len(rows) == summarization_synthesis_capacity() == 4_096
     assert all(len(re.findall(r"[.!?](?:\s|$)", row["final_response"])) == 2 for row in rows)
     assert family["priority"] == "PASS"
