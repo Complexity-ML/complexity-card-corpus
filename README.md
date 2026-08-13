@@ -115,3 +115,28 @@ The generated manifest records `tests_executed_during_build: false` and
 machine-checkable. A release becomes trainable only after the separate audit
 sets `quality_status` to `passed`; all 15 family roadmaps must pass as part of
 that decision.
+
+## Two-dimensional full-shard training profile
+
+The published framework profile visits all 201,983 training rows once per
+epoch. It does not downsample, duplicate, filter, or resample families. After
+the 512-token context window is applied, the trainer measures visible
+supervised assistant tokens and balances their loss in two dimensions:
+
+1. behavioral-group targets are 20% distilled reasoning, 25% natural
+   conversation, and 55% instruction and structured tasks;
+2. each group target is distributed among its member task families.
+
+For task `t` in group `g`:
+
+```text
+global_target(t) = group_target(g) * task_target(t | g)
+task_weight(t)   = global_target(t) / raw_visible_token_share(t)
+```
+
+The resulting cross-entropy is normalized by visible weighted-token mass.
+This changes gradient contribution without changing the dataset or row
+exposure. The production profile also rejects coefficients above `30.0x`.
+The complete measured 15-task matrix and runtime contract are documented in
+the Complexity Framework guide
+[`docs/sft-full-shard-2d-weighting.md`](https://github.com/Complexity-ML/complexity-framework/blob/main/docs/sft-full-shard-2d-weighting.md).
