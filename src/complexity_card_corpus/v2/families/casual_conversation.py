@@ -198,6 +198,24 @@ _FACTS = (
     ("the instrument used to measure temperature", "a thermometer"),
     ("the natural satellite that orbits Earth", "the Moon"),
 )
+_CONSTRAINT_PEOPLE = (
+    "Amina", "Ben", "Chloe", "Diego", "Elena",
+    "Farid", "Grace", "Hugo", "Iris", "Jonah",
+)
+_CONSTRAINT_ACTIONS = (
+    "review", "update", "verify", "organize", "summarize",
+    "compare", "archive", "label", "prepare", "deliver",
+)
+_CONSTRAINT_OBJECTS = (
+    "budget note", "release checklist", "training outline", "meeting agenda",
+    "inventory sheet", "research summary", "support guide", "project timeline",
+    "risk register", "handoff memo",
+)
+_CONSTRAINT_DEADLINES = (
+    "Monday morning", "Tuesday afternoon", "Wednesday noon", "Thursday evening",
+    "Friday morning", "the next review", "the client call", "the weekly meeting",
+    "the release window", "the handoff session",
+)
 _ARITHMETIC_PROMPT_FUNCTIONS = (
     ("request_operation",),
     ("request_result", "name_operation"),
@@ -776,6 +794,100 @@ def _formatting_rows() -> Iterable[dict[str, object]]:
             )
 
 
+def _multi_constraint_rows() -> Iterable[dict[str, object]]:
+    for person_index, person in enumerate(_CONSTRAINT_PEOPLE):
+        for action_index, action in enumerate(_CONSTRAINT_ACTIONS):
+            for object_index, object_name in enumerate(_CONSTRAINT_OBJECTS):
+                deadline = _CONSTRAINT_DEADLINES[
+                    (person_index + action_index + object_index) % len(_CONSTRAINT_DEADLINES)
+                ]
+                facts = {
+                    "person": person,
+                    "action": action,
+                    "object": object_name,
+                    "deadline": deadline,
+                }
+                bullet_target = (
+                    f"- Owner: {person}\n"
+                    f"- Task: {action} the {object_name}\n"
+                    f"- Check: {person} confirms the {object_name} by {deadline}"
+                )
+                yield _row(
+                    case_id=f"constraint:bullets:{person}:{action}:{object_index}",
+                    domain="bullet_constraints",
+                    difficulty="easy",
+                    facts={**facts, "target": bullet_target},
+                    prompts=(
+                        "Return exactly three bullet points: name {scenario[person]} as owner, state the task to {scenario[action]} the {scenario[object]}, and give a confirmation check due {scenario[deadline]}. Add no introduction.",
+                        "Format this as three hyphen bullets and nothing else: owner {scenario[person]}; task, {scenario[action]} the {scenario[object]}; check, the owner confirms it by {scenario[deadline]}.",
+                        "Write only three bullets covering the owner, task, and check. Use {scenario[person]}, {scenario[action]} the {scenario[object]}, and {scenario[deadline]}.",
+                        "Produce a three-item bullet list with no closing prose. It must assign {scenario[person]}, require them to {scenario[action]} the {scenario[object]}, and include confirmation by {scenario[deadline]}.",
+                    ),
+                    answers=("{scenario[target]}",),
+                    validator={"kind": "exact", "expected": bullet_target},
+                    answer_functions=(("emit_exact_bullets",),),
+                )
+
+                sentence_target = (
+                    f"{person} will {action} the {object_name}. "
+                    f"The work is due {deadline}, and {person} will confirm completion."
+                )
+                yield _row(
+                    case_id=f"constraint:sentences:{person}:{action}:{object_index}",
+                    domain="sentence_constraints",
+                    difficulty="easy",
+                    facts={**facts, "target": sentence_target},
+                    prompts=(
+                        "Write exactly two sentences. The first must assign {scenario[person]} to {scenario[action]} the {scenario[object]}; the second must give {scenario[deadline]} as the deadline and say that the owner will confirm completion.",
+                        "Use two sentences only: first state that {scenario[person]} will {scenario[action]} the {scenario[object]}, then state the {scenario[deadline]} deadline and confirmation duty.",
+                        "Answer in exactly two complete sentences, with assignment first and timing plus confirmation second. Facts: {scenario[person]}; {scenario[action]} the {scenario[object]}; due {scenario[deadline]}.",
+                        "Create a two-sentence instruction—no heading. Sentence one assigns {scenario[person]} to {scenario[action]} the {scenario[object]}. Sentence two records {scenario[deadline]} and confirmation.",
+                    ),
+                    answers=("{scenario[target]}",),
+                    validator={"kind": "exact", "expected": sentence_target},
+                    answer_functions=(("emit_two_sentences",),),
+                )
+
+                length_target = f"{person} will {action} the {object_name} by {deadline}."
+                word_count = len(length_target.split())
+                yield _row(
+                    case_id=f"constraint:length:{person}:{action}:{object_index}",
+                    domain="length_constraints",
+                    difficulty="easy",
+                    facts={**facts, "target": length_target, "word_count": word_count},
+                    prompts=(
+                        "In exactly {scenario[word_count]} words, state that {scenario[person]} will {scenario[action]} the {scenario[object]} by {scenario[deadline]}. Return only that sentence.",
+                        "Write one {scenario[word_count]}-word sentence assigning {scenario[person]} to {scenario[action]} the {scenario[object]} by {scenario[deadline]}; add nothing else.",
+                        "Your entire answer must contain exactly {scenario[word_count]} words and say that {scenario[person]} will {scenario[action]} the {scenario[object]} by {scenario[deadline]}.",
+                        "Express this assignment in precisely {scenario[word_count]} words: {scenario[person]}, {scenario[action]} the {scenario[object]}, deadline {scenario[deadline]}. No preface.",
+                    ),
+                    answers=("{scenario[target]}",),
+                    validator={"kind": "exact", "expected": length_target},
+                    answer_functions=(("emit_exact_word_count",),),
+                )
+
+                structured_target = (
+                    f"Owner: {person}\n"
+                    f"Action: {action} the {object_name}\n"
+                    f"Deadline: {deadline}"
+                )
+                yield _row(
+                    case_id=f"constraint:structured:{person}:{action}:{object_index}",
+                    domain="structured_constraints",
+                    difficulty="easy",
+                    facts={**facts, "target": structured_target},
+                    prompts=(
+                        "Return exactly three labeled lines—Owner, Action, Deadline—for {scenario[person]}, {scenario[action]} the {scenario[object]}, and {scenario[deadline]}.",
+                        "Format the facts as Owner:, Action:, and Deadline: on separate lines. Use {scenario[person]}, {scenario[action]} the {scenario[object]}, and {scenario[deadline]}; no other text.",
+                        "Produce only a three-field record with labels Owner, Action, and Deadline. Values: {scenario[person]}; {scenario[action]} the {scenario[object]}; {scenario[deadline]}.",
+                        "Write a compact structured answer of three lines. Assign {scenario[person]} to {scenario[action]} the {scenario[object]} by {scenario[deadline]}.",
+                    ),
+                    answers=("{scenario[target]}",),
+                    validator={"kind": "exact", "expected": structured_target},
+                    answer_functions=(("emit_labeled_fields",),),
+                )
+
+
 def _sorting_rows() -> Iterable[dict[str, object]]:
     prompts = (
         "Sort these values from smallest to largest: {scenario[first]}, {scenario[second]}, {scenario[third]}.",
@@ -923,6 +1035,7 @@ def casual_conversation_capacity() -> int:
         + comparisons_count
         + formatting
         + 4_000
+        + 4_000
         + len(_FACTS)
         + multi_turn
     )
@@ -934,6 +1047,7 @@ def render_casual_conversation_rows() -> list[dict[str, object]]:
     rows.extend(_arithmetic_rows())
     rows.extend(_comparison_rows())
     rows.extend(_formatting_rows())
+    rows.extend(_multi_constraint_rows())
     rows.extend(_sorting_rows())
     rows.extend(_fact_rows())
     rows.extend(_multi_turn_rows())
