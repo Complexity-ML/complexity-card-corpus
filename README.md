@@ -12,6 +12,8 @@ src/complexity_card_corpus/
 ├── cli.py                 # build, audit, tokenize, inspect
 ├── variable_by/matrix.py  # reusable VariableBy2D primitive
 └── v2/
+    ├── contracts.py       # SemanticFrame and explicit discourse plans
+    ├── decks.py           # role-separated dealing and compatibility graphs
     ├── families/          # the 15 authored family generators
     ├── registry.py        # uncapped family registry and split assignment
     ├── release.py         # the three explicit release phases
@@ -89,7 +91,7 @@ sampling quota, or 400K truncation layer.
 | `writing_transformation` | 64 |
 | **Total** | **206,090** |
 
-The release split contains 201,587 training, 2,044 validation, and 2,459 test
+The release split contains 201,983 training, 2,350 validation, and 1,757 test
 examples. Split assignment is deterministic and keeps exact and normalized
 structural groups from leaking across partitions.
 
@@ -101,6 +103,10 @@ structural groups from leaking across partitions.
 - optional `<think>/<final>` only for reasoning rows;
 - deterministic train, validation, and test splits;
 - prompt, thinking, and answer surfaces separated by role;
+- prompt-to-answer and answer-to-thinking choices validated against their
+  declared compatibility graphs, with measured edge coverage;
+- 10,000 contextual multi-turn rows whose prior turns supply a declared
+  `SemanticFrame` fact absent from the current user request;
 - independent gates for correctness, rendering, repetition, diversity, length,
   split leakage, and tokenizer/loss-mask alignment.
 
