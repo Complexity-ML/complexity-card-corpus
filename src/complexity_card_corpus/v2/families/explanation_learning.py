@@ -123,6 +123,7 @@ _LEARNING_MOVES = (
     ("verify", "verify the claim with an independent check", "use the check to test the result rather than merely repeat it", "Can the learner produce evidence that could disconfirm the claim?"),
     ("teach_back", "prepare a teach-back in the learner's own words", "retain the technical meaning while changing the wording", "Can the learner explain it accurately without reciting the source?"),
     ("summarize", "create a compact memory structure", "retain the mechanism, boundary, and one diagnostic cue", "Can the learner recover all three parts from the summary?"),
+    ("counterexample", "use a counterexample to expose where an overbroad claim fails", "construct a nearby case that violates the mistaken generalization", "Can the learner use the counterexample to state the concept's boundary?"),
 )
 _STUDY_CONTEXTS = (
     ("quiz preparation", "the learner must distinguish tempting answer choices", "a definition, a contrast, and a quick check", "test the idea against one plausible distractor"),

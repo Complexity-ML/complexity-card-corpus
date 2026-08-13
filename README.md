@@ -79,7 +79,7 @@ sampling quota, or 400K truncation layer.
 | `context_clarification` | 9,216 |
 | `conversation_empathy` | 2,048 |
 | `critique_revision` | 64 |
-| `explanation_learning` | 32,776 |
+| `explanation_learning` | 36,040 |
 | `extraction_classification` | 3,456 |
 | `grounded_qa` | 4,608 |
 | `planning_comparison` | 384 |
@@ -89,7 +89,7 @@ sampling quota, or 400K truncation layer.
 | `summarization_synthesis` | 4,096 |
 | `troubleshooting` | 384 |
 | `writing_transformation` | 4,096 |
-| **Total** | **225,762** |
+| **Total** | **229,026** |
 
 Split assignment is deterministic and keeps exact and normalized structural
 groups from leaking across partitions. Exact train, validation, and test counts
