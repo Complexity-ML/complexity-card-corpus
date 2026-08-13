@@ -8,5 +8,5 @@ def test_v2_writing_uses_full_capacity_and_passes() -> None:
     rows = render_writing_transformation_rows()
     family = audit_v2_family_roadmap(rows)["families"]["writing_transformation"]
 
-    assert len(rows) == writing_transformation_capacity() == 64
+    assert len(rows) == writing_transformation_capacity() == 4_096
     assert family["priority"] == "PASS"
