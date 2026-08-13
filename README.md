@@ -75,9 +75,9 @@ sampling quota, or 400K truncation layer.
 | Family | Examples |
 |---|---:|
 | `brainstorming_creativity` | 384 |
-| `casual_conversation` | 45,794 |
+| `casual_conversation` | 52,794 |
 | `context_clarification` | 9,216 |
-| `conversation_empathy` | 128 |
+| `conversation_empathy` | 2,048 |
 | `critique_revision` | 64 |
 | `explanation_learning` | 32,776 |
 | `extraction_classification` | 3,456 |
@@ -85,15 +85,16 @@ sampling quota, or 400K truncation layer.
 | `planning_comparison` | 384 |
 | `practical_action` | 384 |
 | `reasoning_verification` | 108,000 |
-| `safety_uncertainty` | 384 |
-| `summarization_synthesis` | 64 |
+| `safety_uncertainty` | 3,072 |
+| `summarization_synthesis` | 4,096 |
 | `troubleshooting` | 384 |
-| `writing_transformation` | 64 |
-| **Total** | **206,090** |
+| `writing_transformation` | 4,096 |
+| **Total** | **225,762** |
 
-The release split contains 201,983 training, 2,350 validation, and 1,757 test
-examples. Split assignment is deterministic and keeps exact and normalized
-structural groups from leaking across partitions.
+Split assignment is deterministic and keeps exact and normalized structural
+groups from leaking across partitions. Exact train, validation, and test counts
+are recorded in the manifest produced by each build rather than duplicated as
+a stale constant in this document.
 
 ## Current contract
 
@@ -105,7 +106,7 @@ structural groups from leaking across partitions.
 - prompt, thinking, and answer surfaces separated by role;
 - prompt-to-answer and answer-to-thinking choices validated against their
   declared compatibility graphs, with measured edge coverage;
-- 10,000 contextual multi-turn rows whose prior turns supply a declared
+- 11,000 contextual multi-turn rows whose prior turns supply a declared
   `SemanticFrame` fact absent from the current user request;
 - independent gates for correctness, rendering, repetition, diversity, length,
   split leakage, and tokenizer/loss-mask alignment.
@@ -118,8 +119,8 @@ that decision.
 
 ## Two-dimensional full-shard training profile
 
-The published framework profile visits all 201,983 training rows once per
-epoch. It does not downsample, duplicate, filter, or resample families. After
+The framework profile visits every training row once per epoch. It does not
+downsample, duplicate, filter, or resample families. After
 the 512-token context window is applied, the trainer measures visible
 supervised assistant tokens and balances their loss in two dimensions:
 
