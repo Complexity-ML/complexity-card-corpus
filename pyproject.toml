@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "complexity-card-corpus"
 version = "0.1.0"
-description = "Build graph-shaped knowledge cards into Parquet and o200k token shards."
+description = "Build, audit, and tokenize the Complexity Card Corpus V2 SFT dataset."
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
@@ -20,16 +20,12 @@ classifiers = [
 dependencies = [
   "numpy>=2.0",
   "pyarrow>=18",
-  "pydantic>=2.10",
-  "scikit-learn>=1.5,<2",
   "tiktoken>=0.9",
   "tokenizers>=0.22,<1",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.3"]
-wordnet-audit = ["wn>=1.1,<2"]
-semantic-audit = ["sentence-transformers>=5.1,<6"]
 
 [project.scripts]
 card-corpus = "complexity_card_corpus.cli:main"
@@ -39,3 +35,7 @@ packages = ["src/complexity_card_corpus"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not slow'"
+markers = [
+  "slow: full-capacity generation or release audit, run explicitly with pytest -m slow",
+]
