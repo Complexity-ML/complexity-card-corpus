@@ -5,8 +5,8 @@ from typing import Any, Iterable
 
 from .chat import (
     chat_template_contract,
-    render_system_prefix,
-    render_user_turn,
+    render_history_prefix,
+    validate_training_messages,
 )
 from .tokenizer import IGNORE_INDEX, load_encoding
 
@@ -50,18 +50,21 @@ def audit_v2_tokenization(
     roundtrip_failures = 0
     loss_mask_failures = 0
     envelope_failures = 0
+    conversation_failures = 0
     for row in rows:
         if row.get("split", "train") != "train":
             continue
         if examples >= maximum_examples:
             break
-        prompt = str(row.get("prompt", ""))
+        messages = list(row.get("messages", []))
+        try:
+            validate_training_messages(messages)
+        except ValueError:
+            conversation_failures += 1
+            examples += 1
+            continue
         response = str(row.get("response", row.get("final_response", "")))
-        prefix_text = (
-            render_system_prefix(contract)
-            + render_user_turn(prompt, contract)
-            + contract["assistant_prefix"]
-        )
+        prefix_text = render_history_prefix(messages[:-1], contract)
         prefix_ids = encoding.encode(prefix_text, disallowed_special=())
         response_ids = encoding.encode(response, disallowed_special=())
         full_ids = [*prefix_ids, *response_ids, eos_id]
@@ -94,15 +97,18 @@ def audit_v2_tokenization(
         failures.append("chat serialization does not round-trip through tokenizer")
     if loss_mask_failures:
         failures.append("assistant-only loss mask is misaligned")
+    if conversation_failures:
+        failures.append("chat history cannot be serialized as one final target")
     if marker_failures or envelope_failures:
         failures.append("think/final markers are not preserved by tokenizer")
     return {
-        "format": "complexity-card-corpus-v2-tokenization-audit-v1",
+        "format": "complexity-card-corpus-v2-tokenization-audit-v2",
         "passed": not failures,
         "failures": failures,
         "examples": examples,
         "roundtrip_failures": roundtrip_failures,
         "loss_mask_failures": loss_mask_failures,
+        "conversation_failures": conversation_failures,
         "envelope_failures": envelope_failures,
         "marker_failures": marker_failures,
         "marker_token_ids": marker_tokens,

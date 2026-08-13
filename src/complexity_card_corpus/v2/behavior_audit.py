@@ -128,8 +128,6 @@ DEFAULT_V2_THRESHOLDS = {
     "required_train_examples": None,
     "minimum_direct_casual_examples": 25_000,
     "minimum_direct_casual_share": 0.70,
-    "maximum_two_assistant_casual_share": 0.20,
-    "maximum_three_plus_assistant_casual_share": 0.10,
     "minimum_short_direct_casual_share": 0.90,
     "maximum_internal_repetition_share": 0.02,
     "maximum_prompt_copy_share": 0.03,
@@ -146,7 +144,6 @@ DEFAULT_V2_THRESHOLDS = {
     "maximum_task_thinking_final_overlap_share": 0.05,
     "maximum_thinking_prompt_copy_share": 0.02,
     "maximum_task_thinking_prompt_copy_share": 0.03,
-    "maximum_non_single_assistant_row_share": 0.0,
 }
 
 
@@ -343,6 +340,7 @@ def audit_v2_behavior(
     )
     abstract_functions: dict[str, Counter[str]] = defaultdict(Counter)
     assistant_turns = Counter()
+    assistant_history_turns = 0
     casual_assistant_turns = Counter()
     casual_direct_short = 0
     anchors_seen = Counter()
@@ -366,6 +364,7 @@ def audit_v2_behavior(
             if message["role"] == "assistant"
         ]
         assistant_turns[len(assistant_indexes)] += 1
+        assistant_history_turns += max(0, len(assistant_indexes) - 1)
         if task == "casual_conversation":
             casual_assistant_turns[len(assistant_indexes)] += 1
             if len(assistant_indexes) == 1:
@@ -375,20 +374,22 @@ def audit_v2_behavior(
                 )
                 casual_direct_short += len(_words(final)) <= 25
 
-        for index in assistant_indexes:
-            response = messages[index]["content"].strip()
-            thinking, final = _assistant_parts(
-                row,
-                response,
-                use_row_fields=len(assistant_indexes) == 1,
-            )
-            prompt = _prior_user(messages, index).strip()
-            example_id = str(row.get("example_id", f"row-{train_rows}"))
-            total_targets += 1
-            task_targets[task] += 1
-            if not final:
-                empty_targets += 1
-                continue
+        # Historical assistant turns are serialized into the masked context.
+        # Only the final assistant message is a model-facing training target.
+        if not messages or messages[-1]["role"] != "assistant":
+            empty_targets += 1
+            continue
+        index = len(messages) - 1
+        response = messages[index]["content"].strip()
+        thinking, final = _assistant_parts(row, response, use_row_fields=True)
+        prompt = _prior_user(messages, index).strip()
+        example_id = str(row.get("example_id", f"row-{train_rows}"))
+        total_targets += 1
+        task_targets[task] += 1
+        if not final:
+            empty_targets += 1
+            continue
+        if final:
             task_exact_responses[task][" ".join(final.casefold().split())] += 1
             repeated = (
                 _ngram_repetition_ratio(final) > 0.20
@@ -570,10 +571,6 @@ def audit_v2_behavior(
         violations.append("too few direct casual conversations")
     if casual_direct / max(1, casual_rows) < policy["minimum_direct_casual_share"]:
         violations.append("direct casual conversation share is below target")
-    if casual_two / max(1, casual_rows) > policy["maximum_two_assistant_casual_share"]:
-        violations.append("two-assistant casual conversation share exceeds target")
-    if casual_three_plus / max(1, casual_rows) > policy["maximum_three_plus_assistant_casual_share"]:
-        violations.append("three-plus-assistant casual conversation share exceeds target")
     if casual_direct and casual_direct_short / casual_direct < policy["minimum_short_direct_casual_share"]:
         violations.append("short direct casual response share is below target")
     if repeated_total / max(1, total_targets) > policy["maximum_internal_repetition_share"]:
@@ -590,12 +587,6 @@ def audit_v2_behavior(
         > policy["maximum_thinking_prompt_copy_share"]
     ):
         violations.append("thinking copies prompts too often")
-    non_single_rows = train_rows - assistant_turns[1]
-    if (
-        non_single_rows / max(1, train_rows)
-        > policy["maximum_non_single_assistant_row_share"]
-    ):
-        violations.append("rows must contain exactly one assistant target")
     if missing_anchors:
         violations.append("missing behavioral anchors: " + ", ".join(missing_anchors))
     if incorrect_anchors:
@@ -604,7 +595,7 @@ def audit_v2_behavior(
         violations.append("one or more task-level behavior gates failed")
 
     return {
-        "format": "complexity-card-corpus-v2-behavior-audit-v1",
+        "format": "complexity-card-corpus-v2-behavior-audit-v2",
         "passed": not violations,
         "violations": violations,
         "train_rows": train_rows,
@@ -619,7 +610,10 @@ def audit_v2_behavior(
         "thinking_prompt_copy_share": round(
             thinking_prompt_copied_total / max(1, thinking_total), 6
         ),
-        "non_single_assistant_rows": non_single_rows,
+        "assistant_history_turns": assistant_history_turns,
+        "rows_with_assistant_history": sum(
+            count for turns, count in assistant_turns.items() if turns > 1
+        ),
         "assistant_turns_per_row": dict(sorted(assistant_turns.items())),
         "casual_conversation": {
             "rows": casual_rows,

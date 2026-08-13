@@ -47,6 +47,30 @@ def test_v2_integrity_accepts_a_consistent_reasoning_row() -> None:
     assert audit["envelope_error_count"] == 0
 
 
+def test_v2_integrity_accepts_alternating_assistant_history() -> None:
+    row = _row()
+    row["messages"] = [
+        {"role": "user", "content": "Remember that the first value is 3."},
+        {"role": "assistant", "content": "I will keep 3 in context."},
+        *row["messages"],
+    ]
+
+    audit = audit_v2_integrity([row])
+
+    assert audit["passed"] is True
+    assert audit["envelope_error_count"] == 0
+
+
+def test_v2_integrity_rejects_non_alternating_history() -> None:
+    row = _row()
+    row["messages"].insert(1, {"role": "user", "content": "Another user turn."})
+
+    audit = audit_v2_integrity([row])
+
+    assert audit["passed"] is False
+    assert audit["envelope_error_count"] == 1
+
+
 def test_v2_integrity_rejects_wrong_arithmetic_even_when_text_looks_clean() -> None:
     row = _row(final="The answer is 8.")
 
@@ -74,6 +98,28 @@ def test_v2_integrity_rejects_conflicting_answers_for_identical_prompt() -> None
     audit = audit_v2_integrity([first, second])
 
     assert audit["conflicting_prompt_count"] == 1
+
+
+def test_v2_integrity_distinguishes_identical_followups_by_history() -> None:
+    first = _row(prompt="And the total?", final="The answer is 7.")
+    first["messages"] = [
+        {"role": "user", "content": "Keep 3 and 4 in mind."},
+        {"role": "assistant", "content": "I have both values."},
+        {"role": "user", "content": "And the total?"},
+        first["messages"][-1],
+    ]
+    second = _row(prompt="And the total?", final="The answer is 9.")
+    second["example_id"] = "reasoning-2"
+    second["messages"] = [
+        {"role": "user", "content": "Keep 4 and 5 in mind."},
+        {"role": "assistant", "content": "I have both values."},
+        {"role": "user", "content": "And the total?"},
+        second["messages"][-1],
+    ]
+
+    audit = audit_v2_integrity([first, second])
+
+    assert audit["conflicting_prompt_count"] == 0
 
 
 def test_v2_integrity_rejects_rendering_artifacts_and_placeholders() -> None:

@@ -3,7 +3,9 @@ from __future__ import annotations
 import hashlib
 import re
 from collections import defaultdict
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
+
+from .chat import conversation_context_text
 
 
 _WORD = re.compile(r"[a-z0-9']+", re.I)
@@ -47,10 +49,12 @@ def _field_audit(
     field: str,
     *,
     threshold: float,
+    text_getter: Callable[[dict[str, Any]], str] | None = None,
 ) -> dict[str, Any]:
     signatures: dict[frozenset[tuple[str, ...]], list[int]] = defaultdict(list)
     for index, row in enumerate(rows):
-        signatures[_shingles(str(row.get(field, "")))].append(index)
+        text = text_getter(row) if text_getter is not None else str(row.get(field, ""))
+        signatures[_shingles(text)].append(index)
     collided: set[int] = set()
     examples: list[dict[str, Any]] = []
     unique_signatures = list(signatures)
@@ -107,6 +111,15 @@ def _field_audit(
     }
 
 
+def _prompt_context(row: dict[str, Any]) -> str:
+    messages = list(row.get("messages", []))
+    if messages:
+        context = conversation_context_text(messages)
+        if context:
+            return context
+    return str(row.get("prompt", ""))
+
+
 def audit_v2_near_duplicates(
     rows: Iterable[dict[str, Any]],
     *,
@@ -127,7 +140,12 @@ def audit_v2_near_duplicates(
                 str(row.get("example_id", "")).encode()
             ).digest(),
         )[:maximum_examples_per_task]
-        prompt = _field_audit(sampled, "prompt", threshold=similarity_threshold)
+        prompt = _field_audit(
+            sampled,
+            "prompt",
+            threshold=similarity_threshold,
+            text_getter=_prompt_context,
+        )
         final = _field_audit(
             sampled, "final_response", threshold=similarity_threshold
         )
@@ -145,7 +163,7 @@ def audit_v2_near_duplicates(
             "final": final,
         }
     return {
-        "format": "complexity-card-corpus-v2-near-duplicate-audit-v1",
+        "format": "complexity-card-corpus-v2-near-duplicate-audit-v2",
         "passed": not failing_tasks,
         "failing_tasks": failing_tasks,
         "tasks": tasks,

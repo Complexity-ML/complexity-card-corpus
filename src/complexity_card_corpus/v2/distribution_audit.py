@@ -29,7 +29,9 @@ def audit_v2_distribution(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
     """Audit domains, VariableBy2D card entropy, and nested edge coverage."""
 
     task_rows = Counter()
-    task_domains: dict[str, Counter[str]] = defaultdict(Counter)
+    task_train_rows = Counter()
+    task_train_domains: dict[str, Counter[str]] = defaultdict(Counter)
+    task_all_domains: dict[str, Counter[str]] = defaultdict(Counter)
     auditable_rows = Counter()
     unavailable_rows = Counter()
     card_counts: dict[tuple[str, str, str, int], Counter[int]] = defaultdict(Counter)
@@ -38,11 +40,13 @@ def audit_v2_distribution(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
     ] = defaultdict(Counter)
 
     for row in rows:
-        if row.get("split", "train") != "train":
-            continue
         task = str(row.get("task", "unknown"))
         task_rows[task] += 1
-        task_domains[task][str(row.get("domain", "unknown"))] += 1
+        domain = str(row.get("domain", "unknown"))
+        task_all_domains[task][domain] += 1
+        if row.get("split", "train") == "train":
+            task_train_rows[task] += 1
+            task_train_domains[task][domain] += 1
         try:
             metadata = json.loads(str(row.get("source_representation", "")))
             deck = str(metadata["deck_name"])
@@ -74,8 +78,9 @@ def audit_v2_distribution(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
     violations: list[str] = []
     for task in sorted(task_rows):
         rows_count = task_rows[task]
-        domain, domain_count = task_domains[task].most_common(1)[0]
-        domain_share = domain_count / rows_count
+        domain_counts = task_train_domains[task] or task_all_domains[task]
+        domain, domain_count = domain_counts.most_common(1)[0]
+        domain_share = domain_count / sum(domain_counts.values())
         reservoirs = []
         reservoir_failures = 0
         for (group_task, deck, field, size), counts in sorted(card_counts.items()):
@@ -136,9 +141,10 @@ def audit_v2_distribution(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
             violations.append(task)
         task_metrics[task] = {
             "rows": rows_count,
+            "train_rows": task_train_rows[task],
             "auditable_variable_rows": auditable_rows[task],
             "unavailable_variable_rows": unavailable_rows[task],
-            "distinct_domains": len(task_domains[task]),
+            "distinct_domains": len(domain_counts),
             "top_domain": domain,
             "top_domain_share": round(domain_share, 6),
             "reservoir_failure_count": reservoir_failures,
@@ -148,7 +154,7 @@ def audit_v2_distribution(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
             "edges": edges,
         }
     return {
-        "format": "complexity-card-corpus-v2-distribution-audit-v1",
+        "format": "complexity-card-corpus-v2-distribution-audit-v2",
         "passed": not violations,
         "failing_tasks": violations,
         "tasks": task_metrics,
@@ -158,6 +164,8 @@ def audit_v2_distribution(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
             "minimum_card_coverage": 1.0,
             "minimum_nested_edge_coverage": 0.80,
             "minimum_samples_per_card_or_edge": 5,
+            "variable_coverage_scope": "all_splits",
+            "domain_balance_scope": "train",
         },
     }
 

@@ -5,6 +5,8 @@ import re
 from collections import defaultdict
 from typing import Any, Iterable
 
+from .chat import conversation_context_text, validate_training_messages
+
 
 REQUIRED_MODEL_FIELDS = (
     "example_id",
@@ -59,14 +61,6 @@ def render_think_final(thinking: str, final: str) -> str:
 
 def _normalized(text: str) -> str:
     return " ".join(text.casefold().split())
-
-
-def _assistant_messages(row: dict[str, Any]) -> list[str]:
-    return [
-        str(message.get("content", ""))
-        for message in row.get("messages", [])
-        if message.get("role") == "assistant"
-    ]
 
 
 def _contains_number(text: str, value: int) -> bool:
@@ -180,11 +174,13 @@ def audit_v2_integrity(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
         if example_id in seen_ids:
             duplicate_ids.append(example_id)
         seen_ids.add(example_id)
-        assistants = _assistant_messages(row)
-        if len(assistants) != 1:
-            envelope_errors.append(f"{example_id}: expected one assistant message")
+        messages = list(row.get("messages", []))
+        try:
+            validate_training_messages(messages)
+        except ValueError as error:
+            envelope_errors.append(f"{example_id}: {error}")
             continue
-        assistant = assistants[0].strip()
+        assistant = str(messages[-1].get("content", "")).strip()
         prompt = str(row.get("prompt", "")).strip()
         response = str(row.get("response", "")).strip()
         thinking = str(row.get("reasoning_trace", "")).strip()
@@ -194,13 +190,14 @@ def audit_v2_integrity(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
             envelope_errors.append(example_id)
         users = [
             str(message.get("content", "")).strip()
-            for message in row.get("messages", [])
+            for message in messages
             if message.get("role") == "user"
         ]
-        if not users or (users[-1] != prompt and users[-1] not in prompt):
+        if not users or users[-1] != prompt:
             field_mismatches.append(example_id)
-        prompt_answers[_normalized(prompt)].add(_normalized(final))
-        for text in (prompt, thinking, final):
+        context = conversation_context_text(messages)
+        prompt_answers[_normalized(context)].add(_normalized(final))
+        for text in (context, thinking, final):
             if _PLACEHOLDER.search(text):
                 placeholder_errors.append(example_id)
             for name, pattern in _RENDERING_DEFECTS.items():
@@ -236,7 +233,7 @@ def audit_v2_integrity(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
         if condition:
             violations.append(message)
     return {
-        "format": "complexity-card-corpus-v2-integrity-audit-v1",
+        "format": "complexity-card-corpus-v2-integrity-audit-v2",
         "passed": not violations,
         "violations": violations,
         "rows": total,

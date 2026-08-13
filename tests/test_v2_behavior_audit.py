@@ -36,7 +36,6 @@ def _permissive_thresholds() -> dict[str, float | int]:
         "maximum_task_thinking_final_overlap_share": 1.0,
         "maximum_thinking_prompt_copy_share": 1.0,
         "maximum_task_thinking_prompt_copy_share": 1.0,
-        "maximum_non_single_assistant_row_share": 1.0,
     }
 
 
@@ -69,7 +68,7 @@ def test_v2_audit_detects_prompt_copy_hidden_by_unique_rows() -> None:
     assert audit["tasks"]["casual_conversation"]["prompt_copy_count"] == 1
 
 
-def test_v2_audit_counts_every_supervised_assistant_turn() -> None:
+def test_v2_audit_treats_prior_assistant_turns_as_masked_history() -> None:
     row = {
         "task": "casual_conversation",
         "split": "train",
@@ -85,8 +84,11 @@ def test_v2_audit_counts_every_supervised_assistant_turn() -> None:
 
     audit = audit_v2_behavior([row], thresholds=_permissive_thresholds())
 
-    assert audit["assistant_targets"] == 3
+    assert audit["assistant_targets"] == 1
+    assert audit["assistant_history_turns"] == 2
+    assert audit["rows_with_assistant_history"] == 1
     assert audit["casual_conversation"]["three_plus_assistant_rows"] == 1
+    assert audit["tasks"]["casual_conversation"]["top_exact_response"] == "three."
 
 
 def test_v2_audit_requires_correct_direct_behavioral_anchors() -> None:

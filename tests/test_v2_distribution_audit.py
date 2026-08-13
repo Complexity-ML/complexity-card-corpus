@@ -52,6 +52,24 @@ def test_v2_distribution_rejects_unused_variable_cards() -> None:
     ]
 
 
+def test_v2_distribution_counts_heldout_cards_in_authoring_coverage() -> None:
+    rows = []
+    for index in range(20):
+        train = _row(index, biased=True)
+        rows.append(train)
+        heldout = _row(index + 20, biased=True)
+        heldout["split"] = "test"
+        metadata = json.loads(heldout["source_representation"])
+        metadata["variable_indices"]["thinking"]["action"] = 1
+        heldout["source_representation"] = json.dumps(metadata)
+        rows.append(heldout)
+
+    audit = audit_v2_distribution(rows)
+
+    assert audit["passed"] is True
+    assert audit["tasks"]["reasoning_verification"]["train_rows"] == 20
+
+
 def test_v2_distribution_requires_machine_readable_deck_provenance() -> None:
     audit = audit_v2_distribution(
         [{"task": "writing_transformation", "split": "train", "domain": "email"}]

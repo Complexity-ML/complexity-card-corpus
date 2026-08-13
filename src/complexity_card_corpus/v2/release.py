@@ -11,7 +11,12 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from .behavior_audit import audit_v2_behavior
-from .chat import CHAT_TEMPLATE_ID, chat_template_contract, render_history_prefix
+from .chat import (
+    CHAT_TEMPLATE_ID,
+    chat_template_contract,
+    render_history_prefix,
+    validate_training_messages,
+)
 from .composition_audit import audit_v2_composition
 from .distribution_audit import audit_v2_distribution
 from .gates import v2_gate_progress
@@ -190,8 +195,7 @@ def tokenize_v2_release(
         ):
             for row in partition_rows:
                 messages = list(row["messages"])
-                if not messages or messages[-1].get("role") != "assistant":
-                    raise ValueError("V2 row must end with the supervised assistant turn")
+                validate_training_messages(messages)
                 prefix = render_history_prefix(messages[:-1], contract)
                 prefix_ids = encoding.encode(prefix, disallowed_special=())
                 response_ids = encoding.encode(
@@ -230,7 +234,8 @@ def tokenize_v2_release(
                 supervised_tokens += supervised
         index = {
             "format": "complexity-sft-token-shard-v2",
-            "assistant_supervision": "all_assistant_turns",
+            "assistant_supervision": "final_assistant_only",
+            "history_assistant_turns": "masked_context",
             "chat_template_id": CHAT_TEMPLATE_ID,
             "partition": partition,
             "examples": len(partition_rows),

@@ -240,7 +240,8 @@ def test_v2_tokenization_serializes_multi_turn_history_into_the_masked_prefix(
     tokenizer.mkdir()
     (tokenizer / "tokenizer.json").write_text("{}")
 
-    release.tokenize_v2_release(artifact, tokenizer, tmp_path / "tokenized")
+    output = tmp_path / "tokenized"
+    release.tokenize_v2_release(artifact, tokenizer, output)
 
     prefix = encoded_texts[0]
     assert "Remember that there are three boxes." in prefix
@@ -248,3 +249,6 @@ def test_v2_tokenization_serializes_multi_turn_history_into_the_masked_prefix(
     assert "And with two more?" in prefix
     assert prefix.endswith("Assistant:\n")
     assert "There would be five boxes." not in prefix
+    index = json.loads((output / "train" / "sft.idx.json").read_text())
+    assert index["assistant_supervision"] == "final_assistant_only"
+    assert index["history_assistant_turns"] == "masked_context"
