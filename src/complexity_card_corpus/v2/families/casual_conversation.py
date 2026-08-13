@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from itertools import combinations
 from typing import Any, Iterable
 
@@ -531,8 +532,15 @@ def _row(
         prompt_plan_options = (prompt_plan_options[prompt_choice],)
     if answer_choice is not None:
         answer_plan_options = (answer_plan_options[answer_choice],)
+    plan_schema = "|".join(
+        (
+            *(f"p:{plan.name}" for plan in prompt_plan_options),
+            *(f"a:{plan.name}" for plan in answer_plan_options),
+        )
+    )
+    plan_schema_id = hashlib.sha256(plan_schema.encode()).hexdigest()[:10]
     deck = V2RoleSeparatedDeck(
-        name=f"{TASK}:{domain}",
+        name=f"{TASK}:{domain}:{plan_schema_id}",
         variables=variables,
         prompt_pools=(
             V2SubcardPool("request", SurfaceRole.PROMPT, ("{prompt[request]}",)),
@@ -864,6 +872,7 @@ def _multi_turn_rows() -> Iterable[dict[str, object]]:
                     "increment": increment,
                     "result": result,
                     "base_words": base_words,
+                    "base_context_phrase": f"{base_words} {items}",
                     "increment_words": increment_words,
                     "result_words": result_words,
                 }
@@ -891,6 +900,7 @@ def _multi_turn_rows() -> Iterable[dict[str, object]]:
                             ConversationTurn("user", first_user),
                             ConversationTurn("assistant", first_assistant),
                         ),
+                        history_required_facts=("base_context_phrase",),
                     ),
                 )
 

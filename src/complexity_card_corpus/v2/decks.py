@@ -128,6 +128,8 @@ class V2DealtPair:
     thinking_functions: tuple[str, ...]
     user_tone: str
     thinking_budget: ThinkingBudget
+    allowed_prompt_answer_edges: tuple[tuple[str, str], ...]
+    allowed_answer_thinking_edges: tuple[tuple[str, str], ...]
 
 
 @dataclass(frozen=True)
@@ -443,6 +445,22 @@ class V2RoleSeparatedDeck:
         thinking_plan = thinking_options[
             _index(f"{self.name}:{seed}:thinking-plan", len(thinking_options))
         ]
+        allowed_prompt_answer_edges = tuple(
+            (prompt.name, answer_name)
+            for prompt in prompt_plans
+            for answer_name in self.compatibility.answers_for(
+                prompt.name,
+                tuple(plan.name for plan in answer_plans),
+            )
+        )
+        allowed_answer_thinking_edges = tuple(
+            (answer.name, thinking_name)
+            for answer in answer_plans
+            for thinking_name in self.compatibility.thinking_for(
+                answer.name,
+                tuple(plan.name for plan in thinking_plans),
+            )
+        )
         cell_choices = {
             **prompt_plan.cell_choices,
             **answer_plan.cell_choices,
@@ -500,6 +518,8 @@ class V2RoleSeparatedDeck:
             thinking_functions=thinking_plan.functions,
             user_tone=prompt_plan.user_tone,
             thinking_budget=thinking_plan.budget,
+            allowed_prompt_answer_edges=allowed_prompt_answer_edges,
+            allowed_answer_thinking_edges=allowed_answer_thinking_edges,
         )
 
 

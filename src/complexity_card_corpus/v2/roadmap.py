@@ -104,7 +104,26 @@ _ACTIONS = {
     "prompt_function_concentration": "author genuinely different request functions",
     "answer_function_concentration": "author genuinely different response functions",
     "prompt_answer_plan_coupling": "decouple prompt and answer plan selection",
+    "semantic_frame_contract": "align frame facts, intent, tone, and rendered history",
+    "invalid_prompt_answer_compatibility": (
+        "select every prompt and answer pair through its declared compatibility graph"
+    ),
+    "invalid_answer_thinking_compatibility": (
+        "select every answer and thinking pair through its declared compatibility graph"
+    ),
+    "compatibility_graph_drift": (
+        "give each distinct compatibility schema a stable deck identity"
+    ),
+    "insufficient_prompt_answer_graph_coverage": (
+        "exercise the declared prompt-to-answer graph more evenly"
+    ),
+    "insufficient_answer_thinking_graph_coverage": (
+        "exercise the declared answer-to-thinking graph more evenly"
+    ),
     "insufficient_contextual_multi_turn": "add history-dependent conversational turns",
+    "fake_or_unproven_multi_turn": (
+        "make prior turns supply a declared fact absent from the current user prompt"
+    ),
     "unnecessary_casual_thinking": "use no-thinking plans for casual direct responses",
     "reasoning_budget_mismatch": "use verification thinking only for reasoning tasks",
 }

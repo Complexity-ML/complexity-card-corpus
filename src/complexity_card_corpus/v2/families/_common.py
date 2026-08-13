@@ -57,6 +57,8 @@ def render_v2_row(
         "thinking_functions": pair.thinking_functions,
         "user_tone": frame.user_tone,
         "thinking_budget": pair.thinking_budget,
+        "allowed_prompt_answer_edges": pair.allowed_prompt_answer_edges,
+        "allowed_answer_thinking_edges": pair.allowed_answer_thinking_edges,
     }
     return {
         "example_id": f"v2:{task}:"
@@ -94,6 +96,8 @@ def render_v2_row(
                 "answer_functions": pair.answer_functions,
                 "thinking_functions": pair.thinking_functions,
                 "thinking_budget": pair.thinking_budget,
+                "allowed_prompt_answer_edges": pair.allowed_prompt_answer_edges,
+                "allowed_answer_thinking_edges": pair.allowed_answer_thinking_edges,
                 "validator": validator,
             },
             sort_keys=True,

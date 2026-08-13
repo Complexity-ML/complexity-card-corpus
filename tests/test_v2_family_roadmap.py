@@ -31,6 +31,17 @@ def _row(example_id: str, task: str, prompt: str, final: str) -> dict:
         "source_representation": json.dumps(
             {
                 "deck_name": f"{task}:test",
+                "facts": {"example": example_id},
+                "semantic_frame": {
+                    "intent": task,
+                    "facts": {"example": example_id},
+                    "constraints": [],
+                    "expected_outcome": final,
+                    "uncertainty": "none",
+                    "user_tone": "neutral",
+                    "history": [],
+                    "history_required_facts": [],
+                },
                 "composition": {
                     "intent": task,
                     "domain": "general",
@@ -43,6 +54,12 @@ def _row(example_id: str, task: str, prompt: str, final: str) -> dict:
                     "thinking_functions": ["verify"],
                     "user_tone": "neutral",
                     "thinking_budget": "short",
+                    "allowed_prompt_answer_edges": [
+                        ["prompt-default", "answer-default"]
+                    ],
+                    "allowed_answer_thinking_edges": [
+                        ["answer-default", "thinking-default"]
+                    ],
                 },
                 "variable_indices": {
                     "prompt": {"request": 0},

@@ -115,12 +115,26 @@ def test_v2_selects_prompt_answer_and_thinking_plans_independently() -> None:
         for deal in deals
         if deal.answer_plan == "direct"
     )
+    assert all(
+        (deal.prompt_plan, deal.answer_plan) in deal.allowed_prompt_answer_edges
+        for deal in deals
+    )
+    assert all(
+        (deal.answer_plan, deal.thinking_plan) in deal.allowed_answer_thinking_edges
+        for deal in deals
+    )
+    assert {edge for deal in deals for edge in deal.allowed_prompt_answer_edges} == {
+        ("brief", "direct"),
+        ("brief", "verified"),
+        ("contextual", "direct"),
+        ("contextual", "verified"),
+    }
 
 
 def test_v2_semantic_frame_adds_real_history_without_exposing_metadata() -> None:
     frame = SemanticFrame(
         intent="arithmetic_follow_up",
-        facts={"result": 4},
+        facts={"result": 4, "operation": "calculation"},
         constraints=("answer directly",),
         expected_outcome=4,
         user_tone="brief",
@@ -128,6 +142,7 @@ def test_v2_semantic_frame_adds_real_history_without_exposing_metadata() -> None
             ConversationTurn("user", "Can you help with a calculation?"),
             ConversationTurn("assistant", "Yes. What should I calculate?"),
         ),
+        history_required_facts=("operation",),
     )
 
     row = render_v2_row(
@@ -136,7 +151,7 @@ def test_v2_semantic_frame_adds_real_history_without_exposing_metadata() -> None
         domain="addition",
         difficulty="easy",
         deck=_planned_deck(),
-        facts={"result": 4},
+        facts={"result": 4, "operation": "calculation"},
         validator={"kind": "contains", "required": ["four"]},
         semantic_frame=frame,
     )
@@ -150,9 +165,28 @@ def test_v2_semantic_frame_adds_real_history_without_exposing_metadata() -> None
     assert "SemanticFrame" not in str(row["messages"])
     metadata = json.loads(str(row["source_representation"]))
     assert metadata["semantic_frame"]["intent"] == "arithmetic_follow_up"
+    assert metadata["semantic_frame"]["history_required_facts"] == ["operation"]
     assert metadata["composition"]["answer_plan"] in {"direct", "verified"}
+    assert metadata["composition"]["allowed_prompt_answer_edges"]
+    assert metadata["composition"]["allowed_answer_thinking_edges"]
     assert metadata["thinking_budget"] in {
         ThinkingBudget.NONE,
         ThinkingBudget.SHORT,
         ThinkingBudget.VERIFICATION,
     }
+
+
+def test_v2_semantic_frame_rejects_disposable_multi_turn_history() -> None:
+    try:
+        SemanticFrame(
+            intent="follow_up",
+            facts={"result": 4},
+            history=(
+                ConversationTurn("user", "Hello."),
+                ConversationTurn("assistant", "Hello."),
+            ),
+        )
+    except ValueError as error:
+        assert "facts required from history" in str(error)
+    else:
+        raise AssertionError("multi-turn history without a required fact was accepted")

@@ -55,6 +55,7 @@ class SemanticFrame:
     uncertainty: str = "none"
     user_tone: str = "neutral"
     history: tuple[ConversationTurn, ...] = ()
+    history_required_facts: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.intent.strip():
@@ -65,6 +66,20 @@ class SemanticFrame:
             raise ValueError(
                 "history must end with an assistant turn before the current user turn"
             )
+        if self.history and not self.history_required_facts:
+            raise ValueError(
+                "multi-turn semantic frames must name facts required from history"
+            )
+        if self.history_required_facts and not self.history:
+            raise ValueError("history-required facts need conversation history")
+        unknown_history_facts = set(self.history_required_facts) - set(self.facts)
+        if unknown_history_facts:
+            raise ValueError(
+                "history-required facts are absent from the semantic frame: "
+                + ", ".join(sorted(unknown_history_facts))
+            )
+        if len(self.history_required_facts) != len(set(self.history_required_facts)):
+            raise ValueError("history-required facts must be unique")
         previous = None
         for turn in self.history:
             if turn.role == previous:
@@ -84,6 +99,7 @@ class SemanticFrame:
                 {"role": turn.role, "content": turn.content}
                 for turn in self.history
             ],
+            "history_required_facts": list(self.history_required_facts),
         }
 
 
