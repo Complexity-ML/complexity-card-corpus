@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 from ...variable_by import VariableBy2D
-from ..contracts import RoleSeparatedVariableBy, SurfaceRole
-from ..decks import V2RoleSeparatedDeck, V2SubcardPool
+from ..contracts import RoleSeparatedVariableBy, SemanticFrame, SurfaceRole
+from ..decks import (
+    V2RoleSeparatedDeck,
+    V2SubcardPool,
+    answer_variant_plans,
+    prompt_variant_plans,
+)
 from ._axes import PEOPLE, SITES
 from ._common import render_v2_row, validate_complete_rows
 
@@ -56,6 +61,22 @@ _ANSWERS = (
     "The safest first move is to {scenario[action_lower]}. {scenario[boundary]}. The follow-up is to {scenario[escalation]}, especially since {scenario[constraint]}.",
     "Act now: {scenario[action]}. Keep the limit explicit: {scenario[boundary]}. Arrange to {scenario[escalation]} and tell responders that {scenario[constraint]}.",
 )
+_PROMPT_FUNCTIONS = (
+    ("request_immediate_safeguard",),
+    ("request_action", "request_boundary", "request_escalation"),
+    ("request_conservative_response", "signal_uncertainty"),
+    ("require_safety_first", "forbid_unsupported_diagnosis"),
+    ("request_safeguard", "request_escalation"),
+    ("request_reversible_action", "request_explicit_boundary"),
+)
+_ANSWER_FUNCTIONS = (
+    ("state_action", "state_boundary", "state_escalation", "adapt_context"),
+    ("state_action", "reinforce_boundary", "state_escalation", "adapt_context"),
+    ("mark_criticality", "state_action", "state_boundary", "state_escalation"),
+    ("direct_action", "direct_avoidance", "direct_escalation", "adapt_context"),
+    ("state_safest_move", "state_boundary", "state_follow_up", "adapt_context"),
+    ("issue_urgent_action", "state_limit", "arrange_escalation", "inform_responders"),
+)
 
 
 def safety_uncertainty_capacity() -> int:
@@ -88,6 +109,16 @@ def render_safety_uncertainty_rows() -> list[dict[str, object]]:
                 name=f"{TASK}:{domain}:{case_index}", variables=variables,
                 prompt_pools=(V2SubcardPool("safety_request", SurfaceRole.PROMPT, ("{prompt[safety_request]}",)),),
                 answer_pools=(V2SubcardPool("safe_response", SurfaceRole.ANSWER, ("{answer[safe_response]}",)),),
+                prompt_plans=prompt_variant_plans(
+                    sense="safety_request",
+                    pool_name="safety_request",
+                    functions=_PROMPT_FUNCTIONS,
+                ),
+                answer_plans=answer_variant_plans(
+                    sense="safe_response",
+                    pool_name="safe_response",
+                    functions=_ANSWER_FUNCTIONS,
+                ),
             )
             case_id = f"{domain}:{case_index}:{site}"
             rows.append(
@@ -96,6 +127,25 @@ def render_safety_uncertainty_rows() -> list[dict[str, object]]:
                     deck=deck,
                     facts={"risk": risk, "action": action, "boundary": boundary, "escalation": escalation, "constraint": constraint, "site": site},
                     validator={"kind": "contains", "required": [action, boundary, escalation]},
+                    semantic_frame=SemanticFrame(
+                        intent="urgent_safety_guidance",
+                        facts={
+                            "risk": risk,
+                            "action": action,
+                            "boundary": boundary,
+                            "escalation": escalation,
+                            "constraint": constraint,
+                            "site": site,
+                        },
+                        constraints=("reversible first action", "no unsupported diagnosis"),
+                        expected_outcome={
+                            "action": action,
+                            "boundary": boundary,
+                            "escalation": escalation,
+                        },
+                        uncertainty="safety_critical",
+                        user_tone="urgent",
+                    ),
                 )
             )
     return validate_complete_rows(TASK, rows, safety_uncertainty_capacity())

@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from dataclasses import dataclass
 from typing import Iterable
 
 from ...variable_by import VariableBy2D
-from ..contracts import RoleSeparatedVariableBy, SurfaceRole
-from ..decks import V2RoleSeparatedDeck, V2SubcardPool
-from ..integrity_audit import render_think_final
+from ..contracts import RoleSeparatedVariableBy, SemanticFrame, SurfaceRole, ThinkingBudget
+from ..decks import (
+    V2RoleSeparatedDeck,
+    V2SubcardPool,
+    answer_variant_plans,
+    prompt_variant_plans,
+    thinking_variant_plans,
+)
+from ._common import render_v2_row, validate_complete_rows
 TASK = "reasoning_verification"
 _KINDS = ("calculate", "verify_correct", "verify_incorrect")
 
@@ -310,6 +315,80 @@ _CONTEXT_INCORRECT_ANSWERS = (
     "A fresh computation disagrees with {scenario[candidate]}. {scenario[outcome]}",
     "The reported value needs a fix. {scenario[outcome]}",
     "Recalculation corrects the result: {scenario[outcome]}",
+)
+_CALCULATE_PROMPT_FUNCTIONS = (
+    ("present_problem",),
+    ("request_applied_calculation", "present_problem"),
+    ("request_quantity_reasoning", "present_problem"),
+    ("request_amount", "present_problem"),
+    ("require_given_quantities", "present_problem"),
+    ("request_outcome", "present_problem"),
+    ("request_missing_quantity", "present_problem"),
+    ("request_scenario_amount", "present_problem"),
+    ("request_case_calculation", "present_problem"),
+    ("request_derived_result", "present_problem"),
+    ("request_total", "present_problem"),
+    ("request_practical_answer", "present_problem"),
+)
+_VERIFY_PROMPT_FUNCTIONS = (
+    ("present_problem", "present_candidate", "request_verdict"),
+    ("request_check", "present_problem", "present_candidate"),
+    ("present_problem", "request_candidate_verification"),
+    ("request_claim_review", "present_problem", "present_candidate"),
+    ("request_candidate_decision", "present_problem"),
+    ("request_independent_verification", "present_problem", "present_candidate"),
+    ("present_problem", "request_confirm_or_correct"),
+    ("request_outcome_test", "present_problem", "present_candidate"),
+    ("request_pre_acceptance_check", "present_problem", "present_candidate"),
+    ("request_recalculation", "present_problem", "request_verdict"),
+    ("request_confirm_or_correct", "present_problem", "present_candidate"),
+    ("request_fresh_calculation", "present_problem", "present_candidate"),
+)
+_CALCULATE_ANSWER_FUNCTIONS = (
+    ("state_outcome",),
+    ("mark_direct_computation", "state_outcome"),
+    ("attribute_figures", "state_outcome"),
+    ("state_calculation_result", "state_outcome"),
+    ("mark_evaluation", "state_outcome"),
+    ("mark_numeric_result", "state_outcome"),
+    ("signal_clarity", "state_outcome"),
+    ("attribute_quantities", "state_outcome"),
+    ("mark_operation", "state_outcome"),
+    ("state_established_quantity", "state_outcome"),
+    ("attribute_arithmetic", "state_outcome"),
+    ("resolve_scenario", "state_outcome"),
+)
+_CORRECT_ANSWER_FUNCTIONS = (
+    ("affirm", "state_outcome"),
+    ("confirm", "state_outcome"),
+    ("report_successful_check", "state_outcome"),
+    ("confirm", "state_outcome"),
+    ("validate_candidate", "state_outcome"),
+    ("affirm_equality", "state_outcome"),
+    ("report_independent_agreement", "state_outcome"),
+    ("validate_quantity", "state_outcome"),
+    ("match_candidate", "state_outcome"),
+    ("reject_correction", "state_outcome"),
+    ("retain_result", "state_outcome"),
+    ("report_verification_success", "state_outcome"),
+)
+_INCORRECT_ANSWER_FUNCTIONS = (
+    ("reject", "state_correct_outcome", "name_bad_candidate"),
+    ("reject", "state_correct_outcome"),
+    ("reject_candidate", "state_correct_outcome"),
+    ("reject_claim", "state_correct_outcome"),
+    ("require_correction", "state_correct_outcome"),
+    ("replace_candidate", "state_correct_outcome"),
+    ("report_verification_failure", "state_correct_outcome"),
+    ("reject_submitted_figure", "state_correct_outcome"),
+    ("mark_amount_error", "state_correct_outcome"),
+    ("report_disagreement", "state_correct_outcome"),
+    ("require_fix", "state_correct_outcome"),
+    ("report_recalculation", "state_correct_outcome"),
+)
+_THINKING_FUNCTIONS = (
+    ("derive_independently", "inverse_check"),
+    ("inverse_check", "derive_independently"),
 )
 _ACTORS = (
     "Amina", "Ben", "Chloe", "Diego", "Elena", "Farah", "Gavin", "Hana",
@@ -631,6 +710,30 @@ def _deck(
                 ("{thinking[analysis]}",),
             ),
         ),
+        prompt_plans=prompt_variant_plans(
+            sense="request",
+            pool_name="request",
+            functions=(
+                _CALCULATE_PROMPT_FUNCTIONS
+                if kind == "calculate"
+                else _VERIFY_PROMPT_FUNCTIONS
+            ),
+        ),
+        answer_plans=answer_variant_plans(
+            sense="direct",
+            pool_name="direct",
+            functions={
+                "calculate": _CALCULATE_ANSWER_FUNCTIONS,
+                "verify_correct": _CORRECT_ANSWER_FUNCTIONS,
+                "verify_incorrect": _INCORRECT_ANSWER_FUNCTIONS,
+            }[kind],
+        ),
+        thinking_plans=thinking_variant_plans(
+            sense="analysis",
+            pool_name="analysis",
+            functions=_THINKING_FUNCTIONS,
+            budget=ThinkingBudget.VERIFICATION,
+        ),
     )
     return deck, {
         "operation": operation.name,
@@ -659,58 +762,34 @@ def render_reasoning_verification_rows(*, seed: int = 42) -> list[dict[str, obje
             seed=seed,
             case_index=case_index,
         )
-        pair = deck.deal(case_id)
-        assistant = render_think_final(pair.thinking, pair.answer)
-        rendered = f"User: {pair.prompt}\nAssistant: {assistant}"
         rows.append(
-            {
-                "example_id": "v2:reasoning:"
-                + hashlib.sha256(rendered.encode()).hexdigest()[:24],
-                "task": TASK,
-                "mode": "chat",
-                "difficulty": "easy" if max(left, right) < 100 else "medium",
-                "domain": facts["domain"],
-                "language": "en",
-                "split": "train",
-                "messages": [
-                    {"role": "user", "content": pair.prompt},
-                    {"role": "assistant", "content": assistant},
-                ],
-                "prompt": pair.prompt,
-                "response": assistant,
-                "reasoning_envelope": True,
-                "reasoning_trace": pair.thinking,
-                "final_response": pair.answer,
-                "source_representation": json.dumps(
-                    {
-                        "case_id": case_id,
-                        "facts": facts,
-                        "prompt_subcards": pair.prompt_subcards,
-                        "thinking_subcards": pair.thinking_subcards,
-                        "answer_subcards": pair.answer_subcards,
-                        "variable_by": deck.variables.matrix.field_names(),
-                        "deck_name": deck.name,
-                        "variable_indices": pair.variable_indices,
-                        "variable_card_counts": pair.variable_card_counts,
-                        "dependency_graph": pair.dependency_graph,
-                        "validator": {"kind": "arithmetic"},
-                    },
-                    sort_keys=True,
+            render_v2_row(
+                task=TASK,
+                case_id=case_id,
+                domain=facts["domain"],
+                difficulty="easy" if max(left, right) < 100 else "medium",
+                deck=deck,
+                facts=facts,
+                validator={"kind": "arithmetic"},
+                semantic_frame=SemanticFrame(
+                    intent=(
+                        "calculate_quantity"
+                        if facts["kind"] == "calculate"
+                        else "verify_quantity"
+                    ),
+                    facts=facts,
+                    constraints=("exact integer arithmetic", "independent check"),
+                    expected_outcome=facts["result"],
+                    uncertainty=(
+                        "candidate_under_review"
+                        if facts["kind"] != "calculate"
+                        else "none"
+                    ),
+                    user_tone="neutral",
                 ),
-                "source": "AETHORIA-AI Card Corpus V2 authored decks",
-                "license": "CC BY-NC 4.0",
-                "version": "2.0.0",
-            }
+            )
         )
-    rows.sort(key=lambda row: str(row["example_id"]))
-    if len(rows) != reasoning_verification_capacity():
-        raise ValueError(
-            f"{TASK} rendered {len(rows)} rows; expected full capacity "
-            f"{reasoning_verification_capacity()}"
-        )
-    if len({row["example_id"] for row in rows}) != len(rows):
-        raise ValueError(f"{TASK} produced duplicate example IDs")
-    return rows
+    return validate_complete_rows(TASK, rows, reasoning_verification_capacity())
 
 
 __all__ = (

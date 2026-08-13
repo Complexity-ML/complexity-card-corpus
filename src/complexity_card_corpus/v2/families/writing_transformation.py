@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from ...variable_by import VariableBy2D
 from ..contracts import RoleSeparatedVariableBy, SurfaceRole
-from ..decks import V2RoleSeparatedDeck, V2SubcardPool
+from ..decks import V2RoleSeparatedDeck, V2SubcardPool, prompt_variant_plans
 from ._axes import PEOPLE
 from ._common import render_v2_row, validate_complete_rows
 
@@ -37,6 +37,12 @@ _PROMPTS = (
     "Rewrite this message in a {scenario[transform]} style. Specifically, {scenario[guidance]}. Text: {scenario[source]}",
     "Preserve the facts while changing the expression to {scenario[transform]}; {scenario[guidance]}. Original: {scenario[source]}",
     "Produce a clean {scenario[transform]} version of the following. The transformation must {scenario[guidance]}. {scenario[source]}",
+)
+_PROMPT_FUNCTIONS = (
+    ("request_transformation", "specify_style", "supply_source"),
+    ("request_rewrite", "specify_style", "supply_source"),
+    ("preserve_facts", "request_expression_change", "supply_original"),
+    ("request_clean_version", "specify_transformation", "supply_source"),
 )
 
 
@@ -86,6 +92,11 @@ def render_writing_transformation_rows() -> list[dict[str, object]]:
                 name=f"{TASK}:{domain}:{artifact}:{transform}", variables=variables,
                 prompt_pools=(V2SubcardPool("transform_request", SurfaceRole.PROMPT, ("{prompt[transform_request]}",)),),
                 answer_pools=(V2SubcardPool("transformed_text", SurfaceRole.ANSWER, ("{answer[transformed_text]}",)),),
+                prompt_plans=prompt_variant_plans(
+                    sense="transform_request",
+                    pool_name="transform_request",
+                    functions=_PROMPT_FUNCTIONS,
+                ),
             )
             rows.append(
                 render_v2_row(

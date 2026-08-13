@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from ...variable_by import VariableBy2D
 from ..contracts import RoleSeparatedVariableBy, SurfaceRole
-from ..decks import V2RoleSeparatedDeck, V2SubcardPool
+from ..decks import (
+    V2RoleSeparatedDeck,
+    V2SubcardPool,
+    answer_variant_plans,
+    prompt_variant_plans,
+)
 from ._axes import PEOPLE, SITES
 from ._common import render_v2_row, validate_complete_rows
 
@@ -41,6 +46,22 @@ _ANSWERS = (
     "Use this check at {scenario[site]}: {scenario[check]}. Then have {scenario[person]} {scenario[fix]}.",
     "To isolate the cause, {scenario[person]} should {scenario[check]}. The matching remedy at {scenario[site]} is to {scenario[fix]}.",
     "Before changing anything else, {scenario[check]}. If reproduced, ask {scenario[person]} to {scenario[fix]} at {scenario[site]}.",
+)
+_PROMPT_FUNCTIONS = (
+    ("request_diagnosis", "require_discriminating_check", "request_fix"),
+    ("request_test_first_response",),
+    ("request_check", "request_conditional_repair"),
+    ("request_troubleshooting", "forbid_guessing", "forbid_unrelated_causes"),
+    ("request_diagnostic_action", "request_corresponding_remedy"),
+    ("derive_test_from_symptom", "request_repair"),
+)
+_ANSWER_FUNCTIONS = (
+    ("assign_check", "condition_on_result", "state_fix"),
+    ("prioritize_check", "condition_on_confirmation", "state_fix"),
+    ("name_discriminating_step", "condition_on_positive", "state_fix"),
+    ("locate_check", "state_fix", "assign_owner"),
+    ("explain_isolation", "assign_check", "state_matching_remedy"),
+    ("prevent_premature_change", "perform_check", "condition_on_reproduction", "state_fix"),
 )
 _SITE_CONSTRAINTS = (
     "changes must preserve the public reception terminal",
@@ -111,6 +132,16 @@ def render_troubleshooting_rows() -> list[dict[str, object]]:
                 name=f"{TASK}:{domain}:{component}", variables=variables,
                 prompt_pools=(V2SubcardPool("diagnosis", SurfaceRole.PROMPT, ("{prompt[diagnosis]}",)),),
                 answer_pools=(V2SubcardPool("test_then_fix", SurfaceRole.ANSWER, ("{answer[test_then_fix]}",)),),
+                prompt_plans=prompt_variant_plans(
+                    sense="diagnosis",
+                    pool_name="diagnosis",
+                    functions=_PROMPT_FUNCTIONS,
+                ),
+                answer_plans=answer_variant_plans(
+                    sense="test_then_fix",
+                    pool_name="test_then_fix",
+                    functions=_ANSWER_FUNCTIONS,
+                ),
             )
             case_id = ":".join((domain, component, site))
             rows.append(

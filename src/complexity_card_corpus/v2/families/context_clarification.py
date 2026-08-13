@@ -1,12 +1,16 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from itertools import product
 
 from ...variable_by import VariableBy2D
 from ..contracts import RoleSeparatedVariableBy, SurfaceRole
-from ..decks import V2RoleSeparatedDeck, V2SubcardPool
+from ..decks import (
+    V2RoleSeparatedDeck,
+    V2SubcardPool,
+    answer_variant_plans,
+    prompt_variant_plans,
+)
+from ._common import render_v2_row, validate_complete_rows
 
 
 TASK = "context_clarification"
@@ -86,6 +90,34 @@ _ANSWERS = (
     "Before I {scenario[action]} anything, which one is meant: {scenario[left]} or {scenario[right]}?",
     "Could you name the target—{scenario[left]} or {scenario[right]}—that {scenario[stakeholder]} wants handled?",
 )
+_PROMPT_FUNCTIONS = (
+    ("request_single_clarification", "supply_ambiguous_request"),
+    ("request_missing_detail", "supply_ambiguous_request"),
+    ("forbid_guessing", "supply_ambiguous_request"),
+    ("identify_ambiguity", "request_concise_question"),
+    ("request_safe_handling", "signal_underspecification"),
+    ("request_minimal_detail", "preserve_progress"),
+    ("forbid_target_choice", "supply_ambiguous_request"),
+    ("request_target_clarification",),
+    ("request_next_turn", "signal_ambiguity"),
+    ("resolve_pronoun", "request_user_input"),
+    ("pause_action", "request_meaning"),
+    ("request_focused_question",),
+)
+_ANSWER_FUNCTIONS = (
+    ("offer_targets", "request_choice", "promise_continuation"),
+    ("request_target", "offer_targets", "preserve_intent"),
+    ("offer_action_targets", "request_choice"),
+    ("state_blocker", "request_target"),
+    ("name_ambiguity", "offer_targets", "request_choice"),
+    ("request_target", "promise_correct_action"),
+    ("request_intended_document", "offer_targets"),
+    ("state_dependency", "resolve_pronoun"),
+    ("request_choice", "prevent_wrong_action"),
+    ("request_intended_object", "offer_targets"),
+    ("pause_action", "request_target"),
+    ("request_named_target", "offer_targets"),
+)
 
 
 def context_clarification_capacity() -> int:
@@ -146,6 +178,16 @@ def _deck(
                 ("{answer[target_question]}",),
             ),
         ),
+        prompt_plans=prompt_variant_plans(
+            sense="clarification_request",
+            pool_name="clarification_request",
+            functions=_PROMPT_FUNCTIONS,
+        ),
+        answer_plans=answer_variant_plans(
+            sense="target_question",
+            pool_name="target_question",
+            functions=_ANSWER_FUNCTIONS,
+        ),
     )
 
 
@@ -155,63 +197,25 @@ def render_context_clarification_rows() -> list[dict[str, object]]:
         for setting, stakeholder in product(_SETTINGS, _STAKEHOLDERS):
             case_id = ":".join((domain, left, right, setting, stakeholder))
             deck = _deck(domain, left, right, action, setting, stakeholder)
-            pair = deck.deal(case_id)
-            rendered = f"User: {pair.prompt}\nAssistant: {pair.answer}"
             rows.append(
-                {
-                    "example_id": "v2:clarification:"
-                    + hashlib.sha256(rendered.encode()).hexdigest()[:24],
-                    "task": TASK,
-                    "mode": "chat",
-                    "difficulty": "easy",
-                    "domain": domain,
-                    "language": "en",
-                    "split": "train",
-                    "messages": [
-                        {"role": "user", "content": pair.prompt},
-                        {"role": "assistant", "content": pair.answer},
-                    ],
-                    "prompt": pair.prompt,
-                    "response": pair.answer,
-                    "reasoning_envelope": False,
-                    "reasoning_trace": "",
-                    "final_response": pair.answer,
-                    "source_representation": json.dumps(
-                        {
-                            "case_id": case_id,
-                            "facts": {
-                                "domain": domain,
-                                "left": left,
-                                "right": right,
-                                "action": action,
-                                "setting": setting,
-                                "stakeholder": stakeholder,
-                            },
-                            "prompt_subcards": pair.prompt_subcards,
-                            "answer_subcards": pair.answer_subcards,
-                            "variable_by": deck.variables.matrix.field_names(),
-                            "deck_name": deck.name,
-                            "variable_indices": pair.variable_indices,
-                            "variable_card_counts": pair.variable_card_counts,
-                            "dependency_graph": pair.dependency_graph,
-                            "validator": {
-                                "kind": "contains",
-                                "required": [left, right],
-                            },
-                        },
-                        sort_keys=True,
-                    ),
-                    "source": "AETHORIA-AI Card Corpus V2 authored decks",
-                    "license": "CC BY-NC 4.0",
-                    "version": "2.0.0",
-                }
+                render_v2_row(
+                    task=TASK,
+                    case_id=case_id,
+                    domain=domain,
+                    difficulty="easy",
+                    deck=deck,
+                    facts={
+                        "domain": domain,
+                        "left": left,
+                        "right": right,
+                        "action": action,
+                        "setting": setting,
+                        "stakeholder": stakeholder,
+                    },
+                    validator={"kind": "contains", "required": [left, right]},
+                )
             )
-    rows.sort(key=lambda row: str(row["example_id"]))
-    if len(rows) != context_clarification_capacity():
-        raise ValueError(f"{TASK} did not render its complete capacity")
-    if len({row["example_id"] for row in rows}) != len(rows):
-        raise ValueError(f"{TASK} produced duplicate example IDs")
-    return rows
+    return validate_complete_rows(TASK, rows, context_clarification_capacity())
 
 
 __all__ = (

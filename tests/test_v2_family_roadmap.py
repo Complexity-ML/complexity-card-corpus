@@ -31,6 +31,19 @@ def _row(example_id: str, task: str, prompt: str, final: str) -> dict:
         "source_representation": json.dumps(
             {
                 "deck_name": f"{task}:test",
+                "composition": {
+                    "intent": task,
+                    "domain": "general",
+                    "deck_name": f"{task}:test:{example_id}",
+                    "prompt_plan": "prompt-default",
+                    "answer_plan": "answer-default",
+                    "thinking_plan": "thinking-default",
+                    "prompt_functions": ["request"],
+                    "answer_functions": ["answer"],
+                    "thinking_functions": ["verify"],
+                    "user_tone": "neutral",
+                    "thinking_budget": "short",
+                },
                 "variable_indices": {
                     "prompt": {"request": 0},
                     "answer": {"direct": 0},

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from ...variable_by import VariableBy2D
 from ..contracts import RoleSeparatedVariableBy, SurfaceRole
-from ..decks import V2RoleSeparatedDeck, V2SubcardPool
+from ..decks import V2RoleSeparatedDeck, V2SubcardPool, prompt_variant_plans
 from ._axes import PEOPLE, SITES
 from ._common import render_v2_row, validate_complete_rows
 
@@ -37,6 +37,12 @@ _PROMPTS = (
     "Produce a two-sentence {scenario[focus]} summary. In particular, {scenario[guidance]}. Source: {scenario[record]}",
     "Synthesize the following notes for a {scenario[focus]} handoff; {scenario[guidance]}. {scenario[record]}",
     "Condense this report without copying its wording. Use an {scenario[focus]} focus and {scenario[guidance]}. Report: {scenario[record]}",
+)
+_PROMPT_FUNCTIONS = (
+    ("request_summary", "specify_focus", "supply_record"),
+    ("request_two_sentences", "specify_focus", "supply_source"),
+    ("request_synthesis", "specify_handoff_focus"),
+    ("request_condensation", "forbid_copying", "specify_focus"),
 )
 
 
@@ -80,6 +86,11 @@ def render_summarization_synthesis_rows() -> list[dict[str, object]]:
                 name=f"{TASK}:{domain}:{case_index}:{focus}", variables=variables,
                 prompt_pools=(V2SubcardPool("summary_request", SurfaceRole.PROMPT, ("{prompt[summary_request]}",)),),
                 answer_pools=(V2SubcardPool("summary", SurfaceRole.ANSWER, ("{answer[summary]}",)),),
+                prompt_plans=prompt_variant_plans(
+                    sense="summary_request",
+                    pool_name="summary_request",
+                    functions=_PROMPT_FUNCTIONS,
+                ),
             )
             case_id = f"{domain}:{case_index}:{focus}"
             rows.append(

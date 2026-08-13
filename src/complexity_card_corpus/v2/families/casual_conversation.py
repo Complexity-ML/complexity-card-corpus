@@ -4,8 +4,18 @@ from itertools import combinations
 from typing import Any, Iterable
 
 from ...variable_by import VariableBy2D
-from ..contracts import RoleSeparatedVariableBy, SurfaceRole
-from ..decks import V2RoleSeparatedDeck, V2SubcardPool
+from ..contracts import (
+    ConversationTurn,
+    RoleSeparatedVariableBy,
+    SemanticFrame,
+    SurfaceRole,
+)
+from ..decks import (
+    V2RoleSeparatedDeck,
+    V2SubcardPool,
+    answer_variant_plans,
+    prompt_variant_plans,
+)
 from ._common import render_v2_row, validate_complete_rows
 
 
@@ -187,6 +197,86 @@ _FACTS = (
     ("the instrument used to measure temperature", "a thermometer"),
     ("the natural satellite that orbits Earth", "the Moon"),
 )
+_ARITHMETIC_PROMPT_FUNCTIONS = (
+    ("request_operation",),
+    ("request_result", "name_operation"),
+    ("request_operation", "name_operands"),
+    ("frame_quantity", "request_result"),
+    ("request_result", "name_operands"),
+    ("request_calculation", "name_operation"),
+)
+_ARITHMETIC_ANSWER_FUNCTIONS = (
+    ("state_result", "verify_inverse"),
+    ("state_result", "verify_reconstruction"),
+    ("state_result", "compare_operand"),
+    ("state_group_total", "verify_inverse"),
+)
+_COMPARISON_PROMPT_FUNCTIONS = (
+    ("request_greater_value",),
+    ("request_larger_choice",),
+    ("request_comparison", "request_larger_value"),
+    ("present_pair", "request_greater_value"),
+)
+_COMPARISON_ANSWER_FUNCTIONS = (
+    ("state_greater", "state_smaller"),
+    ("state_answer", "rank_other"),
+    ("issue_choice", "justify_comparison"),
+    ("state_smaller", "derive_greater"),
+)
+_SORTING_PROMPT_FUNCTIONS = (
+    ("request_ascending_sort",),
+    ("request_ascending_order",),
+    ("request_ascending_sequence",),
+    ("request_low_to_high",),
+)
+_SORTING_ANSWER_FUNCTIONS = (
+    ("state_sequence", "state_gaps"),
+    ("label_ordered_digits", "state_increases"),
+    ("state_sequence", "state_adjacent_differences"),
+    ("label_arrangement", "state_gaps"),
+)
+_FACT_PROMPT_FUNCTIONS = (
+    ("ask_fact",),
+    ("request_direct_answer", "ask_fact"),
+    ("request_identification",),
+    ("request_name",),
+    ("request_direct_fact",),
+)
+_FACT_ANSWER_FUNCTIONS = (
+    ("state_answer",),
+    ("state_identity",),
+    ("answer_only",),
+)
+_FOLLOW_UP_CONTEXTS = (
+    ("event", "tickets"),
+    ("garden", "seedlings"),
+    ("workshop", "notebooks"),
+    ("delivery", "parcels"),
+)
+_FOLLOW_UP_PROMPTS = (
+    "And with {scenario[increment_words]} more?",
+    "What if another {scenario[increment_words]} arrive?",
+    "Add {scenario[increment_words]} to that—what is the new total?",
+    "How many would there be after {scenario[increment_words]} more?",
+)
+_FOLLOW_UP_ANSWERS = (
+    "{scenario[result_words]} {scenario[items]}.",
+    "That would make {scenario[result_words]} {scenario[items]}.",
+    "The updated count is {scenario[result_words]} {scenario[items]}.",
+    "After the addition, there would be {scenario[result_words]} {scenario[items]}.",
+)
+_FOLLOW_UP_PROMPT_FUNCTIONS = (
+    ("elliptical_follow_up", "add_increment"),
+    ("counterfactual_follow_up", "add_increment"),
+    ("refer_back", "request_new_total"),
+    ("request_updated_count", "add_increment"),
+)
+_FOLLOW_UP_ANSWER_FUNCTIONS = (
+    ("answer_only",),
+    ("state_updated_total",),
+    ("label_updated_count", "state_total"),
+    ("mark_operation", "state_total"),
+)
 
 
 def _row(
@@ -198,6 +288,9 @@ def _row(
     prompts: tuple[str, ...],
     answers: tuple[str, ...],
     validator: dict[str, Any],
+    prompt_functions: tuple[tuple[str, ...], ...] | None = None,
+    answer_functions: tuple[tuple[str, ...], ...] | None = None,
+    semantic_frame: SemanticFrame | None = None,
 ) -> dict[str, object]:
     scenario = {
         key: (str(value),)
@@ -222,6 +315,22 @@ def _row(
         answer_pools=(
             V2SubcardPool("direct", SurfaceRole.ANSWER, ("{answer[direct]}",)),
         ),
+        prompt_plans=prompt_variant_plans(
+            sense="request",
+            pool_name="request",
+            functions=(
+                prompt_functions
+                or tuple(("request",) for _ in prompts)
+            ),
+        ),
+        answer_plans=answer_variant_plans(
+            sense="direct",
+            pool_name="direct",
+            functions=(
+                answer_functions
+                or tuple(("answer",) for _ in answers)
+            ),
+        ),
     )
     return render_v2_row(
         task=TASK,
@@ -231,6 +340,7 @@ def _row(
         deck=deck,
         facts=facts,
         validator=validator,
+        semantic_frame=semantic_frame,
     )
 
 
@@ -273,6 +383,8 @@ def _arithmetic_rows() -> Iterable[dict[str, object]]:
                         facts["left_words"], facts["right_words"], facts["result_words"]
                     ],
                 },
+                prompt_functions=_ARITHMETIC_PROMPT_FUNCTIONS,
+                answer_functions=_ARITHMETIC_ANSWER_FUNCTIONS,
             )
 
 
@@ -310,6 +422,8 @@ def _comparison_rows() -> Iterable[dict[str, object]]:
                     "kind": "contains",
                     "required": [facts["larger_words"], facts["smaller_words"]],
                 },
+                prompt_functions=_COMPARISON_PROMPT_FUNCTIONS,
+                answer_functions=_COMPARISON_ANSWER_FUNCTIONS,
             )
 
 
@@ -330,6 +444,13 @@ def _formatting_rows() -> Iterable[dict[str, object]]:
             ),
             answers=("{scenario[expected]}",),
             validator={"kind": "exact", "expected": expected},
+            prompt_functions=(
+                ("request_exact_format", "supply_items"),
+                ("request_comma_line", "supply_items"),
+                ("request_no_extra_text", "supply_items"),
+                ("request_exact_items", "specify_separator"),
+            ),
+            answer_functions=(("formatted_answer_only",),),
         )
     for word in ("echo", "pine", "river", "stone", "cloud", "maple", "orbit", "cedar", "flame", "ocean"):
         for count in range(2, 12):
@@ -345,6 +466,11 @@ def _formatting_rows() -> Iterable[dict[str, object]]:
                 ),
                 answers=("{scenario[expected]}",),
                 validator={"kind": "exact", "expected": expected},
+                prompt_functions=(
+                    ("request_exact_repetition", "specify_spacing"),
+                    ("request_one_line_repetition", "specify_spacing"),
+                ),
+                answer_functions=(("formatted_answer_only",),),
             )
 
 
@@ -392,6 +518,8 @@ def _sorting_rows() -> Iterable[dict[str, object]]:
                 "kind": "contains",
                 "required": [expected_digits, first_gap_words, second_gap_words],
             },
+            prompt_functions=_SORTING_PROMPT_FUNCTIONS,
+            answer_functions=_SORTING_ANSWER_FUNCTIONS,
         )
 
 
@@ -415,14 +543,78 @@ def _fact_rows() -> Iterable[dict[str, object]]:
                 "{scenario[expected]}.",
             ),
             validator={"kind": "contains", "required": [expected]},
+            prompt_functions=_FACT_PROMPT_FUNCTIONS,
+            answer_functions=_FACT_ANSWER_FUNCTIONS,
         )
+
+
+def _multi_turn_rows() -> Iterable[dict[str, object]]:
+    """Context-dependent follow-ups that cannot be answered from the last turn alone."""
+
+    for context, items in _FOLLOW_UP_CONTEXTS:
+        for base in range(20, 70):
+            for increment in range(2, 52):
+                result = base + increment
+                base_words = _number_words(base)
+                increment_words = _number_words(increment)
+                result_words = _number_words(result)
+                first_user = (
+                    f"There are {base_words} {items} for the {context}. "
+                    "Can you keep that count in mind?"
+                )
+                first_assistant = f"Yes—the current count is {base_words} {items}."
+                facts = {
+                    "context": context,
+                    "items": items,
+                    "base": base,
+                    "increment": increment,
+                    "result": result,
+                    "base_words": base_words,
+                    "increment_words": increment_words,
+                    "result_words": result_words,
+                }
+                yield _row(
+                    case_id=f"multi-turn:add:{context}:{base}:{increment}",
+                    domain="contextual_arithmetic",
+                    difficulty="easy",
+                    facts=facts,
+                    prompts=_FOLLOW_UP_PROMPTS,
+                    answers=_FOLLOW_UP_ANSWERS,
+                    validator={
+                        "kind": "contains",
+                        "required": [result_words, items],
+                    },
+                    prompt_functions=_FOLLOW_UP_PROMPT_FUNCTIONS,
+                    answer_functions=_FOLLOW_UP_ANSWER_FUNCTIONS,
+                    semantic_frame=SemanticFrame(
+                        intent="contextual_addition_follow_up",
+                        facts=facts,
+                        constraints=("resolve references from conversation history",),
+                        expected_outcome=result,
+                        uncertainty="none",
+                        user_tone="casual",
+                        history=(
+                            ConversationTurn("user", first_user),
+                            ConversationTurn("assistant", first_assistant),
+                        ),
+                    ),
+                )
 
 
 def casual_conversation_capacity() -> int:
     arithmetic = 7_000 + 5_000 + 2_100 + 2_000
     comparisons_count = 100 * 60
     formatting = 4_060 + 100
-    return len(_ANCHORS) + arithmetic + comparisons_count + formatting + 4_000 + len(_FACTS)
+    multi_turn = len(_FOLLOW_UP_CONTEXTS) * 50 * 50
+    return (
+        len(_ANCHORS)
+        + arithmetic
+        + comparisons_count
+        + formatting
+        + 4_000
+        + len(_FACTS)
+        + multi_turn
+    )
 
 
 def render_casual_conversation_rows() -> list[dict[str, object]]:
@@ -432,6 +624,7 @@ def render_casual_conversation_rows() -> list[dict[str, object]]:
     rows.extend(_formatting_rows())
     rows.extend(_sorting_rows())
     rows.extend(_fact_rows())
+    rows.extend(_multi_turn_rows())
     return validate_complete_rows(TASK, rows, casual_conversation_capacity())
 
 

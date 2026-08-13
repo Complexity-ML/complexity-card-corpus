@@ -149,19 +149,44 @@ class VariableBy2D:
             visit(field)
         return tuple(expanded)
 
-    def deal_indices(self, seed: str) -> dict[str, dict[str, int]]:
+    def deal_indices(
+        self,
+        seed: str,
+        choices: Mapping[str, int] | None = None,
+    ) -> dict[str, dict[str, int]]:
         """Return the deterministic card index selected in every 2D cell."""
 
-        return {
+        indices = {
             axis: {
                 sense: _stable_index(f"{seed}:{axis}:{sense}", len(cards))
                 for sense, cards in senses.items()
             }
             for axis, senses in self.table.items()
         }
+        for field, index in (choices or {}).items():
+            axis, separator, sense = field.partition("[")
+            if not separator or not sense.endswith("]"):
+                raise ValueError(f"invalid variable_by cell choice {field!r}")
+            sense = sense[:-1]
+            try:
+                size = len(self.table[axis][sense])
+            except KeyError as error:
+                raise ValueError(
+                    f"variable_by choice references unknown cell {field!r}"
+                ) from error
+            if not 0 <= index < size:
+                raise ValueError(
+                    f"variable_by choice {field!r} index {index} is outside {size} cards"
+                )
+            indices[axis][sense] = index
+        return indices
 
-    def deal(self, seed: str) -> DealtVariableBy:
-        indices = self.deal_indices(seed)
+    def deal(
+        self,
+        seed: str,
+        choices: Mapping[str, int] | None = None,
+    ) -> DealtVariableBy:
+        indices = self.deal_indices(seed, choices)
         selected = {
             axis: {
                 sense: cards[indices[axis][sense]]

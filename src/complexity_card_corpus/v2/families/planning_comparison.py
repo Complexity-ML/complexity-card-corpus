@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from ...variable_by import VariableBy2D
 from ..contracts import RoleSeparatedVariableBy, SurfaceRole
-from ..decks import V2RoleSeparatedDeck, V2SubcardPool
+from ..decks import (
+    V2RoleSeparatedDeck,
+    V2SubcardPool,
+    answer_variant_plans,
+    prompt_variant_plans,
+)
 from ._axes import SITES
 from ._common import render_v2_row, validate_complete_rows
 
@@ -56,6 +61,22 @@ _ANSWERS = (
     "Use {scenario[winner]} for {scenario[goal]} at {scenario[site]}. Its practical edge is that {scenario[reason]}, which matters when {scenario[constraint]}.",
     "Between the two plans for {scenario[goal]} at {scenario[site]}, {scenario[winner]} best satisfies the situation: {scenario[reason]}. Keep the condition that {scenario[constraint]} explicit during execution.",
 )
+_PROMPT_FUNCTIONS = (
+    ("request_comparison", "request_choice", "enforce_constraint"),
+    ("request_choice", "request_reason"),
+    ("request_constraint_aware_choice",),
+    ("request_choice", "forbid_invented_resources"),
+    ("request_evaluation", "enforce_operational_limit"),
+    ("request_recommendation", "request_decisive_reason"),
+)
+_ANSWER_FUNCTIONS = (
+    ("locate_decision", "recommend", "justify", "confirm_constraint"),
+    ("recommend", "locate_decision", "justify", "confirm_constraint"),
+    ("locate_decision", "recommend", "name_decisive_advantage"),
+    ("recommend", "justify", "confirm_constraint"),
+    ("recommend", "name_practical_edge", "connect_constraint"),
+    ("compare", "recommend", "justify", "preserve_constraint"),
+)
 
 
 def planning_comparison_capacity() -> int:
@@ -89,6 +110,16 @@ def render_planning_comparison_rows() -> list[dict[str, object]]:
                 name=f"{TASK}:{domain}:{goal}", variables=variables,
                 prompt_pools=(V2SubcardPool("decision", SurfaceRole.PROMPT, ("{prompt[decision]}",)),),
                 answer_pools=(V2SubcardPool("recommendation", SurfaceRole.ANSWER, ("{answer[recommendation]}",)),),
+                prompt_plans=prompt_variant_plans(
+                    sense="decision",
+                    pool_name="decision",
+                    functions=_PROMPT_FUNCTIONS,
+                ),
+                answer_plans=answer_variant_plans(
+                    sense="recommendation",
+                    pool_name="recommendation",
+                    functions=_ANSWER_FUNCTIONS,
+                ),
             )
             case_id = f"{domain}:{goal}:{site}"
             rows.append(

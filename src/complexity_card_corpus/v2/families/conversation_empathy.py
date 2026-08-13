@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from ...variable_by import VariableBy2D
 from ..contracts import RoleSeparatedVariableBy, SurfaceRole
-from ..decks import V2RoleSeparatedDeck, V2SubcardPool
+from ..decks import (
+    V2RoleSeparatedDeck,
+    V2SubcardPool,
+    answer_variant_plans,
+    prompt_variant_plans,
+)
 from ._common import render_v2_row, validate_complete_rows
 
 
@@ -47,6 +52,18 @@ _ANSWERS = (
     "{scenario[acknowledgement]}. A gentle option is to {scenario[action]}. {scenario[mode_bridge]}. {scenario[mode_question]}",
     "{scenario[acknowledgement]}. It may help to {scenario[action]}. {scenario[mode_bridge]}. {scenario[question]}",
 )
+_PROMPT_FUNCTIONS = (
+    ("request_empathy", "specify_support_mode"),
+    ("request_natural_reply", "specify_support_mode"),
+    ("require_acknowledgement", "request_action", "preserve_user_choice"),
+    ("request_warm_continuation", "reject_abstract_advice"),
+)
+_ANSWER_FUNCTIONS = (
+    ("acknowledge", "offer_mode", "suggest_action", "invite_response"),
+    ("acknowledge", "offer_mode", "soften_action", "invite_response"),
+    ("acknowledge", "suggest_action", "offer_mode", "invite_response"),
+    ("acknowledge", "suggest_action", "offer_mode", "invite_choice"),
+)
 
 
 def conversation_empathy_capacity() -> int:
@@ -84,6 +101,16 @@ def render_conversation_empathy_rows() -> list[dict[str, object]]:
                 name=f"{TASK}:{domain}:{emotion}:{mode}", variables=variables,
                 prompt_pools=(V2SubcardPool("support_request", SurfaceRole.PROMPT, ("{prompt[support_request]}",)),),
                 answer_pools=(V2SubcardPool("empathetic_response", SurfaceRole.ANSWER, ("{answer[empathetic_response]}",)),),
+                prompt_plans=prompt_variant_plans(
+                    sense="support_request",
+                    pool_name="support_request",
+                    functions=_PROMPT_FUNCTIONS,
+                ),
+                answer_plans=answer_variant_plans(
+                    sense="empathetic_response",
+                    pool_name="empathetic_response",
+                    functions=_ANSWER_FUNCTIONS,
+                ),
             )
             rows.append(
                 render_v2_row(

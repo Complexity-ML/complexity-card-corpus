@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .behavior_audit import audit_v2_behavior
+from .composition_audit import audit_v2_composition
 from .distribution_audit import audit_v2_distribution
 from .gates import v2_gate_progress
 from .integrity_audit import audit_v2_integrity
@@ -92,6 +93,20 @@ _ACTIONS = {
     "normalized template structures leak across splits": (
         "assign normalized structural groups to a single split"
     ),
+    "behavioral compositions leak across splits": (
+        "assign each intent × domain × prompt plan × answer plan group to one split"
+    ),
+    "composition_provenance_unavailable": (
+        "render the family through SemanticFrame and explicit discourse plans"
+    ),
+    "prompt_plan_concentration": "rebalance user-side discourse plans",
+    "answer_plan_concentration": "rebalance assistant-side discourse plans",
+    "prompt_function_concentration": "author genuinely different request functions",
+    "answer_function_concentration": "author genuinely different response functions",
+    "prompt_answer_plan_coupling": "decouple prompt and answer plan selection",
+    "insufficient_contextual_multi_turn": "add history-dependent conversational turns",
+    "unnecessary_casual_thinking": "use no-thinking plans for casual direct responses",
+    "reasoning_budget_mismatch": "use verification thinking only for reasoning tasks",
 }
 
 
@@ -109,6 +124,7 @@ def _priority(
     behavior_failures: list[str],
     integrity_violations: list[str],
     distribution_failures: list[str],
+    composition_failures: list[str],
     near_duplicate_failures: list[str],
     length_violations: list[str],
     split_violations: list[str],
@@ -124,6 +140,7 @@ def _priority(
         _P1_BEHAVIOR & set(behavior_failures)
         or integrity_violations
         or distribution_failures
+        or composition_failures
         or near_duplicate_failures
         or length_violations
     ):
@@ -159,6 +176,7 @@ def audit_v2_family_roadmap(
         )
         integrity = audit_v2_integrity(task_rows)
         distribution = audit_v2_distribution(task_rows)
+        composition = audit_v2_composition(task_rows)
         near_duplicates = audit_v2_near_duplicates(task_rows)
         lengths = audit_v2_lengths(task_rows, require_global_bands=False)
         splits = (
@@ -180,6 +198,7 @@ def audit_v2_family_roadmap(
         )
         behavior_failures = behavior["failing_tasks"].get(task, [])
         distribution_failures = distribution["tasks"][task]["failures"]
+        composition_failures = composition["tasks"][task]["failures"]
         near_duplicate_failures = near_duplicates["tasks"][task]["failures"]
         tokenization_failures = (
             tokenization["failures"] if tokenization is not None else []
@@ -189,6 +208,7 @@ def audit_v2_family_roadmap(
                 behavior_failures,
                 integrity["violations"],
                 distribution_failures,
+                composition_failures,
                 near_duplicate_failures,
                 lengths["violations"],
                 splits["violations"],
@@ -208,6 +228,8 @@ def audit_v2_family_roadmap(
             "examples": integrity["examples"],
             "distribution_failures": distribution_failures,
             "distribution": distribution["tasks"][task],
+            "composition_failures": composition_failures,
+            "composition": composition["tasks"][task],
             "near_duplicate_failures": near_duplicate_failures,
             "near_duplicates": near_duplicates["tasks"][task],
             "length_violations": lengths["violations"],
@@ -231,6 +253,7 @@ def audit_v2_family_roadmap(
                 integrity["violations"],
                 behavior_failures,
                 distribution_failures,
+                composition_failures,
                 near_duplicate_failures,
                 lengths["violations"],
                 splits["violations"],
@@ -252,6 +275,7 @@ def audit_v2_family_roadmap(
         failures = set(
             family["integrity_violations"]
             + family["distribution_failures"]
+            + family["composition_failures"]
             + family["behavior_failures"]
             + family["near_duplicate_failures"]
             + family["length_violations"]

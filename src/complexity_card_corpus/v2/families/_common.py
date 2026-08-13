@@ -4,6 +4,7 @@ import hashlib
 import json
 from typing import Any
 
+from ..contracts import SemanticFrame
 from ..decks import V2RoleSeparatedDeck
 from ..integrity_audit import render_think_final
 
@@ -17,14 +18,46 @@ def render_v2_row(
     deck: V2RoleSeparatedDeck,
     facts: dict[str, Any],
     validator: dict[str, Any],
+    semantic_frame: SemanticFrame | None = None,
 ) -> dict[str, object]:
     pair = deck.deal(case_id)
+    frame = semantic_frame or SemanticFrame(
+        intent=task,
+        facts=facts,
+        constraints=(str(validator.get("kind", "unspecified")),),
+        expected_outcome=validator,
+        uncertainty="bounded" if task == "safety_uncertainty" else "none",
+        user_tone=pair.user_tone,
+    )
     assistant = (
         render_think_final(pair.thinking, pair.answer)
         if pair.thinking
         else pair.answer
     )
-    rendered = f"User: {pair.prompt}\nAssistant: {assistant}"
+    messages = [
+        {"role": turn.role, "content": turn.content}
+        for turn in frame.history
+    ]
+    messages.extend(
+        (
+            {"role": "user", "content": pair.prompt},
+            {"role": "assistant", "content": assistant},
+        )
+    )
+    rendered = json.dumps(messages, sort_keys=True)
+    composition = {
+        "intent": frame.intent,
+        "domain": domain,
+        "deck_name": deck.name,
+        "prompt_plan": pair.prompt_plan,
+        "answer_plan": pair.answer_plan,
+        "thinking_plan": pair.thinking_plan,
+        "prompt_functions": pair.prompt_functions,
+        "answer_functions": pair.answer_functions,
+        "thinking_functions": pair.thinking_functions,
+        "user_tone": frame.user_tone,
+        "thinking_budget": pair.thinking_budget,
+    }
     return {
         "example_id": f"v2:{task}:"
         + hashlib.sha256(rendered.encode()).hexdigest()[:24],
@@ -34,10 +67,7 @@ def render_v2_row(
         "domain": domain,
         "language": "en",
         "split": "train",
-        "messages": [
-            {"role": "user", "content": pair.prompt},
-            {"role": "assistant", "content": assistant},
-        ],
+        "messages": messages,
         "prompt": pair.prompt,
         "response": assistant,
         "reasoning_envelope": bool(pair.thinking),
@@ -47,6 +77,8 @@ def render_v2_row(
             {
                 "case_id": case_id,
                 "facts": facts,
+                "semantic_frame": frame.as_metadata(),
+                "composition": composition,
                 "prompt_subcards": pair.prompt_subcards,
                 "thinking_subcards": pair.thinking_subcards,
                 "answer_subcards": pair.answer_subcards,
@@ -55,6 +87,13 @@ def render_v2_row(
                 "variable_indices": pair.variable_indices,
                 "variable_card_counts": pair.variable_card_counts,
                 "dependency_graph": pair.dependency_graph,
+                "prompt_plan": pair.prompt_plan,
+                "answer_plan": pair.answer_plan,
+                "thinking_plan": pair.thinking_plan,
+                "prompt_functions": pair.prompt_functions,
+                "answer_functions": pair.answer_functions,
+                "thinking_functions": pair.thinking_functions,
+                "thinking_budget": pair.thinking_budget,
                 "validator": validator,
             },
             sort_keys=True,

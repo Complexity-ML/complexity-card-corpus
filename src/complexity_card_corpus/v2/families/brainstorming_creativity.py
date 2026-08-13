@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from ...variable_by import VariableBy2D
 from ..contracts import RoleSeparatedVariableBy, SurfaceRole
-from ..decks import V2RoleSeparatedDeck, V2SubcardPool
+from ..decks import (
+    V2RoleSeparatedDeck,
+    V2SubcardPool,
+    answer_variant_plans,
+    prompt_variant_plans,
+)
 from ._axes import SITES
 from ._common import render_v2_row, validate_complete_rows
 from .planning_comparison import _CONSTRAINTS
@@ -43,6 +48,22 @@ _ANSWERS = (
     "At {scenario[site]}, consider {scenario[idea_one]} for guidance, {scenario[idea_two]} for human support, and {scenario[idea_three]} for a different delivery path. Evaluate the set by asking the team to {scenario[test]} while {scenario[constraint]}.",
     "A useful three-way exploration is {scenario[idea_one]} versus {scenario[idea_two]} versus {scenario[idea_three]}. The next evidence should come from this trial: {scenario[test]}; the local boundary is that {scenario[constraint]}.",
 )
+_PROMPT_FUNCTIONS = (
+    ("request_ideas", "request_bounded_test"),
+    ("request_mechanisms", "request_experiment"),
+    ("request_options", "enforce_resource_boundary"),
+    ("request_diverse_set", "request_low_cost_trial"),
+    ("reject_cosmetic_variants", "request_alternatives"),
+    ("request_mechanisms", "request_concrete_test"),
+)
+_ANSWER_FUNCTIONS = (
+    ("frame_challenge", "enumerate_ideas", "propose_test", "state_boundary"),
+    ("frame_mechanisms", "contrast_ideas", "propose_test", "state_boundary"),
+    ("label_options", "contrast_ideas", "propose_test", "state_boundary"),
+    ("state_goal", "group_ideas", "prioritize_learning", "state_boundary"),
+    ("locate_context", "map_ideas_to_mechanisms", "propose_evaluation"),
+    ("contrast_ideas", "request_evidence", "state_boundary"),
+)
 
 
 def brainstorming_creativity_capacity() -> int:
@@ -73,6 +94,16 @@ def render_brainstorming_creativity_rows() -> list[dict[str, object]]:
                 name=f"{TASK}:{domain}:{challenge}", variables=variables,
                 prompt_pools=(V2SubcardPool("idea_request", SurfaceRole.PROMPT, ("{prompt[idea_request]}",)),),
                 answer_pools=(V2SubcardPool("idea_set", SurfaceRole.ANSWER, ("{answer[idea_set]}",)),),
+                prompt_plans=prompt_variant_plans(
+                    sense="idea_request",
+                    pool_name="idea_request",
+                    functions=_PROMPT_FUNCTIONS,
+                ),
+                answer_plans=answer_variant_plans(
+                    sense="idea_set",
+                    pool_name="idea_set",
+                    functions=_ANSWER_FUNCTIONS,
+                ),
             )
             rows.append(
                 render_v2_row(

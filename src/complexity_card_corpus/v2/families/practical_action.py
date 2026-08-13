@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from ...variable_by import VariableBy2D
 from ..contracts import RoleSeparatedVariableBy, SurfaceRole
-from ..decks import V2RoleSeparatedDeck, V2SubcardPool
+from ..decks import (
+    V2RoleSeparatedDeck,
+    V2SubcardPool,
+    answer_variant_plans,
+    prompt_variant_plans,
+)
 from ._axes import SITES
 from ._common import render_v2_row, validate_complete_rows
 from .planning_comparison import _CONSTRAINTS
@@ -42,6 +47,22 @@ _ANSWERS = (
     "Start the {scenario[domain]} work to {scenario[goal]} at {scenario[site]} by doing this: {scenario[first]}. After that, {scenario[second]}. Complete the handoff when you {scenario[third]}; remember that {scenario[constraint]}.",
     "Use three {scenario[domain]} checkpoints at {scenario[site]} for {scenario[goal]}. Preparation: {scenario[first]}. Execution: {scenario[second]}. Completion: {scenario[third]}. The plan must still respect that {scenario[constraint]}.",
     "For this {scenario[domain]} task to {scenario[goal]}, {scenario[first]}; once confirmed, {scenario[second]}; then {scenario[third]}. That order keeps the work compatible with the fact that {scenario[constraint]}.",
+)
+_PROMPT_FUNCTIONS = (
+    ("request_concrete_plan", "require_three_steps"),
+    ("request_next_actions", "enforce_condition"),
+    ("request_ordered_actions",),
+    ("request_executable_plan", "forbid_invention"),
+    ("request_action_conversion", "require_order"),
+    ("request_safe_workflow", "require_checkability"),
+)
+_ANSWER_FUNCTIONS = (
+    ("frame_goal", "sequence_actions", "preserve_condition", "localize_handoff"),
+    ("locate_task", "sequence_actions", "preserve_condition", "localize_handoff"),
+    ("label_sequence", "locate_execution", "preserve_condition", "localize_handoff"),
+    ("start_action", "continue_action", "complete_handoff", "preserve_condition"),
+    ("name_checkpoints", "map_actions", "preserve_condition", "localize_handoff"),
+    ("frame_task", "sequence_by_confirmation", "justify_order", "localize_handoff"),
 )
 _LOCAL_DETAILS = (
     "the reception lead records the final handoff",
@@ -106,6 +127,16 @@ def render_practical_action_rows() -> list[dict[str, object]]:
                 name=f"{TASK}:{domain}:{goal}", variables=variables,
                 prompt_pools=(V2SubcardPool("action_request", SurfaceRole.PROMPT, ("{prompt[action_request]}",)),),
                 answer_pools=(V2SubcardPool("ordered_plan", SurfaceRole.ANSWER, ("{answer[ordered_plan]}",)),),
+                prompt_plans=prompt_variant_plans(
+                    sense="action_request",
+                    pool_name="action_request",
+                    functions=_PROMPT_FUNCTIONS,
+                ),
+                answer_plans=answer_variant_plans(
+                    sense="ordered_plan",
+                    pool_name="ordered_plan",
+                    functions=_ANSWER_FUNCTIONS,
+                ),
             )
             case_id = f"{domain}:{goal}:{site}"
             rows.append(

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import defaultdict
 from collections.abc import Callable
 from typing import Any
 
@@ -39,6 +40,7 @@ from .families import (
 )
 from .gates import v2_gate_progress
 from .plan import ALL_TASKS
+from .split_audit import composition_split_key
 
 
 FamilyRenderer = Callable[[], list[dict[str, Any]]]
@@ -101,11 +103,49 @@ def _assign_release_split(row: dict[str, Any]) -> None:
     if case_id.startswith("anchor:"):
         row["split"] = "train"
         return
+    material = json.dumps(composition_split_key(row), separators=(",", ":"))
     bucket = int.from_bytes(
-        hashlib.sha256(str(row["example_id"]).encode()).digest()[:2],
+        hashlib.sha256(material.encode()).digest()[:2],
         "big",
     ) % 100
     row["split"] = "validation" if bucket == 0 else "test" if bucket == 1 else "train"
+
+
+def _ensure_family_heldouts(rows: list[dict[str, Any]]) -> None:
+    """Guarantee both held-out roles without cutting through composition groups."""
+
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        grouped[str(row["task"])].append(row)
+    for task, task_rows in grouped.items():
+        populated = {str(row["split"]) for row in task_rows}
+        for required in ("validation", "test"):
+            if required in populated:
+                continue
+            candidates: dict[tuple[str, ...], list[dict[str, Any]]] = defaultdict(list)
+            for row in task_rows:
+                if row["split"] != "train":
+                    continue
+                try:
+                    case_id = str(
+                        json.loads(str(row["source_representation"]))["case_id"]
+                    )
+                except (KeyError, TypeError, json.JSONDecodeError):
+                    case_id = ""
+                if case_id.startswith("anchor:"):
+                    continue
+                candidates[composition_split_key(row)].append(row)
+            if not candidates:
+                raise ValueError(f"{task} has no composition group for {required}")
+            selected = min(
+                candidates,
+                key=lambda key: hashlib.sha256(
+                    f"{task}:{required}:{key}".encode()
+                ).digest(),
+            )
+            for row in candidates[selected]:
+                row["split"] = required
+            populated.add(required)
 
 
 def render_complete_v2() -> list[dict[str, Any]]:
@@ -144,6 +184,7 @@ def render_complete_v2() -> list[dict[str, Any]]:
         raise ValueError("Card Corpus V2 produced duplicate example IDs")
     for row in rows:
         _assign_release_split(row)
+    _ensure_family_heldouts(rows)
     return rows
 
 

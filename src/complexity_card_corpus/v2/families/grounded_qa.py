@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from ...variable_by import VariableBy2D
 from ..contracts import RoleSeparatedVariableBy, SurfaceRole
-from ..decks import V2RoleSeparatedDeck, V2SubcardPool
+from ..decks import (
+    V2RoleSeparatedDeck,
+    V2SubcardPool,
+    answer_variant_plans,
+    prompt_variant_plans,
+)
 from ._axes import PEOPLE, SITES
 from ._common import render_v2_row, validate_complete_rows
 
@@ -41,6 +46,22 @@ _ANSWERS = (
     "The note supports this response: {scenario[answer]}",
     "The entry yields this result: {scenario[answer]}",
     "The record establishes that {scenario[answer_lower]}",
+)
+_PROMPT_FUNCTIONS = (
+    ("restrict_source", "supply_note", "ask_question"),
+    ("declare_sole_source", "supply_note", "ask_question"),
+    ("require_grounding", "supply_note", "ask_question"),
+    ("supply_fact", "forbid_assumptions", "ask_question"),
+    ("require_strict_grounding", "supply_note", "ask_question"),
+    ("request_record_consultation", "supply_note", "ask_question"),
+)
+_ANSWER_FUNCTIONS = (
+    ("answer_from_record",),
+    ("attribute_record", "answer_from_record"),
+    ("signal_documented_certainty", "answer_from_record"),
+    ("attribute_support", "answer_from_record"),
+    ("derive_from_entry", "answer_from_record"),
+    ("state_record_entailment", "answer_from_record"),
 )
 
 
@@ -83,6 +104,16 @@ def render_grounded_qa_rows() -> list[dict[str, object]]:
                     name=f"{TASK}:{domain}:{fact_kind}", variables=variables,
                     prompt_pools=(V2SubcardPool("grounded_question", SurfaceRole.PROMPT, ("{prompt[grounded_question]}",)),),
                     answer_pools=(V2SubcardPool("supported_answer", SurfaceRole.ANSWER, ("{answer[supported_answer]}",)),),
+                    prompt_plans=prompt_variant_plans(
+                        sense="grounded_question",
+                        pool_name="grounded_question",
+                        functions=_PROMPT_FUNCTIONS,
+                    ),
+                    answer_plans=answer_variant_plans(
+                        sense="supported_answer",
+                        pool_name="supported_answer",
+                        functions=_ANSWER_FUNCTIONS,
+                    ),
                 )
                 case_id = f"{domain}:{fact_kind}:{site}:{person}"
                 rows.append(

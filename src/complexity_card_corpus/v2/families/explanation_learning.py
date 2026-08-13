@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from ...variable_by import VariableBy2D
 from ..contracts import RoleSeparatedVariableBy, SurfaceRole
-from ..decks import V2RoleSeparatedDeck, V2SubcardPool
+from ..decks import (
+    V2RoleSeparatedDeck,
+    V2SubcardPool,
+    answer_variant_plans,
+    prompt_variant_plans,
+)
 from ._common import render_v2_row, validate_complete_rows
 
 
@@ -50,6 +55,22 @@ _ANSWERS = (
     "Start with the mechanism: {scenario[mechanism]}. {scenario[bridge]}. The example ‘{scenario[example]}’ shows it in action. The distinction remains clear if you {scenario[check]}.",
     "In plain terms, {scenario[mechanism]}. {scenario[bridge]}. Here is the idea in use: {scenario[example]}. As a self-check, {scenario[check]}.",
     "A reliable way to understand {scenario[concept]} is to notice that {scenario[mechanism]}. {scenario[bridge]}. For instance, {scenario[example]}. A mistaken reading can be caught if you {scenario[check]}.",
+)
+_PROMPT_FUNCTIONS = (
+    ("request_explanation", "specify_audience", "adapt_instruction"),
+    ("request_teaching", "specify_audience", "adapt_instruction"),
+    ("request_compact_explanation", "specify_audience", "adapt_instruction"),
+    ("request_understanding", "specify_audience", "adapt_instruction"),
+    ("request_mechanism", "specify_audience", "adapt_instruction"),
+    ("request_intuitive_accuracy", "specify_audience", "adapt_instruction"),
+)
+_ANSWER_FUNCTIONS = (
+    ("define_mechanism", "adapt_bridge", "give_example", "give_check"),
+    ("state_core_idea", "adapt_bridge", "give_example", "test_understanding"),
+    ("adapt_audience", "define_mechanism", "give_example", "verify"),
+    ("lead_with_mechanism", "adapt_bridge", "show_example", "preserve_distinction"),
+    ("plain_language_mechanism", "adapt_bridge", "apply_example", "self_check"),
+    ("frame_reliable_method", "define_mechanism", "give_example", "catch_misreading"),
 )
 
 _MISCONCEPTIONS = {
@@ -123,6 +144,41 @@ _EXPANDED_PROMPTS = (
     "Explain {scenario[concept]} accurately for {scenario[context]}. Adapt it to {scenario[audience]}, {scenario[move_instruction]}, and {scenario[depth_guidance]}.",
     "Build a lesson on {scenario[concept]} for {scenario[audience]}. In the {scenario[context]} setting, {scenario[move_instruction]}; {scenario[depth_guidance]}.",
 )
+_EXPANDED_PROMPT_FUNCTIONS = (
+    ("request_teaching", "specify_audience", "specify_context", "specify_move", "set_length"),
+    ("request_lesson", "set_length", "specify_context", "specify_move"),
+    ("request_learning_support", "specify_audience", "specify_move", "set_length"),
+    ("request_material", "specify_audience", "specify_context", "set_length"),
+    ("request_accuracy", "specify_context", "adapt_audience", "set_length"),
+    ("request_lesson", "specify_audience", "specify_context", "set_length"),
+)
+
+
+def _expanded_answer_functions(depth: str) -> tuple[tuple[str, ...], ...]:
+    if depth == "concise":
+        return (
+            ("define", "contextualize", "apply", "verify"),
+            ("state_core", "illustrate", "apply", "verify"),
+            ("adapt_audience", "illustrate", "supply_artifact", "verify"),
+            ("explain_mechanism", "pair_example_artifact", "apply", "confirm_transfer"),
+            ("explain_mechanism", "illustrate", "apply_with_artifact", "test"),
+            ("state_fact", "apply_example", "supply_artifact", "review"),
+        )
+    if depth == "detailed":
+        return (
+            ("define_mechanism", "state_boundary", "contextualize", "apply", "correct_misconception", "verify"),
+            ("state_claim", "state_boundary", "correct_misconception", "contextualize", "apply", "verify"),
+            ("observe", "explain_mechanism", "state_boundary", "contextualize", "apply", "verify"),
+            ("explain_mechanism", "adapt_audience", "state_boundary", "illustrate", "apply", "diagnose", "verify"),
+        )
+    if depth == "extended":
+        return (
+            ("define_mechanism", "illustrate", "state_boundary", "contrast_misconception", "apply", "verify", "transfer"),
+            ("connect_definition_use_limit", "illustrate", "mark_scope", "contrast", "apply", "retrieve", "transfer"),
+            ("build_reasoning_chain", "state_boundary", "compare_predictions", "apply", "verify", "generate_example"),
+            ("state_relation", "observe_then_explain", "state_limit", "compare_consequences", "retrieve", "verify", "transfer"),
+        )
+    raise ValueError(depth)
 
 
 def _expanded_answers(depth: str) -> tuple[str, ...]:
@@ -187,6 +243,16 @@ def render_explanation_learning_rows() -> list[dict[str, object]]:
                 name=f"{TASK}:{domain}:{concept}", variables=variables,
                 prompt_pools=(V2SubcardPool("teaching_request", SurfaceRole.PROMPT, ("{prompt[teaching_request]}",)),),
                 answer_pools=(V2SubcardPool("explanation", SurfaceRole.ANSWER, ("{answer[explanation]}",)),),
+                prompt_plans=prompt_variant_plans(
+                    sense="teaching_request",
+                    pool_name="teaching_request",
+                    functions=_PROMPT_FUNCTIONS,
+                ),
+                answer_plans=answer_variant_plans(
+                    sense="explanation",
+                    pool_name="explanation",
+                    functions=_ANSWER_FUNCTIONS,
+                ),
             )
             case_id = f"{domain}:{concept}:{audience}"
             rows.append(
@@ -253,6 +319,16 @@ def render_explanation_learning_rows() -> list[dict[str, object]]:
                                     SurfaceRole.ANSWER,
                                     ("{answer[lesson]}",),
                                 ),
+                            ),
+                            prompt_plans=prompt_variant_plans(
+                                sense="learning_request",
+                                pool_name="learning_request",
+                                functions=_EXPANDED_PROMPT_FUNCTIONS,
+                            ),
+                            answer_plans=answer_variant_plans(
+                                sense="lesson",
+                                pool_name="lesson",
+                                functions=_expanded_answer_functions(depth),
                             ),
                         )
                         case_id = ":".join(

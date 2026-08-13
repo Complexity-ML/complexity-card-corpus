@@ -46,6 +46,34 @@ def render_user_turn(
     return str(template["user_format"]).format(content=content.strip())
 
 
+def render_history_prefix(
+    messages: list[dict[str, Any]],
+    contract: dict[str, Any] | None = None,
+) -> str:
+    """Serialize context turns while leaving the final assistant target open."""
+
+    template = contract or chat_template_contract()
+    rendered = ""
+    for message in messages:
+        role = str(message.get("role", ""))
+        content = str(message.get("content", "")).strip()
+        if not content:
+            raise ValueError("chat history contains an empty turn")
+        if role == "system":
+            rendered += str(template["system_format"]).format(content=content)
+        elif role == "user":
+            rendered += str(template["user_format"]).format(content=content)
+        elif role == "assistant":
+            rendered += (
+                str(template["assistant_prefix"])
+                + content
+                + str(template["eos_token"])
+            )
+        else:
+            raise ValueError(f"unsupported chat history role {role!r}")
+    return rendered + str(template["assistant_prefix"])
+
+
 def render_inference_prompt(
     user_content: str,
     contract: dict[str, Any] | None = None,
@@ -63,6 +91,7 @@ __all__ = (
     "THINK_FINAL_ENVELOPE",
     "chat_template_contract",
     "render_inference_prompt",
+    "render_history_prefix",
     "render_system_prefix",
     "render_user_turn",
 )

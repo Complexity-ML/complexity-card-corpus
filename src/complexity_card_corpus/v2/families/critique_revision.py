@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from ...variable_by import VariableBy2D
 from ..contracts import RoleSeparatedVariableBy, SurfaceRole
-from ..decks import V2RoleSeparatedDeck, V2SubcardPool
+from ..decks import V2RoleSeparatedDeck, V2SubcardPool, prompt_variant_plans
 from ._axes import PEOPLE
 from ._common import render_v2_row, validate_complete_rows
 
@@ -38,6 +38,12 @@ _PROMPTS = (
     "Revise this message into exactly two {scenario[style]} sentences; {scenario[style_guidance]}. Preserve the facts in this draft: {scenario[draft]}",
     "The draft is wordy and indirect. Produce an exact two-sentence {scenario[style]} replacement and {scenario[style_guidance]}. Draft: {scenario[draft]}",
     "Rewrite the following as two clear sentences in a {scenario[style]} style. Specifically, {scenario[style_guidance]}. Source: {scenario[draft]}",
+)
+_PROMPT_FUNCTIONS = (
+    ("diagnose_clarity", "request_exact_rewrite", "specify_style"),
+    ("request_exact_rewrite", "specify_style", "preserve_facts"),
+    ("diagnose_indirectness", "request_exact_rewrite", "specify_style"),
+    ("request_clear_rewrite", "specify_style", "supply_source"),
 )
 
 
@@ -96,6 +102,11 @@ def render_critique_revision_rows() -> list[dict[str, object]]:
                 name=f"{TASK}:{domain}:{artifact}:{style}", variables=variables,
                 prompt_pools=(V2SubcardPool("revision_request", SurfaceRole.PROMPT, ("{prompt[revision_request]}",)),),
                 answer_pools=(V2SubcardPool("rewrite", SurfaceRole.ANSWER, ("{answer[rewrite]}",)),),
+                prompt_plans=prompt_variant_plans(
+                    sense="revision_request",
+                    pool_name="revision_request",
+                    functions=_PROMPT_FUNCTIONS,
+                ),
             )
             case_id = f"{domain}:{artifact}:{style}"
             rows.append(

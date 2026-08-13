@@ -5,8 +5,27 @@ from .behavior_audit import (
     audit_projected_parquet,
     audit_v2_behavior,
 )
-from .contracts import RoleSeparatedVariableBy, SurfaceRole
-from .decks import V2DealtPair, V2RoleSeparatedDeck, V2SubcardPool
+from .contracts import (
+    AnswerPlan,
+    ConversationTurn,
+    PlanCompatibility,
+    PromptPlan,
+    RoleSeparatedVariableBy,
+    SemanticFrame,
+    SurfaceRole,
+    ThinkingBudget,
+    ThinkingPlan,
+)
+from .composition_audit import audit_v2_composition
+from .chat import render_history_prefix
+from .decks import (
+    V2DealtPair,
+    V2RoleSeparatedDeck,
+    V2SubcardPool,
+    answer_variant_plans,
+    prompt_variant_plans,
+    thinking_variant_plans,
+)
 from .distribution_audit import audit_v2_distribution
 from .gates import V2Gate, V2_RELEASE_GATES, v2_gate_progress
 from .integrity_audit import audit_v2_integrity, render_think_final
@@ -30,11 +49,23 @@ __all__ = (
     "DEFAULT_V2_THRESHOLDS",
     "audit_projected_parquet",
     "audit_v2_behavior",
+    "AnswerPlan",
+    "ConversationTurn",
+    "PlanCompatibility",
+    "PromptPlan",
     "RoleSeparatedVariableBy",
+    "SemanticFrame",
     "SurfaceRole",
+    "ThinkingBudget",
+    "ThinkingPlan",
+    "audit_v2_composition",
+    "render_history_prefix",
     "V2DealtPair",
     "V2RoleSeparatedDeck",
     "V2SubcardPool",
+    "answer_variant_plans",
+    "prompt_variant_plans",
+    "thinking_variant_plans",
     "audit_v2_distribution",
     "V2Gate",
     "V2_RELEASE_GATES",

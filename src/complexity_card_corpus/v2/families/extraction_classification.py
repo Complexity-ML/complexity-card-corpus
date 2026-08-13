@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import hashlib
 import json
 from itertools import product
 
 from ...variable_by import VariableBy2D
 from ..contracts import RoleSeparatedVariableBy, SurfaceRole
-from ..decks import V2RoleSeparatedDeck, V2SubcardPool
+from ..decks import V2RoleSeparatedDeck, V2SubcardPool, prompt_variant_plans
+from ._common import render_v2_row, validate_complete_rows
 
 
 TASK = "extraction_classification"
@@ -44,6 +44,14 @@ _PROMPTS = (
     "Convert this support message into the required JSON record: {scenario[ticket]}",
     "Return a machine-readable classification for this ticket: {scenario[ticket]}",
     "Identify the routing fields in this report and answer with JSON only: {scenario[ticket]}",
+)
+_PROMPT_FUNCTIONS = (
+    ("request_extraction", "require_json_only"),
+    ("request_classification", "require_json"),
+    ("enumerate_fields", "require_json"),
+    ("request_record_conversion", "require_json"),
+    ("request_machine_readable_classification",),
+    ("request_routing_fields", "require_json_only"),
 )
 
 
@@ -104,53 +112,25 @@ def render_extraction_classification_rows() -> list[dict[str, object]]:
                     ("{answer[json_record]}",),
                 ),
             ),
+            prompt_plans=prompt_variant_plans(
+                sense="classification_request",
+                pool_name="classification_request",
+                functions=_PROMPT_FUNCTIONS,
+            ),
         )
         case_id = ":".join((category, site, requester))
-        pair = deck.deal(case_id)
-        rendered = f"User: {pair.prompt}\nAssistant: {pair.answer}"
         rows.append(
-            {
-                "example_id": "v2:extraction:"
-                + hashlib.sha256(rendered.encode()).hexdigest()[:24],
-                "task": TASK,
-                "mode": "chat",
-                "difficulty": "easy",
-                "domain": domain,
-                "language": "en",
-                "split": "train",
-                "messages": [
-                    {"role": "user", "content": pair.prompt},
-                    {"role": "assistant", "content": pair.answer},
-                ],
-                "prompt": pair.prompt,
-                "response": pair.answer,
-                "reasoning_envelope": False,
-                "reasoning_trace": "",
-                "final_response": pair.answer,
-                "source_representation": json.dumps(
-                    {
-                        "case_id": case_id,
-                        "facts": expected,
-                        "prompt_subcards": pair.prompt_subcards,
-                        "answer_subcards": pair.answer_subcards,
-                        "variable_by": deck.variables.matrix.field_names(),
-                        "deck_name": deck.name,
-                        "variable_indices": pair.variable_indices,
-                        "variable_card_counts": pair.variable_card_counts,
-                        "dependency_graph": pair.dependency_graph,
-                        "validator": {"kind": "json_equal", "expected": expected},
-                    },
-                    sort_keys=True,
-                ),
-                "source": "AETHORIA-AI Card Corpus V2 authored decks",
-                "license": "CC BY-NC 4.0",
-                "version": "2.0.0",
-            }
+            render_v2_row(
+                task=TASK,
+                case_id=case_id,
+                domain=domain,
+                difficulty="easy",
+                deck=deck,
+                facts=expected,
+                validator={"kind": "json_equal", "expected": expected},
+            )
         )
-    rows.sort(key=lambda row: str(row["example_id"]))
-    if len(rows) != extraction_classification_capacity():
-        raise ValueError(f"{TASK} did not render its complete capacity")
-    return rows
+    return validate_complete_rows(TASK, rows, extraction_classification_capacity())
 
 
 __all__ = (

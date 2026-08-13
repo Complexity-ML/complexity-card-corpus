@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from collections import defaultdict
 from typing import Any, Iterable
@@ -26,6 +27,26 @@ def _structural_signature(row: dict[str, Any]) -> tuple[tuple[str, ...], ...]:
         words = _WORD.findall(normalized)
         fields.append(tuple(words))
     return tuple(fields)
+
+
+def composition_split_key(row: dict[str, Any]) -> tuple[str, ...]:
+    """Keep one hidden behavioral composition wholly inside one split."""
+
+    try:
+        metadata = json.loads(str(row.get("source_representation", "")))
+        composition = metadata["composition"]
+        return (
+            str(row.get("task", "unknown")),
+            str(composition["intent"]),
+            str(composition["domain"]),
+            str(composition["deck_name"]),
+            str(composition["prompt_plan"]),
+            str(composition["answer_plan"]),
+            str(composition["thinking_plan"]),
+            str(composition["user_tone"]),
+        )
+    except (KeyError, TypeError, json.JSONDecodeError):
+        return (str(row.get("example_id", "unknown")),)
 
 
 def _cross_split_collisions(
@@ -67,6 +88,9 @@ def audit_v2_splits(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
     structural_count, structural_examples = _cross_split_collisions(
         materialized, _structural_signature
     )
+    composition_count, composition_examples = _cross_split_collisions(
+        materialized, composition_split_key
+    )
     violations = []
     if len(split_counts) < 2:
         violations.append("at least two populated splits are required")
@@ -74,6 +98,8 @@ def audit_v2_splits(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
         violations.append("exact conversations leak across splits")
     if structural_count:
         violations.append("normalized template structures leak across splits")
+    if composition_count:
+        violations.append("behavioral compositions leak across splits")
     return {
         "format": "complexity-card-corpus-v2-split-audit-v1",
         "passed": not violations,
@@ -84,7 +110,9 @@ def audit_v2_splits(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
         "exact_examples": exact_examples,
         "structural_cross_split_collision_rows": structural_count,
         "structural_examples": structural_examples,
+        "composition_cross_split_collision_rows": composition_count,
+        "composition_examples": composition_examples,
     }
 
 
-__all__ = ("audit_v2_splits",)
+__all__ = ("audit_v2_splits", "composition_split_key")

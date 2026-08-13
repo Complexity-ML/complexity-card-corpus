@@ -11,7 +11,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from .behavior_audit import audit_v2_behavior
-from .chat import CHAT_TEMPLATE_ID, chat_template_contract, render_system_prefix, render_user_turn
+from .chat import CHAT_TEMPLATE_ID, chat_template_contract, render_history_prefix
+from .composition_audit import audit_v2_composition
 from .distribution_audit import audit_v2_distribution
 from .gates import v2_gate_progress
 from .integrity_audit import audit_v2_integrity
@@ -97,6 +98,7 @@ def audit_v2_release(
         "behavior": audit_v2_behavior(rows),
         "integrity": audit_v2_integrity(rows),
         "distribution": audit_v2_distribution(rows),
+        "composition": audit_v2_composition(rows),
         "near_duplicates": audit_v2_near_duplicates(rows),
         "lengths": audit_v2_lengths(rows),
         "splits": audit_v2_splits(rows),
@@ -187,11 +189,10 @@ def tokenize_v2_release(
             examples_path.open("w", encoding="utf-8") as examples_handle,
         ):
             for row in partition_rows:
-                prefix = (
-                    render_system_prefix(contract)
-                    + render_user_turn(str(row["prompt"]), contract)
-                    + str(contract["assistant_prefix"])
-                )
+                messages = list(row["messages"])
+                if not messages or messages[-1].get("role") != "assistant":
+                    raise ValueError("V2 row must end with the supervised assistant turn")
+                prefix = render_history_prefix(messages[:-1], contract)
                 prefix_ids = encoding.encode(prefix, disallowed_special=())
                 response_ids = encoding.encode(
                     str(row["response"]), disallowed_special=()

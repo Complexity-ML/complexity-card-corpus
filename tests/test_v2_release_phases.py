@@ -43,6 +43,21 @@ def _row() -> dict[str, object]:
     }
 
 
+def _multi_turn_row() -> dict[str, object]:
+    row = _row()
+    row["example_id"] = "v2:test:multi"
+    row["messages"] = [
+        {"role": "user", "content": "Remember that there are three boxes."},
+        {"role": "assistant", "content": "Okay, the current count is three."},
+        {"role": "user", "content": "And with two more?"},
+        {"role": "assistant", "content": "There would be five boxes."},
+    ]
+    row["prompt"] = "And with two more?"
+    row["response"] = "There would be five boxes."
+    row["final_response"] = "There would be five boxes."
+    return row
+
+
 def test_v2_build_never_runs_audits(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(release, "render_complete_v2", lambda: [_row()])
     monkeypatch.setattr(
@@ -58,6 +73,7 @@ def test_v2_build_never_runs_audits(monkeypatch, tmp_path) -> None:
         "audit_v2_behavior",
         "audit_v2_integrity",
         "audit_v2_distribution",
+        "audit_v2_composition",
         "audit_v2_near_duplicates",
         "audit_v2_lengths",
         "audit_v2_splits",
@@ -90,6 +106,7 @@ def test_v2_audit_is_a_separate_phase(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(release, "audit_v2_behavior", passed("behavior"))
     monkeypatch.setattr(release, "audit_v2_integrity", passed("integrity"))
     monkeypatch.setattr(release, "audit_v2_distribution", passed("distribution"))
+    monkeypatch.setattr(release, "audit_v2_composition", passed("composition"))
     monkeypatch.setattr(release, "audit_v2_near_duplicates", passed("near"))
     monkeypatch.setattr(release, "audit_v2_lengths", passed("length"))
     monkeypatch.setattr(release, "audit_v2_splits", passed("split"))
@@ -110,7 +127,15 @@ def test_v2_audit_is_a_separate_phase(monkeypatch, tmp_path) -> None:
     report = release.audit_v2_release(root)
 
     assert report["passed"] is True
-    assert calls == ["behavior", "integrity", "distribution", "near", "length", "split"]
+    assert calls == [
+        "behavior",
+        "integrity",
+        "distribution",
+        "composition",
+        "near",
+        "length",
+        "split",
+    ]
     manifest = json.loads((root / "manifest.json").read_text())
     assert manifest["phase_status"] == "audited"
     assert manifest["quality_status"] == "passed"
@@ -172,3 +197,54 @@ def test_v2_token_manifest_is_release_ready_and_portable(
         "projected_sha256": manifest["projected"]["sha256"],
     }
     assert str(tmp_path) not in json.dumps(token_manifest)
+
+
+def test_v2_tokenization_serializes_multi_turn_history_into_the_masked_prefix(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    encoded_texts: list[str] = []
+
+    class Encoding:
+        n_vocab = 32_000
+        eot_token = 0
+
+        @staticmethod
+        def encode(text, disallowed_special=()):
+            del disallowed_special
+            encoded_texts.append(text)
+            return [1 + byte % 255 for byte in text.encode()]
+
+        @staticmethod
+        def encode_single_token(_token):
+            return 0
+
+    monkeypatch.setattr(release, "render_complete_v2", lambda: [_multi_turn_row()])
+    monkeypatch.setattr(release, "v2_generation_progress", lambda: {})
+    monkeypatch.setattr(
+        release,
+        "load_encoding",
+        lambda _root: (
+            Encoding(),
+            {"encoding_name": "test-32k", "eos_token": "<|endoftext|>"},
+        ),
+    )
+    artifact = tmp_path / "artifact"
+    release.build_v2_release(artifact)
+    manifest_path = artifact / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["quality_status"] = "passed"
+    manifest["audit"] = {"sha256": "audit-sha"}
+    manifest_path.write_text(json.dumps(manifest))
+    tokenizer = tmp_path / "tokenizer"
+    tokenizer.mkdir()
+    (tokenizer / "tokenizer.json").write_text("{}")
+
+    release.tokenize_v2_release(artifact, tokenizer, tmp_path / "tokenized")
+
+    prefix = encoded_texts[0]
+    assert "Remember that there are three boxes." in prefix
+    assert "Okay, the current count is three.<|endoftext|>" in prefix
+    assert "And with two more?" in prefix
+    assert prefix.endswith("Assistant:\n")
+    assert "There would be five boxes." not in prefix
