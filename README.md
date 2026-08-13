@@ -50,6 +50,22 @@ uv run card-corpus tokenize \
 The tokenization phase refuses an artifact whose separate audit is not green.
 Existing output directories are never overwritten implicitly.
 
+## Current audited release
+
+The release published from commit `6aaf71c` contains 229,026 examples:
+
+| Split | Examples |
+|---|---:|
+| Train | 224,654 |
+| Validation | 2,478 |
+| Test | 1,894 |
+
+Its 32K training view contains 29,566,590 tokens, of which 18,961,405 are
+supervised final-assistant tokens. All nine global audits pass, all 15 family
+roadmaps are `PASS`, and the capability-coverage audit is green. The published
+artifact and machine-readable evidence are available at
+[`AETHORIA-AI/complexity-atlas-posttrain`](https://huggingface.co/datasets/AETHORIA-AI/complexity-atlas-posttrain).
+
 ## Tests
 
 The default suite contains fast V2 contract and regression tests only:
