@@ -71,6 +71,7 @@ def test_v2_build_never_runs_audits(monkeypatch, tmp_path) -> None:
 
     for name in (
         "audit_v2_behavior",
+        "audit_v2_capability_coverage",
         "audit_v2_integrity",
         "audit_v2_distribution",
         "audit_v2_composition",
@@ -104,6 +105,11 @@ def test_v2_audit_is_a_separate_phase(monkeypatch, tmp_path) -> None:
         return run
 
     monkeypatch.setattr(release, "audit_v2_behavior", passed("behavior"))
+    monkeypatch.setattr(
+        release,
+        "audit_v2_capability_coverage",
+        passed("capability"),
+    )
     monkeypatch.setattr(release, "audit_v2_integrity", passed("integrity"))
     monkeypatch.setattr(release, "audit_v2_distribution", passed("distribution"))
     monkeypatch.setattr(release, "audit_v2_composition", passed("composition"))
@@ -129,6 +135,7 @@ def test_v2_audit_is_a_separate_phase(monkeypatch, tmp_path) -> None:
     assert report["passed"] is True
     assert calls == [
         "behavior",
+        "capability",
         "integrity",
         "distribution",
         "composition",

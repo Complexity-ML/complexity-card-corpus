@@ -11,6 +11,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from .behavior_audit import audit_v2_behavior
+from .capability_audit import audit_v2_capability_coverage
 from .chat import (
     CHAT_TEMPLATE_ID,
     chat_template_contract,
@@ -101,6 +102,7 @@ def audit_v2_release(
     rows = pq.read_table(projected_path).to_pylist()
     audits = {
         "behavior": audit_v2_behavior(rows),
+        "capability_coverage": audit_v2_capability_coverage(rows),
         "integrity": audit_v2_integrity(rows),
         "distribution": audit_v2_distribution(rows),
         "composition": audit_v2_composition(rows),

@@ -17,6 +17,11 @@ from .contracts import (
     ThinkingPlan,
 )
 from .composition_audit import audit_v2_composition
+from .capability_audit import (
+    CapabilitySpec,
+    DEFAULT_CAPABILITY_SPECS,
+    audit_v2_capability_coverage,
+)
 from .chat import render_history_prefix
 from .decks import (
     V2DealtPair,
@@ -64,6 +69,9 @@ __all__ = (
     "ThinkingBudget",
     "ThinkingPlan",
     "audit_v2_composition",
+    "CapabilitySpec",
+    "DEFAULT_CAPABILITY_SPECS",
+    "audit_v2_capability_coverage",
     "render_history_prefix",
     "V2DealtPair",
     "V2RoleSeparatedDeck",
