@@ -221,6 +221,9 @@ def tokenize_v2_release(
                             "reasoning_card_hand": "",
                             "cards": ["prompt", "answer"],
                             "task": row["task"],
+                            "domain": row["domain"],
+                            "mode": row["mode"],
+                            "difficulty": row["difficulty"],
                             "structure_signature": row["example_id"],
                             "offset": offset,
                             "num_tokens": len(input_ids),
@@ -281,4 +284,55 @@ def tokenize_v2_release(
     return token_manifest
 
 
-__all__ = ("audit_v2_release", "build_v2_release", "tokenize_v2_release")
+def write_v2_loss_metadata(artifact_root: Path, tokenized_root: Path) -> dict[str, Any]:
+    """Add semantic sidecars to existing token shards without retokenizing them."""
+
+    columns = ("example_id", "domain", "mode", "difficulty", "split")
+    table = pq.read_table(artifact_root / "projected.parquet", columns=list(columns))
+    rows = table.to_pylist()
+    metadata = {str(row["example_id"]): row for row in rows}
+    partitions: dict[str, int] = {}
+    for partition in ("train", "eval", "test"):
+        root = tokenized_root / partition
+        examples_path = root / "examples.jsonl"
+        if not examples_path.is_file():
+            continue
+        selected: list[dict[str, Any]] = []
+        with examples_path.open(encoding="utf-8") as handle:
+            for line in handle:
+                if not line.strip():
+                    continue
+                example = json.loads(line)
+                example_id = str(example["example_id"])
+                if example_id not in metadata:
+                    raise ValueError(f"token index example is absent from projection: {example_id}")
+                row = metadata[example_id]
+                selected.append(
+                    {
+                        "example_id": example_id,
+                        "domain": row["domain"],
+                        "mode": row["mode"],
+                        "difficulty": row["difficulty"],
+                    }
+                )
+        sidecar = root / "loss_metadata.jsonl"
+        sidecar.write_text(
+            "".join(json.dumps(row, sort_keys=True) + "\n" for row in selected),
+            encoding="utf-8",
+        )
+        partitions[partition] = len(selected)
+    if not partitions:
+        raise FileNotFoundError(f"no token partitions found under {tokenized_root}")
+    return {
+        "format": "complexity-sft-loss-metadata-v1",
+        "partitions": partitions,
+        "examples": sum(partitions.values()),
+    }
+
+
+__all__ = (
+    "audit_v2_release",
+    "build_v2_release",
+    "tokenize_v2_release",
+    "write_v2_loss_metadata",
+)

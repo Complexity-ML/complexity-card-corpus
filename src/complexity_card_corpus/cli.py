@@ -4,7 +4,12 @@ import argparse
 import json
 from pathlib import Path
 
-from .v2 import audit_v2_release, build_v2_release, tokenize_v2_release
+from .v2 import (
+    audit_v2_release,
+    build_v2_release,
+    tokenize_v2_release,
+    write_v2_loss_metadata,
+)
 
 
 def parser() -> argparse.ArgumentParser:
@@ -39,6 +44,13 @@ def parser() -> argparse.ArgumentParser:
     tokenize.add_argument("--tokenizer", type=Path, required=True)
     tokenize.add_argument("--output", type=Path, required=True)
 
+    loss_metadata = commands.add_parser(
+        "loss-metadata",
+        help="add semantic loss sidecars to existing shards without retokenizing",
+    )
+    loss_metadata.add_argument("--artifact", type=Path, required=True)
+    loss_metadata.add_argument("--tokenized", type=Path, required=True)
+
     inspect = commands.add_parser("inspect")
     inspect.add_argument("--artifact", type=Path, required=True)
     return root
@@ -69,6 +81,8 @@ def main() -> None:
         result = audit_v2_release(args.artifact, tokenizer_root=args.tokenizer)
     elif args.command == "tokenize":
         result = tokenize_v2_release(args.artifact, args.tokenizer, args.output)
+    elif args.command == "loss-metadata":
+        result = write_v2_loss_metadata(args.artifact, args.tokenized)
     elif args.command == "inspect":
         result = json.loads((args.artifact / "manifest.json").read_text())
     else:  # pragma: no cover

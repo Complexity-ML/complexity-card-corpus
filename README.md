@@ -123,15 +123,21 @@ epoch. It does not downsample, duplicate, filter, or resample families. After
 the 512-token context window is applied, the trainer measures visible
 supervised assistant tokens and balances their loss in two dimensions:
 
-1. behavioral-group targets are 20% distilled reasoning, 25% natural
-   conversation, and 55% instruction and structured tasks;
-2. each group target is distributed among its member task families.
+1. behavioral-group targets are 20% distilled reasoning, 20% natural
+   conversation, and 60% instruction and structured tasks;
+2. each group target is distributed among task families or explicit
+   `task × domain` cells.
 
-For task `t` in group `g`:
+The `casual_conversation` family contains both social dialogue and task-like
+arithmetic. Its domains are therefore resolved as `casual_social`,
+`casual_reasoning`, or `casual_instruction` at training time. This keeps the
+group labels semantic without filtering any row.
+
+For cell `c` in group `g`:
 
 ```text
-global_target(t) = group_target(g) * task_target(t | g)
-task_weight(t)   = global_target(t) / raw_visible_token_share(t)
+global_target(c) = group_target(g) * cell_target(c | g)
+loss_weight(c)   = global_target(c) / raw_visible_token_share(c)
 ```
 
 The resulting cross-entropy is normalized by visible weighted-token mass.

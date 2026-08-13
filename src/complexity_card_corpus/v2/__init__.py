@@ -37,7 +37,12 @@ from .plan import (
     CORE_TASKS,
 )
 from .registry import render_complete_v2, v2_generation_progress
-from .release import audit_v2_release, build_v2_release, tokenize_v2_release
+from .release import (
+    audit_v2_release,
+    build_v2_release,
+    tokenize_v2_release,
+    write_v2_loss_metadata,
+)
 from .roadmap import (
     audit_v2_family_roadmap,
     roadmap_markdown,
@@ -77,6 +82,7 @@ __all__ = (
     "audit_v2_release",
     "build_v2_release",
     "tokenize_v2_release",
+    "write_v2_loss_metadata",
     "v2_gate_progress",
     "audit_v2_integrity",
     "render_think_final",

@@ -197,6 +197,32 @@ def test_v2_token_manifest_is_release_ready_and_portable(
         "projected_sha256": manifest["projected"]["sha256"],
     }
     assert str(tmp_path) not in json.dumps(token_manifest)
+    example = json.loads(
+        (tmp_path / "tokenized" / "train" / "examples.jsonl")
+        .read_text()
+        .splitlines()[0]
+    )
+    assert example["task"] == "casual_conversation"
+    assert example["domain"] == "social"
+    assert example["mode"] == "chat"
+    assert example["difficulty"] == "easy"
+
+    sidecar = release.write_v2_loss_metadata(
+        artifact,
+        tmp_path / "tokenized",
+    )
+    assert sidecar["partitions"] == {"train": 1}
+    loss_row = json.loads(
+        (tmp_path / "tokenized" / "train" / "loss_metadata.jsonl")
+        .read_text()
+        .splitlines()[0]
+    )
+    assert loss_row == {
+        "example_id": "v2:test:one",
+        "domain": "social",
+        "mode": "chat",
+        "difficulty": "easy",
+    }
 
 
 def test_v2_tokenization_serializes_multi_turn_history_into_the_masked_prefix(
