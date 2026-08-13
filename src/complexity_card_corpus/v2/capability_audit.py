@@ -48,9 +48,14 @@ DEFAULT_CAPABILITY_SPECS = (
     ),
     CapabilitySpec(
         "small_arithmetic",
-        (("casual_conversation", frozenset({"small_arithmetic"})),),
+        (
+            (
+                "casual_conversation",
+                frozenset({"addition", "subtraction", "multiplication", "division"}),
+            ),
+        ),
         minimum_examples=2_000,
-        minimum_domains=1,
+        minimum_domains=4,
     ),
     CapabilitySpec(
         "summarization",

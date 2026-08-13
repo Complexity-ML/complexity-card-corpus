@@ -10,7 +10,7 @@ def test_v2_safety_uses_full_capacity_and_passes() -> None:
     rows = render_safety_uncertainty_rows()
     family = audit_v2_family_roadmap(rows)["families"]["safety_uncertainty"]
 
-    assert len(rows) == safety_uncertainty_capacity() == 384
+    assert len(rows) == safety_uncertainty_capacity() == 3_072
     assert family["priority"] == "PASS"
     for row in rows:
         source = json.loads(str(row["source_representation"]))

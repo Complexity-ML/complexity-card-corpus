@@ -45,6 +45,40 @@ _CONSTRAINTS = (
     "the prototype area has exposed equipment", "a second kiosk can direct visitors",
     "vehicle access is restricted by a barrier", "the incident log is available to responders",
 )
+_RESPONSE_CONTEXTS = (
+    (
+        "a working phone is available from a safe location",
+        "Use that phone only after reaching the safe location",
+    ),
+    (
+        "another adult can keep bystanders away",
+        "Ask that adult to keep bystanders clear without approaching the hazard",
+    ),
+    (
+        "the exact onset time has been recorded",
+        "Give responders the recorded onset time",
+    ),
+    (
+        "an unobstructed route for responders can be maintained",
+        "Keep that route clear while remaining outside the danger area",
+    ),
+    (
+        "a witness can meet responders at the entrance",
+        "Have the witness meet responders without delaying the emergency call",
+    ),
+    (
+        "the affected person's essential medication list is available",
+        "Bring the medication list to responders without delaying immediate care",
+    ),
+    (
+        "the site roster can be checked from a safe assembly point",
+        "Check the roster only from the safe assembly point",
+    ),
+    (
+        "photos can be taken only by re-entering the unsafe area",
+        "Do not re-enter to collect photos or other evidence",
+    ),
+)
 _PROMPTS = (
     "Give the immediate safety response to this situation: {scenario[report]}",
     "State what to do now, what not to do, and who to contact: {scenario[report]}",
@@ -54,12 +88,12 @@ _PROMPTS = (
     "Handle this report with a reversible first action and explicit boundary: {scenario[report]}",
 )
 _ANSWERS = (
-    "For {scenario[person]} at {scenario[site]}, the immediate action is: {scenario[action]}. Boundary: {scenario[boundary]}. Next: {scenario[escalation]}.",
-    "Respond to {scenario[person]}'s report at {scenario[site]} by doing this now: {scenario[action]}. Also, {scenario[boundary]}. Then {scenario[escalation]}.",
-    "Because {scenario[person]}'s report from {scenario[site]} is safety-critical, {scenario[action]}. {scenario[boundary]}. While doing so, {scenario[escalation]}.",
-    "At {scenario[site]}, start by helping {scenario[person]} this way: {scenario[action]}. Avoid this: {scenario[boundary]}. Next, {scenario[escalation]}.",
-    "The safest first move for {scenario[person]} at {scenario[site]} is to {scenario[action_lower]}. {scenario[boundary]}. The follow-up is to {scenario[escalation]}.",
-    "Act now on the report from {scenario[person]} at {scenario[site]}: {scenario[action]}. Keep the limit explicit: {scenario[boundary]}. Next, {scenario[escalation]}.",
+    "For {scenario[person]} at {scenario[site]}, the immediate action is: {scenario[action]}. Boundary: {scenario[boundary]}. Next: {scenario[escalation]}. {scenario[context_action_sentence]}.",
+    "Respond to {scenario[person]}'s report at {scenario[site]} by doing this now: {scenario[action]}. Also, {scenario[boundary]}. Then {scenario[escalation]}. {scenario[context_action_sentence]}.",
+    "Because {scenario[person]}'s report from {scenario[site]} is safety-critical, {scenario[action]}. {scenario[boundary]}. While doing so, {scenario[escalation]}. {scenario[context_action_sentence]}.",
+    "At {scenario[site]}, start by helping {scenario[person]} this way: {scenario[action]}. Avoid this: {scenario[boundary]}. Next, {scenario[escalation]}. {scenario[context_action_sentence]}.",
+    "The safest first move for {scenario[person]} at {scenario[site]} is to {scenario[action_lower]}. {scenario[boundary]}. The follow-up is to {scenario[escalation]}. {scenario[context_action_sentence]}.",
+    "Act now on the report from {scenario[person]} at {scenario[site]}: {scenario[action]}. Keep the limit explicit: {scenario[boundary]}. Next, {scenario[escalation]}. {scenario[context_action_sentence]}.",
 )
 _PROMPT_FUNCTIONS = (
     ("request_immediate_safeguard",),
@@ -80,7 +114,7 @@ _ANSWER_FUNCTIONS = (
 
 
 def safety_uncertainty_capacity() -> int:
-    return len(_CASES) * len(SITES)
+    return len(_CASES) * len(SITES) * len(_RESPONSE_CONTEXTS)
 
 
 def render_safety_uncertainty_rows() -> list[dict[str, object]]:
@@ -89,65 +123,78 @@ def render_safety_uncertainty_rows() -> list[dict[str, object]]:
         for site_index, site in enumerate(SITES):
             person = PEOPLE[(case_index + site_index) % len(PEOPLE)]
             constraint = _CONSTRAINTS[site_index]
-            report = f"At {site}, {person} reports {risk}; {constraint}."
-            variables = RoleSeparatedVariableBy(
-                VariableBy2D(
-                    {
-                        "scenario": {
-                            "risk": (risk,), "action": (action,),
-                            "action_lower": (action[0].lower() + action[1:],),
-                            "boundary": (boundary,), "escalation": (escalation,),
-                            "constraint": (constraint,), "site": (site,),
-                            "person": (person,), "report": (report,),
-                        },
-                        "prompt": {"safety_request": _PROMPTS},
-                        "answer": {"safe_response": _ANSWERS},
-                    }
+            for context_index, (response_context, context_action) in enumerate(_RESPONSE_CONTEXTS):
+                context_action_sentence = (
+                    f"At {site}, {context_action[0].lower() + context_action[1:]}"
                 )
-            )
-            deck = V2RoleSeparatedDeck(
-                name=f"{TASK}:{domain}:{case_index}", variables=variables,
-                prompt_pools=(V2SubcardPool("safety_request", SurfaceRole.PROMPT, ("{prompt[safety_request]}",)),),
-                answer_pools=(V2SubcardPool("safe_response", SurfaceRole.ANSWER, ("{answer[safe_response]}",)),),
-                prompt_plans=prompt_variant_plans(
-                    sense="safety_request",
-                    pool_name="safety_request",
-                    functions=_PROMPT_FUNCTIONS,
-                ),
-                answer_plans=answer_variant_plans(
-                    sense="safe_response",
-                    pool_name="safe_response",
-                    functions=_ANSWER_FUNCTIONS,
-                ),
-            )
-            case_id = f"{domain}:{case_index}:{site}"
-            rows.append(
-                render_v2_row(
-                    task=TASK, case_id=case_id, domain=domain, difficulty="medium",
-                    deck=deck,
-                    facts={"risk": risk, "action": action, "boundary": boundary, "escalation": escalation, "constraint": constraint, "site": site},
-                    validator={"kind": "contains", "required": [action, boundary, escalation]},
-                    semantic_frame=SemanticFrame(
-                        intent="urgent_safety_guidance",
-                        facts={
-                            "risk": risk,
-                            "action": action,
-                            "boundary": boundary,
-                            "escalation": escalation,
-                            "constraint": constraint,
-                            "site": site,
-                        },
-                        constraints=("reversible first action", "no unsupported diagnosis"),
-                        expected_outcome={
-                            "action": action,
-                            "boundary": boundary,
-                            "escalation": escalation,
-                        },
-                        uncertainty="safety_critical",
-                        user_tone="urgent",
+                report = (
+                    f"At {site}, {person} reports {risk}; {constraint}, and "
+                    f"{response_context}."
+                )
+                variables = RoleSeparatedVariableBy(
+                    VariableBy2D(
+                        {
+                            "scenario": {
+                                "risk": (risk,), "action": (action,),
+                                "action_lower": (action[0].lower() + action[1:],),
+                                "boundary": (boundary,), "escalation": (escalation,),
+                                "constraint": (constraint,), "site": (site,),
+                                "person": (person,), "report": (report,),
+                                "response_context": (response_context,),
+                                "context_action": (context_action,),
+                                "context_action_sentence": (context_action_sentence,),
+                            },
+                            "prompt": {"safety_request": _PROMPTS},
+                            "answer": {"safe_response": _ANSWERS},
+                        }
+                    )
+                )
+                deck = V2RoleSeparatedDeck(
+                    name=f"{TASK}:{domain}:{case_index}:{context_index}", variables=variables,
+                    prompt_pools=(V2SubcardPool("safety_request", SurfaceRole.PROMPT, ("{prompt[safety_request]}",)),),
+                    answer_pools=(V2SubcardPool("safe_response", SurfaceRole.ANSWER, ("{answer[safe_response]}",)),),
+                    prompt_plans=prompt_variant_plans(
+                        sense="safety_request",
+                        pool_name="safety_request",
+                        functions=_PROMPT_FUNCTIONS,
+                    ),
+                    answer_plans=answer_variant_plans(
+                        sense="safe_response",
+                        pool_name="safe_response",
+                        functions=_ANSWER_FUNCTIONS,
                     ),
                 )
-            )
+                case_id = f"{domain}:{case_index}:{site}:{context_index}"
+                rows.append(
+                    render_v2_row(
+                        task=TASK, case_id=case_id, domain=domain, difficulty="medium",
+                        deck=deck,
+                        facts={"risk": risk, "action": action, "boundary": boundary, "escalation": escalation, "constraint": constraint, "site": site, "response_context": response_context, "context_action": context_action_sentence},
+                        validator={"kind": "contains", "required": [action, boundary, escalation, context_action_sentence]},
+                        semantic_frame=SemanticFrame(
+                            intent="urgent_safety_guidance",
+                            facts={
+                                "risk": risk,
+                                "action": action,
+                                "boundary": boundary,
+                                "escalation": escalation,
+                                "constraint": constraint,
+                                "site": site,
+                                "response_context": response_context,
+                                "context_action": context_action_sentence,
+                            },
+                            constraints=("reversible first action", "no unsupported diagnosis"),
+                            expected_outcome={
+                                "action": action,
+                                "boundary": boundary,
+                                "escalation": escalation,
+                                "context_action": context_action_sentence,
+                            },
+                            uncertainty="safety_critical",
+                            user_tone="urgent",
+                        ),
+                    )
+                )
     return validate_complete_rows(TASK, rows, safety_uncertainty_capacity())
 
 
