@@ -8,5 +8,5 @@ def test_v2_empathy_uses_full_capacity_and_passes() -> None:
     rows = render_conversation_empathy_rows()
     family = audit_v2_family_roadmap(rows)["families"]["conversation_empathy"]
 
-    assert len(rows) == conversation_empathy_capacity() == 128
+    assert len(rows) == conversation_empathy_capacity() == 2_048
     assert family["priority"] == "PASS"

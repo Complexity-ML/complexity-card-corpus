@@ -40,17 +40,35 @@ _SUPPORT_MODES = (
     ("boundary", "Your needs can be expressed without dismissing anyone else's", "Would a respectful boundary be helpful", "support a clear limit that acknowledges both the user and the other person"),
     ("perspective", "One difficult moment does not define the whole situation", "Would it help to identify what remains unchanged", "broaden the frame without minimizing the immediate disappointment or fear"),
 )
+_SUPPORT_LENSES = (
+    ("immediate_scope", "keep the reply focused on what can help during the next hour", "Only the next hour needs attention right now", "Would that shorter time frame feel manageable"),
+    ("low_pressure", "avoid making progress sound like another obligation", "Any possible action can remain optional rather than becoming another demand", "Would an option without pressure be easier to consider"),
+    ("self_compassion", "counter self-blame without dismissing responsibility", "The difficulty can be acknowledged without turning it into a judgment about you", "Could you offer yourself the same fairness you would offer someone else"),
+    ("specificity", "replace general reassurance with one concrete observation", "A specific observation may be steadier than broad reassurance", "Would naming one concrete part make this less diffuse"),
+    ("agency", "make clear that the person keeps control of the next choice", "You remain in control of whether and when to act", "Which option would preserve the most agency for you"),
+    ("reversibility", "favor a step that can be changed or undone", "A reversible move can provide information without locking in a decision", "Would a reversible first move reduce the stakes"),
+    ("connection", "leave room to involve one trusted person", "Support does not have to be carried alone", "Is there one trusted person you might include"),
+    ("rest", "recognize that pausing can be useful rather than avoidant", "A deliberate pause can protect attention instead of abandoning the issue", "Would a defined pause help you return with more capacity"),
+    ("evidence", "separate known events from feared interpretations", "What happened and what it seems to imply can be examined separately", "Which part is directly known rather than feared"),
+    ("values", "connect the response to what matters to the person", "The next choice can be guided by what you want to protect", "What value matters most in this situation"),
+    ("permission", "allow mixed feelings without forcing a single emotional label", "More than one feeling can be valid at the same time", "Would it help to name both sides without resolving them yet"),
+    ("pace", "match the response to a person who needs more time", "There is no need to move faster than your ability to process this", "What pace would feel respectful of your capacity"),
+    ("repair", "focus on what can still be repaired without promising an outcome", "Repair can begin with one honest action even when the result is uncertain", "What part remains within your ability to repair"),
+    ("boundary", "distinguish care from taking unlimited responsibility", "Caring about the outcome does not require carrying every part of it", "Where would a reasonable limit protect you"),
+    ("learning", "treat the experience as information without calling it a hidden benefit", "The experience may offer information even if it still feels painful", "What would you want to understand before trying again"),
+    ("continuity", "identify one stable resource or relationship that remains available", "Something stable may still be available while the situation changes", "What remains dependable enough to lean on today"),
+)
 _PROMPTS = (
-    "Respond with empathy and useful support. The person says: “{scenario[situation]}” For {scenario[mode]} support, {scenario[mode_instruction]}.",
-    "Give a natural, non-judgmental reply to this message: “{scenario[situation]}” Emphasize {scenario[mode]} by following this direction: {scenario[mode_instruction]}.",
-    "Acknowledge the feeling, offer one grounded action, and leave the choice with the user: “{scenario[situation]}” In this {scenario[mode]} response, {scenario[mode_instruction]}.",
-    "Continue this conversation warmly without abstract advice: “{scenario[situation]}” The user is asking for {scenario[mode]} support, so {scenario[mode_instruction]}.",
+    "Respond with empathy and useful support. The person says: “{scenario[situation]}” For {scenario[mode]} support, {scenario[mode_instruction]}; also {scenario[lens_instruction]}.",
+    "Give a natural, non-judgmental reply to this message: “{scenario[situation]}” Emphasize {scenario[mode]} by following this direction: {scenario[mode_instruction]}. In addition, {scenario[lens_instruction]}.",
+    "Acknowledge the feeling, offer one grounded action, and leave the choice with the user: “{scenario[situation]}” In this {scenario[mode]} response, {scenario[mode_instruction]}; {scenario[lens_instruction]}.",
+    "Continue this conversation warmly without abstract advice: “{scenario[situation]}” The user is asking for {scenario[mode]} support, so {scenario[mode_instruction]}. Make sure to {scenario[lens_instruction]}.",
 )
 _ANSWERS = (
-    "{scenario[acknowledgement]}. {scenario[mode_bridge]}. One practical move is to {scenario[action]}. {scenario[mode_question]}",
-    "{scenario[acknowledgement]}. {scenario[mode_bridge]}. You might {scenario[action]}, if that feels useful. {scenario[question]}",
-    "{scenario[acknowledgement]}. A gentle option is to {scenario[action]}. {scenario[mode_bridge]}. {scenario[mode_question]}",
-    "{scenario[acknowledgement]}. It may help to {scenario[action]}. {scenario[mode_bridge]}. {scenario[question]}",
+    "{scenario[acknowledgement]}. {scenario[mode_bridge]}. {scenario[lens_bridge]}. One practical move is to {scenario[action]}. {scenario[lens_question]}",
+    "{scenario[acknowledgement]}. {scenario[lens_bridge]}. You might {scenario[action]}, if that feels useful. {scenario[mode_bridge]}. {scenario[lens_question]}",
+    "{scenario[acknowledgement]}. A gentle option is to {scenario[action]}. {scenario[mode_bridge]}. {scenario[lens_bridge]}. {scenario[lens_question]}",
+    "{scenario[acknowledgement]}. It may help to {scenario[action]}. {scenario[lens_bridge]}. {scenario[mode_bridge]}. {scenario[lens_question]}",
 )
 _PROMPT_FUNCTIONS = (
     ("request_empathy", "specify_support_mode"),
@@ -67,59 +85,60 @@ _ANSWER_FUNCTIONS = (
 
 
 def conversation_empathy_capacity() -> int:
-    return len(_SITUATIONS) * len(_SUPPORT_MODES)
+    return len(_SITUATIONS) * len(_SUPPORT_MODES) * len(_SUPPORT_LENSES)
 
 
 def render_conversation_empathy_rows() -> list[dict[str, object]]:
     rows = []
     for domain, emotion, situation, acknowledgement, action, question in _SITUATIONS:
         for mode, mode_bridge, mode_question, mode_instruction in _SUPPORT_MODES:
-            contextual_mode_question = (
-                f"{mode_question} for this {emotion} situation?"
-            )
-            contextual_question = (
-                question.rstrip("?")
-                + f", or would {mode} support feel more useful?"
-            )
-            variables = RoleSeparatedVariableBy(
-                VariableBy2D(
-                    {
-                        "scenario": {
-                            "emotion": (emotion,), "situation": (situation,),
-                            "acknowledgement": (acknowledgement,), "action": (action,),
-                            "question": (contextual_question,), "mode": (mode,),
-                            "mode_bridge": (mode_bridge,),
-                            "mode_question": (contextual_mode_question,),
-                            "mode_instruction": (mode_instruction,),
-                        },
-                        "prompt": {"support_request": _PROMPTS},
-                        "answer": {"empathetic_response": _ANSWERS},
-                    }
+            for lens, lens_instruction, lens_bridge, lens_question in _SUPPORT_LENSES:
+                contextual_mode_question = f"{mode_question} for this {emotion} situation?"
+                contextual_question = question.rstrip("?") + f", or would {mode} support feel more useful?"
+                contextual_lens_bridge = f"{lens_bridge} while this feels {emotion}"
+                contextual_lens_question = lens_question.rstrip("?") + f" while using {mode} support?"
+                variables = RoleSeparatedVariableBy(
+                    VariableBy2D(
+                        {
+                            "scenario": {
+                                "emotion": (emotion,), "situation": (situation,),
+                                "acknowledgement": (acknowledgement,), "action": (action,),
+                                "question": (contextual_question,), "mode": (mode,),
+                                "mode_bridge": (mode_bridge,),
+                                "mode_question": (contextual_mode_question,),
+                                "mode_instruction": (mode_instruction,),
+                                "lens": (lens,), "lens_instruction": (lens_instruction,),
+                                "lens_bridge": (contextual_lens_bridge,),
+                                "lens_question": (contextual_lens_question,),
+                            },
+                            "prompt": {"support_request": _PROMPTS},
+                            "answer": {"empathetic_response": _ANSWERS},
+                        }
+                    )
                 )
-            )
-            deck = V2RoleSeparatedDeck(
-                name=f"{TASK}:{domain}:{emotion}:{mode}", variables=variables,
-                prompt_pools=(V2SubcardPool("support_request", SurfaceRole.PROMPT, ("{prompt[support_request]}",)),),
-                answer_pools=(V2SubcardPool("empathetic_response", SurfaceRole.ANSWER, ("{answer[empathetic_response]}",)),),
-                prompt_plans=prompt_variant_plans(
-                    sense="support_request",
-                    pool_name="support_request",
-                    functions=_PROMPT_FUNCTIONS,
-                ),
-                answer_plans=answer_variant_plans(
-                    sense="empathetic_response",
-                    pool_name="empathetic_response",
-                    functions=_ANSWER_FUNCTIONS,
-                ),
-            )
-            rows.append(
-                render_v2_row(
-                    task=TASK, case_id=f"{domain}:{emotion}:{mode}", domain=domain,
-                    difficulty="easy", deck=deck,
-                    facts={"emotion": emotion, "situation": situation, "acknowledgement": acknowledgement, "action": action, "mode": mode},
-                    validator={"kind": "contains", "required": [acknowledgement, action]},
+                deck = V2RoleSeparatedDeck(
+                    name=f"{TASK}:{domain}:{emotion}:{mode}:{lens}", variables=variables,
+                    prompt_pools=(V2SubcardPool("support_request", SurfaceRole.PROMPT, ("{prompt[support_request]}",)),),
+                    answer_pools=(V2SubcardPool("empathetic_response", SurfaceRole.ANSWER, ("{answer[empathetic_response]}",)),),
+                    prompt_plans=prompt_variant_plans(
+                        sense="support_request",
+                        pool_name="support_request",
+                        functions=_PROMPT_FUNCTIONS,
+                    ),
+                    answer_plans=answer_variant_plans(
+                        sense="empathetic_response",
+                        pool_name="empathetic_response",
+                        functions=_ANSWER_FUNCTIONS,
+                    ),
                 )
-            )
+                rows.append(
+                    render_v2_row(
+                        task=TASK, case_id=f"{domain}:{emotion}:{mode}:{lens}", domain=domain,
+                        difficulty="easy", deck=deck,
+                        facts={"emotion": emotion, "situation": situation, "acknowledgement": acknowledgement, "action": action, "mode": mode, "lens": lens},
+                        validator={"kind": "contains", "required": [acknowledgement, action, contextual_lens_bridge]},
+                    )
+                )
     return validate_complete_rows(TASK, rows, conversation_empathy_capacity())
 
 
