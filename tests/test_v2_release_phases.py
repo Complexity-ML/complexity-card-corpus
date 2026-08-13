@@ -114,3 +114,61 @@ def test_v2_audit_is_a_separate_phase(monkeypatch, tmp_path) -> None:
     manifest = json.loads((root / "manifest.json").read_text())
     assert manifest["phase_status"] == "audited"
     assert manifest["quality_status"] == "passed"
+
+
+def test_v2_token_manifest_is_release_ready_and_portable(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    class Encoding:
+        n_vocab = 32_000
+        eot_token = 0
+
+        @staticmethod
+        def encode(text, disallowed_special=()):
+            del disallowed_special
+            return [1 + byte % 255 for byte in text.encode()]
+
+        @staticmethod
+        def encode_single_token(_token):
+            return 0
+
+    monkeypatch.setattr(release, "render_complete_v2", lambda: [_row()])
+    monkeypatch.setattr(release, "v2_generation_progress", lambda: {})
+    monkeypatch.setattr(
+        release,
+        "load_encoding",
+        lambda _root: (
+            Encoding(),
+            {"encoding_name": "test-32k", "eos_token": "<|endoftext|>"},
+        ),
+    )
+    artifact = tmp_path / "artifact"
+    release.build_v2_release(artifact)
+    manifest_path = artifact / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["quality_status"] = "passed"
+    manifest["audit"] = {"sha256": "audit-sha"}
+    manifest_path.write_text(json.dumps(manifest))
+    tokenizer = tmp_path / "tokenizer"
+    tokenizer.mkdir()
+    (tokenizer / "tokenizer.json").write_text("{}")
+
+    token_manifest = release.tokenize_v2_release(
+        artifact,
+        tokenizer,
+        tmp_path / "tokenized",
+    )
+
+    assert token_manifest["release_quality"] == {
+        "ready": True,
+        "assistant_only_loss": True,
+        "reasoning_envelope_version": "card-corpus-v2-think-final-v1",
+        "source_audit_sha256": "audit-sha",
+    }
+    assert token_manifest["source"] == {
+        "format": "complexity-card-corpus-v2-release-v1",
+        "examples": 1,
+        "projected_sha256": manifest["projected"]["sha256"],
+    }
+    assert str(tmp_path) not in json.dumps(token_manifest)

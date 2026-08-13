@@ -253,7 +253,17 @@ def tokenize_v2_release(
         "format": "complexity-card-corpus-v2-tokenized-v1",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "quality_status": "passed",
-        "source": str(artifact_root.resolve()),
+        "release_quality": {
+            "ready": True,
+            "assistant_only_loss": True,
+            "reasoning_envelope_version": "card-corpus-v2-think-final-v1",
+            "source_audit_sha256": manifest["audit"]["sha256"],
+        },
+        "source": {
+            "format": manifest["format"],
+            "examples": manifest["examples"],
+            "projected_sha256": manifest["projected"]["sha256"],
+        },
         "partitions": partition_manifests,
         "total_examples": sum(item["examples"] for item in partition_manifests.values()),
         "total_tokens": sum(item["num_tokens"] for item in partition_manifests.values()),
